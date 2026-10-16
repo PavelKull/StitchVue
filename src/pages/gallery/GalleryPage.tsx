@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { ttlPreset } from './ttlPreset';
 import {
     useCallback,
     useEffect,
@@ -5141,19 +5142,6 @@ function samePathSet(
     }
     const known = new Set(left.map((item) => pathKey(item)));
     return right.every((item) => known.has(pathKey(item)));
-}
-
-function ttlPreset(secs: number | null | undefined): string {
-    if (secs == null) {
-        return 'never';
-    }
-    if (secs <= 3 * 24 * 60 * 60) {
-        return '3';
-    }
-    if (secs <= 7 * 24 * 60 * 60) {
-        return '7';
-    }
-    return '30';
 }
 
 function restorePromptText(code: string): string {
