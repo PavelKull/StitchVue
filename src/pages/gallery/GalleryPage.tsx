@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { samePathList, samePathSet } from './indexingPathEquality';
+import { samePathList } from '../../features/gallery/indexingPathEquality';
 import { ttlPreset } from './ttlPreset';
 import {
     useCallback,
@@ -67,12 +67,8 @@ import {
     rememberHotFolder,
     retainUnchanged,
 } from '../../features/gallery/folderHotCache';
-import {
-    folderThumbnailsPending as computeFolderThumbnailsPending,
-    markThumbSettled,
-    seedSettledThumbKeys,
-} from '../../features/gallery/folderThumbnailsPending';
-import { fetchPipelineStats } from '../../features/gallery/pipelineStats';
+import { useGalleryIndexingSync } from '../../features/gallery/useGalleryIndexingSync';
+import { useGalleryThumbProgress } from '../../features/gallery/useGalleryThumbProgress';
 import {
     aheadForInterval,
     isFastPace,
@@ -241,10 +237,7 @@ import {
     type AppPreferences,
 } from '../../features/settings/settingsPreferences';
 import { FOLDER_HEADER_TOP_PX } from '../../widgets/gallery-grid/folderHeaderScroll';
-import {
-    firstGeometryRange,
-    GEOMETRY_FIRST_WAIT_MS,
-} from '../../widgets/gallery-grid/layout';
+import { firstGeometryRange } from '../../widgets/gallery-grid/layout';
 import {
     FOLDER_HEADER_MORPH_MS,
     StitchVueGrid,
@@ -275,10 +268,7 @@ import {
     setGeometryRange,
     setVisibleRange,
 } from '../../features/gallery/api/galleryGeometryApi';
-import {
-    reorderIndexing,
-    startIndexing,
-} from '../../features/gallery/api/galleryIndexingApi';
+import { startIndexing } from '../../features/gallery/api/galleryIndexingApi';
 import { beginDirectorySession } from '../../features/gallery/api/gallerySessionApi';
 import { restorePromptText } from '../../features/gallery/restorePromptText';
 import { useGalleryFolderHistory } from '../../features/gallery/useGalleryFolderHistory';
@@ -388,17 +378,8 @@ export function GalleryPage() {
     const photoGridViewportRef = useRef<HTMLDivElement>(null);
     const bottomBarDockRef = useRef<HTMLDivElement>(null);
     const [folderListingBusy, setFolderListingBusy] = useState(true);
-    const [folderThumbnailsPending, setFolderThumbnailsPending] =
-        useState(true);
     const folderListingBusyRef = useRef(true);
     folderListingBusyRef.current = folderListingBusy;
-    const thumbSettledRef = useRef(new Set<string>());
-    const thumbExpectedRef = useRef(new Set<string>());
-    const thumbTotalRef = useRef(0);
-    const thumbProgressSessionRef = useRef(0);
-    const pipelinePassRef = useRef<string | null>(null);
-    const pipelinePendingRef = useRef<number | null>(null);
-    const cacheCappedRef = useRef(false);
     const photoFlipGen = useRef(0);
     const [photoFlip, setPhotoFlip] = useState<PhotoFlipRequest | null>(null);
     const galleryLayerRef = useRef<HTMLDivElement>(null);
@@ -469,8 +450,21 @@ export function GalleryPage() {
     const thumbsRef = useRef(new Map<string, ThumbInfo>());
     const failedRef = useRef(new Map<string, string>());
     const requestId = useRef(0);
+    const {
+        folderThumbsLoading,
+        beginFolderThumbProgress,
+        seedFolderThumbProgress,
+        syncFolderThumbnailsPending,
+        noteBaseThumbReadyRef,
+        noteThumbFailedRef,
+    } = useGalleryThumbProgress({
+        requestId,
+        folderListingBusy,
+        folderListingBusyRef,
+        thumbsRef,
+        failedRef,
+    });
     const pipelineListenersReady = useRef(createDeferredVoid());
-    const geometryNudgeSessionRef = useRef(0);
     const scanFolderRef = useRef<string | null>(null);
     const listingRescanRef = useRef(true);
     const resetScrollActivityRef = useRef<() => void>(() => undefined);
@@ -1115,69 +1109,6 @@ export function GalleryPage() {
         return () => window.clearTimeout(timer);
     }, [fileOperation]);
 
-    function syncFolderThumbnailsPending() {
-        const next = computeFolderThumbnailsPending({
-            listingBusy: folderListingBusyRef.current,
-            imageCount: thumbTotalRef.current,
-            settledCount: thumbSettledRef.current.size,
-            pipelinePending: pipelinePendingRef.current,
-            pipelinePass: pipelinePassRef.current,
-            cacheCapped: cacheCappedRef.current,
-        });
-        setFolderThumbnailsPending((current) =>
-            current === next ? current : next,
-        );
-    }
-
-    function beginFolderThumbProgress(session: number) {
-        thumbProgressSessionRef.current = session;
-        thumbSettledRef.current = new Set();
-        thumbExpectedRef.current = new Set();
-        thumbTotalRef.current = 0;
-        pipelinePassRef.current = null;
-        pipelinePendingRef.current = null;
-        cacheCappedRef.current = false;
-        setFolderThumbnailsPending(true);
-    }
-
-    function seedFolderThumbProgress(
-        session: number,
-        images: readonly ImageFile[],
-    ) {
-        if (session !== thumbProgressSessionRef.current) {
-            return;
-        }
-        thumbTotalRef.current = images.length;
-        thumbExpectedRef.current = new Set(
-            images.map((image) => pathKey(image.path)),
-        );
-        thumbSettledRef.current = seedSettledThumbKeys(
-            images,
-            thumbsRef.current,
-            failedRef.current,
-        );
-        syncFolderThumbnailsPending();
-    }
-
-    function noteFolderThumbSettled(path: string, session: number) {
-        if (session !== thumbProgressSessionRef.current) {
-            return;
-        }
-        const key = pathKey(path);
-        if (!thumbExpectedRef.current.has(key)) {
-            return;
-        }
-        if (!markThumbSettled(thumbSettledRef.current, path)) {
-            return;
-        }
-        syncFolderThumbnailsPending();
-    }
-
-    const noteBaseThumbReadyRef = useRef(noteFolderThumbSettled);
-    noteBaseThumbReadyRef.current = noteFolderThumbSettled;
-    const noteThumbFailedRef = useRef(noteFolderThumbSettled);
-    noteThumbFailedRef.current = noteFolderThumbSettled;
-
     function stashOpenFolder() {
         const current = viewRef.current;
         if (!current.path || current.images.length === 0) {
@@ -1556,93 +1487,18 @@ export function GalleryPage() {
         },
     );
 
-    useEffect(() => {
-        if (!geometryPending || !view.path) {
-            return;
-        }
-        const session = requestId.current;
-        const folder = view.path;
-        const files = orderedImages;
-        if (geometryNudgeSessionRef.current === session) {
-            return;
-        }
-        const timer = window.setTimeout(() => {
-            if (requestId.current !== session) {
-                return;
-            }
-            if (
-                listingHasTrustedGeometry(
-                    files,
-                    metaRef.current,
-                    failedRef.current,
-                )
-            ) {
-                return;
-            }
-            if (geometryNudgeSessionRef.current === session) {
-                return;
-            }
-            geometryNudgeSessionRef.current = session;
-            indexedPathsRef.current = files.map((file) => file.path);
-            void startIndexing(folder, files, session);
-            reportGeometryRange(files.length);
-        }, GEOMETRY_FIRST_WAIT_MS);
-        return () => window.clearTimeout(timer);
-    }, [
+    useGalleryIndexingSync({
         geometryPending,
-        view.path,
+        folderPath: view.path,
         orderedImages,
         metaVersion,
         failedVersion,
-    ]);
-
-    const folderThumbsLoading = folderListingBusy || folderThumbnailsPending;
-
-    useEffect(() => {
-        if (!folderThumbsLoading) {
-            return;
-        }
-        let cancelled = false;
-        const poll = async () => {
-            try {
-                const stats = await fetchPipelineStats();
-                if (
-                    cancelled ||
-                    requestId.current !== thumbProgressSessionRef.current
-                ) {
-                    return;
-                }
-                pipelinePassRef.current = stats.pass;
-                pipelinePendingRef.current = stats.pending;
-                cacheCappedRef.current = stats.cacheCapped;
-                syncFolderThumbnailsPending();
-            } catch {
-                // Stats are advisory; local settled counters remain the primary path.
-            }
-        };
-        void poll();
-        const timer = window.setInterval(() => void poll(), 500);
-        return () => {
-            cancelled = true;
-            window.clearInterval(timer);
-        };
-    }, [folderThumbsLoading]);
-
-    useEffect(() => {
-        const folder = view.path;
-        if (!folder || orderedImages.length === 0) {
-            return;
-        }
-        const paths = orderedImages.map((file) => file.path);
-        if (
-            samePathList(indexedPathsRef.current, paths) ||
-            !samePathSet(indexedPathsRef.current, paths)
-        ) {
-            return;
-        }
-        indexedPathsRef.current = paths;
-        void reorderIndexing(orderedImages);
-    }, [view.path, orderedImages]);
+        requestId,
+        indexedPathsRef,
+        metaRef,
+        failedRef,
+        reportGeometryRange,
+    });
     const gallerySortRef = useRef(gallerySort);
     gallerySortRef.current = gallerySort;
     const viewedPathRef = useRef<string | null>(null);
