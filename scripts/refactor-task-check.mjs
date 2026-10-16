@@ -188,6 +188,19 @@ function collectCommittedSince(baseCommit, gitCwd) {
   return splitLines(d.out);
 }
 
+function taskFileChangedVsHead(relTask, gitCwd) {
+  const gitPath = relTask.replace(/\\/g, "/");
+  const unstaged = git(["diff", "--name-only", "HEAD", "--", gitPath], gitCwd);
+  const staged = git(
+    ["diff", "--cached", "--name-only", "HEAD", "--", gitPath],
+    gitCwd,
+  );
+  const names = new Set();
+  if (unstaged.ok) splitLines(unstaged.out).forEach((f) => names.add(f));
+  if (staged.ok) splitLines(staged.out).forEach((f) => names.add(f));
+  return names.size > 0;
+}
+
 const HEAD_APPROVED_STATUSES = new Set([
   "approved",
   "in_progress",
@@ -497,10 +510,12 @@ function main() {
   const working = collectWorkingTreeFiles(gitCwd);
   const committed = collectCommittedSince(base, gitCwd);
   const changedForScope = [...new Set([...working, ...committed])];
+  const executionScope = working;
 
   const dirtyAllowed = working.filter((f) => inAllowed(f, allowed, relTask));
   const dirtyUnrelated = working.filter((f) => !inAllowed(f, allowed, relTask));
-  const forbiddenHit = changedForScope.filter(
+  const scopeForForbidden = strict ? executionScope : changedForScope;
+  const forbiddenHit = scopeForForbidden.filter(
     (f) => forbidden.length && pathMatchesScope(f, forbidden),
   );
 
@@ -520,20 +535,36 @@ function main() {
     }
   }
 
-  const outOfScope = changedForScope.filter((f) => !inAllowed(f, allowed, relTask));
+  const outOfScopeLint = changedForScope.filter(
+    (f) => !inAllowed(f, allowed, relTask),
+  );
+  const outOfScopeExecution = executionScope.filter(
+    (f) => !inAllowed(f, allowed, relTask),
+  );
 
   if (strict) {
-    if (allowed.length && working.filter((f) => inAllowed(f, allowed, relTask)).length === 0 && committed.filter((f) => inAllowed(f, allowed, relTask)).length === 0) {
-      warnings.push("--strict: нет изменений в allowed_paths относительно рабочей копии / base_commit");
+    const executionInAllowed = executionScope.filter(
+      (f) => inAllowed(f, allowed, relTask) && !isImplicitAllowed(f, relTask),
+    );
+    if (allowed.length && executionInAllowed.length === 0) {
+      warnings.push(
+        "--strict: нет изменений в allowed_paths в рабочей копии (staged/unstaged/untracked)",
+      );
     }
-    const out = outOfScope;
-    if (out.length) {
-      const msg = `Вне allowed_paths: ${out.join(", ")}`;
+    if (taskFileChangedVsHead(relTask, gitCwd)) {
+      errors.push(
+        "--strict: файл задачи изменён относительно HEAD — контракт нельзя менять во время исполнения",
+      );
+    }
+    if (outOfScopeExecution.length) {
+      const msg = `Вне allowed_paths: ${outOfScopeExecution.join(", ")}`;
       if (allowUnrelatedDirty) warnings.push(msg);
       else errors.push(msg);
     }
-  } else if (!preflight && !auth && allowed.length && outOfScope.length) {
-    warnings.push(`Вне allowed_paths (включите --strict чтобы это был ERR): ${outOfScope.join(", ")}`);
+  } else if (!preflight && !auth && allowed.length && outOfScopeLint.length) {
+    warnings.push(
+      `Вне allowed_paths (включите --strict чтобы это был ERR): ${outOfScopeLint.join(", ")}`,
+    );
   }
 
   if (forbiddenHit.length) {

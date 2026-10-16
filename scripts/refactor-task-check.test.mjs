@@ -3,6 +3,7 @@ import {
   writeFileSync,
   readFileSync,
   rmSync,
+  mkdirSync,
 } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -114,6 +115,20 @@ function setupRepoWithApprovedHead() {
   const hash = sealAndReadHash(file);
   commitAll(dir, "approve task");
   return { dir, file, codeBase, hash };
+}
+
+function setupApprovedWithInfraAfterBase() {
+  const ctx = setupRepoWithApprovedHead();
+  mkdirSync(join(ctx.dir, "scripts"), { recursive: true });
+  writeFileSync(join(ctx.dir, "scripts", "infra.mjs"), "// infra\n", "utf8");
+  commitAll(ctx.dir, "infra after approval");
+  return ctx;
+}
+
+function writeAllowedWorkingChange(dir) {
+  const codeDir = join(dir, "src", "pages", "gallery");
+  mkdirSync(codeDir, { recursive: true });
+  writeFileSync(join(codeDir, "ttlPreset.ts"), "export const x = 1;\n", "utf8");
 }
 
 test("lint EXAMPLE без --strict — OK", () => {
@@ -284,6 +299,99 @@ test("TASK отсутствует в HEAD → FAIL", () => {
     const r = runCheck(file, ["--preflight", "--allow-unrelated-dirty"]);
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /отсутствует в HEAD/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: infra-коммит после base + разрешённый рабочий diff → PASS", () => {
+  const { dir, file } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    const r = runCheck(file, ["--strict"]);
+    assert.equal(r.status, 0, r.stderr + r.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: unstaged вне allowed_paths → FAIL", () => {
+  const { dir, file } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    writeFileSync(join(dir, "scripts", "infra.mjs"), "// changed\n", "utf8");
+    const r = runCheck(file, ["--strict"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr + r.stdout, /Вне allowed_paths/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: staged вне allowed_paths → FAIL", () => {
+  const { dir, file } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    writeFileSync(join(dir, "scripts", "infra.mjs"), "// staged\n", "utf8");
+    gitRun(dir, ["add", "scripts/infra.mjs"]);
+    const r = runCheck(file, ["--strict"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr + r.stdout, /Вне allowed_paths/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: untracked вне allowed_paths → FAIL", () => {
+  const { dir, file } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    writeFileSync(join(dir, "loose.txt"), "nope\n", "utf8");
+    const r = runCheck(file, ["--strict"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr + r.stdout, /Вне allowed_paths/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: изменение утверждённого TASK → FAIL", () => {
+  const { dir, file, codeBase, hash } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    writeFileSync(
+      file,
+      taskMarkdown({ status: "in_progress", base: codeBase, hash }),
+      "utf8",
+    );
+    const r = runCheck(file, ["--strict"]);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr + r.stdout, /файл задачи изменён/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("strict: allowed_paths после seal → FAIL", () => {
+  const { dir, file, codeBase, hash } = setupApprovedWithInfraAfterBase();
+  try {
+    writeAllowedWorkingChange(dir);
+    writeFileSync(
+      file,
+      taskMarkdown({
+        status: "approved",
+        base: codeBase,
+        hash,
+        extraPath: "src/pages/gallery/GalleryPage.tsx",
+      }),
+      "utf8",
+    );
+    const r = runCheck(file, ["--strict"]);
+    assert.notEqual(r.status, 0);
+    assert.match(
+      r.stderr + r.stdout,
+      /approval_hash не совпадает|контракт рабочей копии/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
