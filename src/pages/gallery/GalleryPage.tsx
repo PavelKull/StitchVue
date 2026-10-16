@@ -270,7 +270,16 @@ import {
     createEmptyView,
     withLocalizedDirectory,
 } from '../../features/gallery/galleryDirectoryView';
-import { indexPayload } from '../../features/gallery/galleryIndexPayload';
+import { clearThumbnailCache } from '../../features/gallery/api/galleryCacheApi';
+import {
+    setGeometryRange,
+    setVisibleRange,
+} from '../../features/gallery/api/galleryGeometryApi';
+import {
+    reorderIndexing,
+    startIndexing,
+} from '../../features/gallery/api/galleryIndexingApi';
+import { beginDirectorySession } from '../../features/gallery/api/gallerySessionApi';
 import { restorePromptText } from '../../features/gallery/restorePromptText';
 import { useGalleryFolderHistory } from '../../features/gallery/useGalleryFolderHistory';
 import { DISK_SERVICE_FOLDER_LEAF } from '../../entities/folder/serviceFolder';
@@ -1231,7 +1240,7 @@ export function GalleryPage() {
         setHoverFolderSession(id);
         hoverRef.current?.leaveFolder();
         hoverRef.current?.leavePhoto();
-        await invoke('begin_directory_session', { session: id, folder: path });
+        await beginDirectorySession(id, path);
         stashOpenFolder();
         scrollTopRef.current = 0;
         resetScrollActivityRef.current();
@@ -1353,11 +1362,7 @@ export function GalleryPage() {
             const sorted = sortPhotos(next.images, gallerySortRef.current);
             indexedPathsRef.current = sorted.map((file) => file.path);
             if (sorted.length > 0 && next.path) {
-                void invoke('start_indexing', {
-                    folder: next.path,
-                    files: indexPayload(sorted),
-                    session: id,
-                });
+                void startIndexing(next.path, sorted, id);
                 reportGeometryRange(sorted.length);
             }
             if (focusImagePath) {
@@ -1398,7 +1403,7 @@ export function GalleryPage() {
             focusStart: number,
             focusEnd: number,
         ) => {
-            void invoke('set_visible_range', {
+            void setVisibleRange({
                 start,
                 end,
                 focusStart,
@@ -1410,7 +1415,7 @@ export function GalleryPage() {
     );
 
     const reportGeometry = useCallback((start: number, end: number) => {
-        void invoke('set_geometry_range', { start, end });
+        void setGeometryRange(start, end);
     }, []);
 
     function reportGeometryRange(fileCount: number) {
@@ -1422,10 +1427,7 @@ export function GalleryPage() {
             fileCount,
         );
         if (range.end > 0) {
-            void invoke('set_geometry_range', {
-                start: range.start,
-                end: range.end,
-            });
+            void setGeometryRange(range.start, range.end);
         }
     }
 
@@ -1437,7 +1439,7 @@ export function GalleryPage() {
     }
 
     async function clearCache(): Promise<void> {
-        await invoke('clear_cache');
+        await clearThumbnailCache();
         thumbsRef.current = new Map();
         setThumbVersion((value) => value + 1);
         refreshUsage();
@@ -1445,11 +1447,7 @@ export function GalleryPage() {
             const sorted = sortPhotos(view.images, gallerySortRef.current);
             indexedPathsRef.current = sorted.map((file) => file.path);
             thumbSeen.current = false;
-            await invoke('start_indexing', {
-                folder: view.path,
-                files: indexPayload(sorted),
-                session: requestId.current,
-            });
+            await startIndexing(view.path, sorted, requestId.current);
             reportGeometryRange(sorted.length);
         }
     }
@@ -1586,11 +1584,7 @@ export function GalleryPage() {
             }
             geometryNudgeSessionRef.current = session;
             indexedPathsRef.current = files.map((file) => file.path);
-            void invoke('start_indexing', {
-                folder,
-                files: indexPayload(files),
-                session,
-            });
+            void startIndexing(folder, files, session);
             reportGeometryRange(files.length);
         }, GEOMETRY_FIRST_WAIT_MS);
         return () => window.clearTimeout(timer);
@@ -1647,7 +1641,7 @@ export function GalleryPage() {
             return;
         }
         indexedPathsRef.current = paths;
-        void invoke('reorder_indexing', { files: indexPayload(orderedImages) });
+        void reorderIndexing(orderedImages);
     }, [view.path, orderedImages]);
     const gallerySortRef = useRef(gallerySort);
     gallerySortRef.current = gallerySort;
@@ -2546,11 +2540,7 @@ export function GalleryPage() {
             const changed = !samePathList(indexedPathsRef.current, nextPaths);
             if (changed && next.path) {
                 indexedPathsRef.current = nextPaths;
-                await invoke('start_indexing', {
-                    folder: next.path,
-                    files: indexPayload(sorted),
-                    session: id,
-                });
+                await startIndexing(next.path, sorted, id);
                 reportGeometryRange(sorted.length);
                 if (
                     open &&
