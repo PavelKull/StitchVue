@@ -98,15 +98,13 @@ import {
     loadPanelMemory,
     savePanelMemory,
 } from '../../features/gallery/panelMemory';
-import { pointerOverTopNavDock } from '../../features/gallery/topNavDock';
 import {
     toolbarPeekDistanceFromBottom,
-    toolbarPeekShouldActivate,
-    toolbarPeekShouldHide,
     toolbarPeekShouldKeepOnLeave,
 } from '../../features/gallery/toolbarPeekGeometry';
+import { topNavPeekShouldShow } from '../../features/gallery/topNavPeekGeometry';
+import { useGalleryPanelPeek } from '../../features/gallery/useGalleryPanelPeek';
 import { bottomScrollPadNeeded } from '../../features/gallery/bottomScrollPad';
-import { REVEAL_PX } from '../../widgets/gallery-grid/scrollbarGeometry';
 import { FolderIcon } from '../../shared/icons/SvgIcon';
 import { StitchVueIcon } from '../../shared/icons/StitchVueIcon';
 import {
@@ -294,97 +292,6 @@ function createEmptyView(title: string): DirectoryView {
     };
 }
 
-/** Глубина от верха галереи, в которой курсор вызывает peek (меньше высоты самой панели). */
-const TOP_NAV_PEEK_ACTIVATE_DEPTH_PX = 8 + 28;
-/** Зона над webview (строка заголовка), где peek тоже срабатывает */
-const WINDOW_FRAME_TOP_PX = 32;
-/** Полоса захвата ползунка плюс синее свечение, чтобы подъём по ползунку не открывал панель. */
-const TOP_NAV_LANE_GUARD_BASE_PX = REVEAL_PX + 72;
-/** Пробный сдвиг к ползунку. 0 возвращает прежнюю границу зоны появления верхней панели. */
-const TOP_NAV_LANE_TRIAL_PX = 40;
-const TOP_NAV_LANE_GUARD_PX =
-    TOP_NAV_LANE_GUARD_BASE_PX - TOP_NAV_LANE_TRIAL_PX;
-
-function topNavPeekShouldShow(
-    clientX: number,
-    clientY: number,
-    shellRect: DOMRect,
-    target: EventTarget | null,
-): boolean {
-    const overShellHorizontally =
-        clientX >= shellRect.left && clientX <= shellRect.right;
-    if (!overShellHorizontally) {
-        return false;
-    }
-    if (
-        target instanceof Element &&
-        target.closest("[data-scrollbar-obstacle='top']")
-    ) {
-        return true;
-    }
-    if (pointerOverTopNavDock(clientX, clientY)) {
-        return true;
-    }
-    const bandTop = shellRect.top - WINDOW_FRAME_TOP_PX;
-    const bandBottom = shellRect.top + TOP_NAV_PEEK_ACTIVATE_DEPTH_PX;
-    if (clientY < bandTop || clientY > bandBottom) {
-        return false;
-    }
-    if (document.documentElement.dataset.scrollbarDrag === 'true') {
-        return false;
-    }
-    const scrollbar = document.querySelector<HTMLElement>(
-        '[data-gallery-scrollbar]',
-    );
-    if (scrollbar?.dataset.shown === 'true') {
-        return false;
-    }
-    if (
-        target instanceof Element &&
-        target.closest('[data-gallery-scrollbar]')
-    ) {
-        return false;
-    }
-    const viewport = document.querySelector<HTMLElement>(
-        '[data-gallery-viewport]',
-    );
-    const right = viewport?.getBoundingClientRect().right ?? shellRect.right;
-    if (clientX <= right - TOP_NAV_LANE_GUARD_PX) {
-        return true;
-    }
-    return false;
-}
-
-/** Ползунок / правая полоса скролла не должны открывать нижнюю панель. */
-function toolbarPeekBlockedByScrollbar(
-    clientX: number,
-    target: EventTarget | null,
-): boolean {
-    if (
-        target instanceof Element &&
-        target.closest("[data-scrollbar-obstacle='bottom']")
-    ) {
-        return false;
-    }
-    if (document.documentElement.dataset.scrollbarDrag === 'true') {
-        return true;
-    }
-    if (
-        target instanceof Element &&
-        target.closest('[data-gallery-scrollbar]')
-    ) {
-        return true;
-    }
-    const viewport = document.querySelector<HTMLElement>(
-        '[data-gallery-viewport]',
-    );
-    const right = viewport?.getBoundingClientRect().right;
-    if (right != null && clientX > right - TOP_NAV_LANE_GUARD_PX) {
-        return true;
-    }
-    return false;
-}
-
 type CacheUsage = {
     usedBytes: number;
     limitBytes: number;
@@ -439,25 +346,11 @@ export function GalleryPage() {
             ? loadPanelMemory().topNavPinned
             : true,
     );
-    const [topNavVisible, setTopNavVisible] = useState(() => {
-        const prefs = loadPreferences();
-        const pinned = prefs.rememberPanelsPinned
-            ? loadPanelMemory().topNavPinned
-            : true;
-        return pinned || !prefs.panelsPeekOnEdge;
-    });
     const [toolbarPinned, setToolbarPinned] = useState(() =>
         loadPreferences().rememberPanelsPinned
             ? loadPanelMemory().toolbarPinned
             : true,
     );
-    const [toolbarVisible, setToolbarVisible] = useState(() => {
-        const prefs = loadPreferences();
-        const pinned = prefs.rememberPanelsPinned
-            ? loadPanelMemory().toolbarPinned
-            : true;
-        return pinned || !prefs.panelsPeekOnEdge;
-    });
     const [sidebarWidth, setSidebarWidth] = useState(
         () => loadPanelMemory().sidebarWidth,
     );
@@ -494,17 +387,7 @@ export function GalleryPage() {
     const scrollRestoreToken = useRef(0);
     const [selectionMode, setSelectionMode] = useState(false);
     const [propertiesPath, setPropertiesPath] = useState<string | null>(null);
-    const toolbarHideTimer = useRef(0);
-    const toolbarMenuHold = useRef(false);
-    const holdToolbarForMenu = useCallback((hold: boolean) => {
-        toolbarMenuHold.current = hold;
-        if (!hold) {
-            return;
-        }
-        window.clearTimeout(toolbarHideTimer.current);
-        toolbarHideTimer.current = 0;
-        setToolbarVisible(true);
-    }, []);
+    const shellRef = useRef<HTMLElement>(null);
     const photoGridViewportRef = useRef<HTMLDivElement>(null);
     const bottomBarDockRef = useRef<HTMLDivElement>(null);
     const [bottomOverlayReserve, setBottomOverlayReserve] = useState(0);
@@ -642,6 +525,28 @@ export function GalleryPage() {
         confirmMoveOverlayMounted ||
         unfavoriteOverlayMounted ||
         restoreOverlayMounted;
+
+    const galleryHasImages = useCallback(
+        () => viewRef.current.images.length > 0,
+        [],
+    );
+    const {
+        topNavVisible,
+        setTopNavVisible,
+        toolbarVisible,
+        setToolbarVisible,
+        toolbarHideTimer,
+        toolbarMenuHold,
+        holdToolbarForMenu,
+    } = useGalleryPanelPeek({
+        shellRef,
+        overlayBlocksToolbarPeek,
+        topNavPinned,
+        toolbarPinned,
+        panelsPeekOnEdge: preferences.panelsPeekOnEdge,
+        galleryHasImages,
+    });
+
     const unfavoriteBatchRef = useRef<{
         sessionId: string;
         sessionPath: string;
@@ -1278,107 +1183,6 @@ export function GalleryPage() {
     }, [gallerySort, rowsPerScreen, view.path]);
 
     useEffect(() => () => hoverRef.current?.dispose(), []);
-
-    useEffect(() => {
-        if (topNavPinned || !preferences.panelsPeekOnEdge) {
-            setTopNavVisible(true);
-        }
-    }, [topNavPinned, preferences.panelsPeekOnEdge]);
-
-    const shellRef = useRef<HTMLElement>(null);
-
-    useEffect(() => {
-        if (
-            overlayBlocksToolbarPeek ||
-            topNavPinned ||
-            !preferences.panelsPeekOnEdge
-        ) {
-            return;
-        }
-        function onWindowMouseMove(event: MouseEvent) {
-            const shell = shellRef.current;
-            if (!shell) {
-                return;
-            }
-            if (viewRef.current.images.length === 0) {
-                return;
-            }
-            setTopNavVisible(
-                topNavPeekShouldShow(
-                    event.clientX,
-                    event.clientY,
-                    shell.getBoundingClientRect(),
-                    event.target,
-                ),
-            );
-        }
-        window.addEventListener('mousemove', onWindowMouseMove);
-        return () => window.removeEventListener('mousemove', onWindowMouseMove);
-    }, [overlayBlocksToolbarPeek, topNavPinned, preferences.panelsPeekOnEdge]);
-
-    useEffect(() => {
-        if (toolbarPinned || !preferences.panelsPeekOnEdge) {
-            setToolbarVisible(true);
-        }
-    }, [toolbarPinned, preferences.panelsPeekOnEdge]);
-
-    useEffect(() => {
-        if (!overlayBlocksToolbarPeek) {
-            return;
-        }
-        window.clearTimeout(toolbarHideTimer.current);
-        toolbarHideTimer.current = 0;
-    }, [overlayBlocksToolbarPeek]);
-
-    useEffect(() => {
-        if (
-            overlayBlocksToolbarPeek ||
-            toolbarPinned ||
-            !preferences.panelsPeekOnEdge
-        ) {
-            return;
-        }
-        function onWindowMouseMove(event: MouseEvent) {
-            const shell = shellRef.current;
-            if (!shell) {
-                return;
-            }
-            const shellRect = shell.getBoundingClientRect();
-            if (
-                event.clientX < shellRect.left ||
-                event.clientX > shellRect.right
-            ) {
-                return;
-            }
-            if (toolbarMenuHold.current) {
-                window.clearTimeout(toolbarHideTimer.current);
-                toolbarHideTimer.current = 0;
-                setToolbarVisible(true);
-                return;
-            }
-            const fromBottom = toolbarPeekDistanceFromBottom(event.clientY);
-            if (toolbarPeekShouldActivate(fromBottom)) {
-                if (
-                    toolbarPeekBlockedByScrollbar(event.clientX, event.target)
-                ) {
-                    return;
-                }
-                window.clearTimeout(toolbarHideTimer.current);
-                toolbarHideTimer.current = 0;
-                setToolbarVisible(true);
-            } else if (
-                toolbarPeekShouldHide(fromBottom) &&
-                !toolbarHideTimer.current
-            ) {
-                toolbarHideTimer.current = window.setTimeout(() => {
-                    setToolbarVisible(false);
-                    toolbarHideTimer.current = 0;
-                }, 400);
-            }
-        }
-        window.addEventListener('mousemove', onWindowMouseMove);
-        return () => window.removeEventListener('mousemove', onWindowMouseMove);
-    }, [overlayBlocksToolbarPeek, toolbarPinned, preferences.panelsPeekOnEdge]);
 
     useLayoutEffect(() => {
         const dock = bottomBarDockRef.current;
