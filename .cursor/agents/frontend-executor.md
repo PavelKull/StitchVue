@@ -37,8 +37,9 @@ FAIL гейта — стоп. Смена `allowed_paths` ломает hash — �
 6. Запрещено: расширение scope, попутный рефакторинг, формат всего файла, commit/reset/clean/checkout с потерей чужих изменений.
 7. Две неудачные попытки одной ошибки — стоп.
 
-Правила: `.cursor/rules/safe-refactoring.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`.
+Правила: `.cursor/rules/safe-refactoring.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
 Комментарии — по `code-comments.mdc` (явно подключать/проверять загрузку правила в задаче). Не дублировать правило здесь; не расширять scope ради документации.
+Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 
 # Token budget
 Адресный поиск, без `node_modules`/`dist`/`target`. До двух итераций поиска причины. Отчёт 300–500 слов. Не запускай субагентов. Не читай весь репозиторий.
