@@ -1,0 +1,38 @@
+@use "design-tokens";
+@use "stitchvue-scrollbar";
+
+@font-face {
+  font-family: "Onest";
+  src: url("../fonts/onest/Onest[wght].ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  overflow: hidden;
+  color: var(--pg-text-primary);
+  background: var(--pg-bg);
+  font-family: var(--pg-font);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+

@@ -1,0 +1,288 @@
+@use "../../shared/styles/floating-panel" as panel;
+@use "../../shared/styles/modal-motion" as modal;
+
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: min(920px, calc(100vw - 32px));
+  padding: 8px 12px;
+  color: var(--pg-text-primary);
+  @include panel.floating-toolbar-surface;
+  border-radius: var(--pg-radius-toolbar);
+}
+
+.embedded {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.count {
+  padding: 0 8px;
+  color: var(--pg-text-primary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.actionWrap {
+  display: inline-flex;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--pg-radius-control);
+  background: transparent;
+  color: var(--pg-icon);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: rgb(255 255 255 / 6%);
+    color: var(--pg-icon-hover);
+  }
+
+  &:disabled {
+    opacity: 0.42;
+    color: var(--pg-icon-disabled);
+    cursor: default;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pg-accent);
+    outline-offset: 2px;
+  }
+}
+
+.icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.progress {
+  color: var(--pg-text-secondary);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.notice {
+  position: fixed;
+  bottom: 112px;
+  left: 50%;
+  z-index: 130;
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  max-width: min(520px, calc(100vw - 32px));
+  overflow: hidden;
+  color: var(--pg-text-primary);
+  cursor: pointer;
+  transform: translateX(-50%);
+  @include panel.floating-toolbar-surface;
+  border: 0;
+  border-radius: var(--pg-radius-panel);
+  box-shadow:
+    0 0 12px 2px color-mix(in srgb, var(--pg-accent) 88%, transparent),
+    0 0 32px 6px color-mix(in srgb, var(--pg-accent) 48%, transparent),
+    0 0 54px 10px rgb(148 156 166 / 38%);
+
+  &:hover .noticeTimerBar {
+    animation-play-state: paused;
+  }
+}
+
+.noticeError {
+  box-shadow:
+    0 0 12px 2px color-mix(in srgb, #ff5a6a 88%, transparent),
+    0 0 32px 6px color-mix(in srgb, #ff5a6a 48%, transparent),
+    0 0 54px 10px rgb(166 120 128 / 38%);
+
+  .noticeTimer {
+    background: rgb(255 90 106 / 18%);
+  }
+
+  .noticeTimerBar {
+    background: #ff5a6a;
+    box-shadow:
+      0 0 8px 2px color-mix(in srgb, #ff5a6a 90%, transparent),
+      0 -2px 14px 3px color-mix(in srgb, #ff5a6a 55%, transparent),
+      0 0 22px 4px color-mix(in srgb, #ff5a6a 35%, transparent);
+  }
+}
+
+.noticeContent {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px 14px;
+}
+
+.noticeBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.noticeTimer {
+  height: 3px;
+  background: rgb(90 167 255 / 18%);
+}
+
+.noticeTimerBar {
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: var(--pg-accent);
+  box-shadow:
+    0 0 8px 2px color-mix(in srgb, var(--pg-accent) 90%, transparent),
+    0 -2px 14px 3px color-mix(in srgb, var(--pg-accent) 55%, transparent),
+    0 0 22px 4px color-mix(in srgb, var(--pg-accent) 35%, transparent);
+  animation-name: notice-timer-shrink;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes notice-timer-shrink {
+  from {
+    transform: scaleX(1);
+  }
+
+  to {
+    transform: scaleX(0);
+  }
+}
+
+
+.noticeTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.noticeText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 10;
+  overflow: hidden;
+}
+
+.noticeList {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--pg-text-secondary);
+  font-size: 12px;
+}
+
+.noticeUndo {
+  flex: none;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--pg-radius-control);
+  background: transparent;
+  color: var(--pg-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 46%);
+  @include modal.modal-backdrop-motion;
+}
+
+.dialog {
+  width: min(440px, 100%);
+  padding: 20px;
+  color: var(--pg-text-primary);
+  @include panel.floating-panel-surface;
+  @include modal.modal-dialog-motion;
+}
+
+.dialogText {
+  white-space: pre-line;
+  margin: 0 0 16px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.dialogDetail {
+  max-height: min(240px, 42vh);
+  margin: 0 0 16px;
+  overflow-y: auto;
+}
+
+.dialogSubtext {
+  margin: 0 0 12px;
+  color: var(--pg-text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.dialogList {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: var(--pg-text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialogButton,
+.dialogPrimary {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--pg-border);
+  border-radius: var(--pg-radius-control);
+  background: transparent;
+  color: var(--pg-text-primary);
+  font: inherit;
+  cursor: pointer;
+
+  &:focus-visible {
+    outline: 2px solid var(--pg-accent);
+    outline-offset: 2px;
+  }
+}
+
+.dialogPrimary {
+  border-color: transparent;
+  background: var(--pg-accent);
+  color: #fff;
+}

@@ -1,0 +1,42 @@
+@use "../styles/z-index" as z;
+
+.wrap {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.tip {
+  position: fixed;
+  z-index: z.$tooltip;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 16px));
+  padding: 6px 10px;
+  border: 0;
+  outline: none;
+  border-radius: 8px;
+  color: var(--pg-text-primary);
+  background: rgb(44 51 60 / 86%);
+  box-shadow:
+    0 0 12px 2px color-mix(in srgb, var(--pg-accent) 88%, transparent),
+    0 0 32px 6px color-mix(in srgb, var(--pg-accent) 48%, transparent),
+    0 0 54px 10px rgb(148 156 166 / 38%);
+  font-size: 12px;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 160ms ease;
+}
+
+:global(html[data-tips="off"]) .tip {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tip {
+    transition: none;
+  }
+}

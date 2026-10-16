@@ -1,0 +1,264 @@
+{
+  "name": "StitchVue Icon System",
+  "version": "2.0.0",
+  "design": {
+    "viewBox": "0 0 24 24",
+    "size": "24x24",
+    "strokeWidth": 1.7,
+    "linecap": "round",
+    "linejoin": "round",
+    "colorMode": "currentColor",
+    "recommendedColors": {
+      "default": "#E6EDF5",
+      "hover": "#FFFFFF",
+      "active": "#5AA7FF",
+      "disabled": "#8A94A6"
+    }
+  },
+  "icons": [
+    {
+      "name": "check",
+      "file": "check.svg"
+    },
+    {
+      "name": "breadcrumb-chevron-right",
+      "file": "breadcrumb-chevron-right.svg"
+    },
+    {
+      "name": "chevron-down",
+      "file": "chevron-down.svg"
+    },
+    {
+      "name": "chevron-left",
+      "file": "chevron-left.svg"
+    },
+    {
+      "name": "chevron-right",
+      "file": "chevron-right.svg"
+    },
+    {
+      "name": "chevron-up",
+      "file": "chevron-up.svg"
+    },
+    {
+      "name": "computer",
+      "file": "computer.svg"
+    },
+    {
+      "name": "drive",
+      "file": "drive.svg"
+    },
+    {
+      "name": "drive-bluetooth",
+      "file": "drive-bluetooth.svg"
+    },
+    {
+      "name": "drive-camera",
+      "file": "drive-camera.svg"
+    },
+    {
+      "name": "drive-mobile",
+      "file": "drive-mobile.svg"
+    },
+    {
+      "name": "drive-nas",
+      "file": "drive-nas.svg"
+    },
+    {
+      "name": "drive-optical",
+      "file": "drive-optical.svg"
+    },
+    {
+      "name": "drive-removable",
+      "file": "drive-removable.svg"
+    },
+    {
+      "name": "drive-sd",
+      "file": "drive-sd.svg"
+    },
+    {
+      "name": "drive-ssd",
+      "file": "drive-ssd.svg"
+    },
+    {
+      "name": "favorite",
+      "file": "favorite.svg"
+    },
+    {
+      "name": "file-document",
+      "file": "file-document.svg"
+    },
+    {
+      "name": "file-image",
+      "file": "file-image.svg"
+    },
+    {
+      "name": "file-raw",
+      "file": "file-raw.svg"
+    },
+    {
+      "name": "file-restore",
+      "file": "file-restore.svg"
+    },
+    {
+      "name": "file-video",
+      "file": "file-video.svg"
+    },
+    {
+      "name": "folder",
+      "file": "folder.svg"
+    },
+    {
+      "name": "folder-open",
+      "file": "folder-open.svg"
+    },
+    {
+      "name": "fullscreen-enter",
+      "file": "fullscreen-enter.svg"
+    },
+    {
+      "name": "fullscreen-exit",
+      "file": "fullscreen-exit.svg"
+    },
+    {
+      "name": "info",
+      "file": "info.svg"
+    },
+    {
+      "name": "layout-grid",
+      "file": "layout-grid.svg"
+    },
+    {
+      "name": "layout-horizontal",
+      "file": "layout-horizontal.svg"
+    },
+    {
+      "name": "layout-masonry",
+      "file": "layout-masonry.svg"
+    },
+    {
+      "name": "layout-vertical",
+      "file": "layout-vertical.svg"
+    },
+    {
+      "name": "navigation-back",
+      "file": "navigation-back.svg"
+    },
+    {
+      "name": "navigation-forward",
+      "file": "navigation-forward.svg"
+    },
+    {
+      "name": "navigation-home",
+      "file": "navigation-home.svg"
+    },
+    {
+      "name": "navigation-more",
+      "file": "navigation-more.svg"
+    },
+    {
+      "name": "navigation-refresh",
+      "file": "navigation-refresh.svg"
+    },
+    {
+      "name": "rotate-clockwise",
+      "file": "rotate-clockwise.svg"
+    },
+    {
+      "name": "rotate-clockwise-lucide",
+      "file": "rotate-clockwise-lucide.svg"
+    },
+    {
+      "name": "rotate-clockwise-refresh",
+      "file": "rotate-clockwise-refresh.svg"
+    },
+    {
+      "name": "navigation-up",
+      "file": "navigation-up.svg"
+    },
+    {
+      "name": "open-folder",
+      "file": "open-folder.svg"
+    },
+    {
+      "name": "panel-hide-bottom",
+      "file": "panel-hide-bottom.svg"
+    },
+    {
+      "name": "panel-show-bottom",
+      "file": "panel-show-bottom.svg"
+    },
+    {
+      "name": "pin",
+      "file": "pin.svg"
+    },
+    {
+      "name": "recent",
+      "file": "recent.svg"
+    },
+    {
+      "name": "search",
+      "file": "search.svg"
+    },
+    {
+      "name": "settings",
+      "file": "settings.svg"
+    },
+    {
+      "name": "sidebar-hide",
+      "file": "sidebar-hide.svg"
+    },
+    {
+      "name": "sidebar-show",
+      "file": "sidebar-show.svg"
+    },
+    {
+      "name": "trash",
+      "file": "trash.svg"
+    },
+    {
+      "name": "unpin",
+      "file": "unpin.svg"
+    },
+    {
+      "name": "viewer-next",
+      "file": "viewer-next.svg"
+    },
+    {
+      "name": "viewer-previous",
+      "file": "viewer-previous.svg"
+    },
+    {
+      "name": "window-close",
+      "file": "window-close.svg"
+    },
+    {
+      "name": "window-maximize",
+      "file": "window-maximize.svg"
+    },
+    {
+      "name": "window-minimize",
+      "file": "window-minimize.svg"
+    },
+    {
+      "name": "window-restore",
+      "file": "window-restore.svg"
+    },
+    {
+      "name": "zoom-actual-size",
+      "file": "zoom-actual-size.svg"
+    },
+    {
+      "name": "zoom-fit",
+      "file": "zoom-fit.svg"
+    },
+    {
+      "name": "zoom-in",
+      "file": "zoom-in.svg"
+    },
+    {
+      "name": "zoom-out",
+      "file": "zoom-out.svg"
+    }
+  ]
+}

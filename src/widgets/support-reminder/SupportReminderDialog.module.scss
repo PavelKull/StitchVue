@@ -1,0 +1,202 @@
+@use "../../shared/styles/floating-panel" as panel;
+@use "../../shared/styles/modal-motion" as modal;
+
+// Same glow recipe as GalleryScrollJumpButton, accent #5aa7ff → green.
+$support-glow: #5aff9a;
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 145;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  background: rgb(0 0 0 / 52%);
+  backdrop-filter: blur(2px);
+  @include modal.modal-backdrop-motion;
+}
+
+.dialog {
+  position: relative;
+  isolation: isolate;
+  width: min(400px, 100%);
+  padding: 24px 24px 20px;
+  color: var(--pg-text-primary);
+  @include panel.floating-panel-surface;
+  border: 0;
+  overflow: visible;
+  // Base glow (static). Stronger glow fades in via ::before opacity — smooth, unlike box-shadow tween.
+  box-shadow:
+    0 0 12px 2px color-mix(in srgb, $support-glow 55%, transparent),
+    0 0 32px 6px color-mix(in srgb, $support-glow 28%, transparent),
+    0 0 54px 10px rgb(148 166 156 / 22%);
+  @include modal.modal-dialog-motion;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    box-shadow:
+      0 0 14px 2px color-mix(in srgb, $support-glow 62%, transparent),
+      0 0 36px 7px color-mix(in srgb, $support-glow 32%, transparent),
+      0 0 58px 10px rgb(148 166 156 / 26%);
+    transition: opacity 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  &:hover::before {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog::before {
+    transition: none;
+  }
+}
+
+.close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pg-text-secondary);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    color 160ms ease;
+
+  &:hover {
+    background: rgb(255 255 255 / 6%);
+    color: var(--pg-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, $support-glow 70%, white);
+    outline-offset: 2px;
+  }
+}
+
+.closeIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.iconWrap {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 12px;
+}
+
+.heartIcon {
+  width: 24px;
+  height: 24px;
+  color: $support-glow;
+}
+
+.title {
+  margin: 0 0 8px;
+  padding: 0 20px;
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.body {
+  margin: 0 0 22px;
+  padding: 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--pg-text-secondary);
+}
+
+.error {
+  margin: -10px 0 12px;
+  font-size: 12px;
+  text-align: center;
+  color: #f0a8a8;
+}
+
+.donateRow {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.donateButton {
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, $support-glow 18%, rgb(44 51 60 / 72%));
+  color: var(--pg-text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 160ms ease;
+
+  &:hover {
+    background: color-mix(in srgb, $support-glow 28%, rgb(44 51 60 / 72%));
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, $support-glow 70%, white);
+    outline-offset: 2px;
+  }
+}
+
+.externalIcon {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  opacity: 0.85;
+}
+
+.secondaryRow {
+  display: flex;
+  justify-content: center;
+  gap: 8px 18px;
+  flex-wrap: wrap;
+}
+
+.textButton {
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pg-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 160ms ease;
+
+  &:hover {
+    color: var(--pg-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid color-mix(in srgb, $support-glow 70%, white);
+    outline-offset: 2px;
+  }
+}

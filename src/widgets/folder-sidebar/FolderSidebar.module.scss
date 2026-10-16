@@ -1,0 +1,486 @@
+@use "../../shared/styles/floating-panel" as panel;
+@use "../../shared/styles/z-index" as z;
+
+.pinned,
+.overlay,
+.overlayOpen {
+  position: absolute;
+  top: var(--pg-top-chrome);
+  bottom: var(--pg-edge);
+  left: var(--pg-edge);
+  z-index: z.$sidebar;
+  display: flex;
+  flex-direction: column;
+  width: var(--pg-sidebar-width);
+  min-height: 0;
+  overflow: hidden;
+  @include panel.floating-panel-surface;
+  transition:
+    transform var(--pg-transition-panel) var(--pg-ease-out),
+    opacity var(--pg-transition-panel) var(--pg-ease-out);
+}
+
+.overlay {
+  opacity: 0;
+  transform: translateX(-20px);
+  pointer-events: none;
+}
+
+.overlayOpen {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.pinned {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.resizeHandle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+}
+
+.navButtons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.navSpacer {
+  flex: 1;
+}
+
+.navButton {
+  @include panel.nav-icon-button;
+
+  &[aria-pressed="true"] .navGlyph {
+    color: var(--pg-icon-active);
+  }
+}
+
+.currentPath {
+  margin: 0;
+  padding: 0 2px;
+  overflow: hidden;
+  color: var(--pg-text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// Native Chromium/WebView2 scrollbars. Visible thumb 12px inside 22px hit area.
+// Do not set scrollbar-width / scrollbar-color: in WebView2 they switch to the
+// OS classic bar (arrows) and ignore ::-webkit-scrollbar.
+$folder-scrollbar-hit: 22px;
+$folder-scrollbar-thumb-visible: 12px;
+$folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb-visible) * 0.5;
+
+@mixin folder-scrollbar-thumb($opacity) {
+  border: $folder-scrollbar-thumb-border solid transparent;
+  border-radius: 999px;
+  background-color: rgba(220, 232, 245, $opacity);
+  background-clip: content-box;
+}
+
+@mixin folder-scrollbar-hide-buttons {
+  display: none;
+  width: 0;
+  min-width: 0;
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.tree {
+  --tree-view: 0px;
+  --tree-scroll-x: 0px;
+  // Disclosure + icon gap are outside the name; reserve the sticky star + padding.
+  --tree-name-gutter: 72px;
+  flex: 1;
+  min-height: 0;
+  margin: 0 8px 12px 14px;
+  padding: 8px 0 2px;
+  overflow: auto;
+
+  &::-webkit-scrollbar {
+    width: $folder-scrollbar-hit;
+    height: $folder-scrollbar-hit;
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-track,
+  &::-webkit-scrollbar-track-piece {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+
+  &::-webkit-scrollbar-button,
+  &::-webkit-scrollbar-button:single-button,
+  &::-webkit-scrollbar-button:double-button,
+  &::-webkit-scrollbar-button:vertical,
+  &::-webkit-scrollbar-button:horizontal,
+  &::-webkit-scrollbar-button:start,
+  &::-webkit-scrollbar-button:end,
+  &::-webkit-scrollbar-button:increment,
+  &::-webkit-scrollbar-button:decrement,
+  &::-webkit-scrollbar-button:vertical:start,
+  &::-webkit-scrollbar-button:vertical:end,
+  &::-webkit-scrollbar-button:horizontal:start,
+  &::-webkit-scrollbar-button:horizontal:end,
+  &::-webkit-scrollbar-button:vertical:start:decrement,
+  &::-webkit-scrollbar-button:vertical:end:increment,
+  &::-webkit-scrollbar-button:vertical:start:increment,
+  &::-webkit-scrollbar-button:vertical:end:decrement,
+  &::-webkit-scrollbar-button:horizontal:start:decrement,
+  &::-webkit-scrollbar-button:horizontal:end:increment,
+  &::-webkit-scrollbar-button:horizontal:start:increment,
+  &::-webkit-scrollbar-button:horizontal:end:decrement {
+    @include folder-scrollbar-hide-buttons;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    @include folder-scrollbar-thumb(0.3);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    @include folder-scrollbar-thumb(0.95);
+  }
+
+  &::-webkit-scrollbar-thumb:active {
+    @include folder-scrollbar-thumb(1);
+  }
+
+  // Edge / drag flags are per-axis; :vertical / :horizontal keep the other thumb quiet.
+  &[data-scrollbar-v-edge="true"] {
+    &::-webkit-scrollbar-thumb:vertical {
+      @include folder-scrollbar-thumb(0.65);
+    }
+
+    &::-webkit-scrollbar-thumb:vertical:hover {
+      @include folder-scrollbar-thumb(0.95);
+    }
+
+    &::-webkit-scrollbar-thumb:vertical:active {
+      @include folder-scrollbar-thumb(1);
+    }
+  }
+
+  &[data-scrollbar-h-edge="true"] {
+    &::-webkit-scrollbar-thumb:horizontal {
+      @include folder-scrollbar-thumb(0.65);
+    }
+
+    &::-webkit-scrollbar-thumb:horizontal:hover {
+      @include folder-scrollbar-thumb(0.95);
+    }
+
+    &::-webkit-scrollbar-thumb:horizontal:active {
+      @include folder-scrollbar-thumb(1);
+    }
+  }
+
+  &[data-scrollbar-drag="true"][data-scrollbar-v-edge="true"] {
+    &::-webkit-scrollbar-thumb:vertical,
+    &::-webkit-scrollbar-thumb:vertical:hover,
+    &::-webkit-scrollbar-thumb:vertical:active {
+      @include folder-scrollbar-thumb(1);
+    }
+  }
+
+  &[data-scrollbar-drag="true"][data-scrollbar-h-edge="true"] {
+    &::-webkit-scrollbar-thumb:horizontal,
+    &::-webkit-scrollbar-thumb:horizontal:hover,
+    &::-webkit-scrollbar-thumb:horizontal:active {
+      @include folder-scrollbar-thumb(1);
+    }
+  }
+}
+
+.treeBody,
+.treeSection,
+.branch {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-width: 100%;
+  width: max-content;
+}
+
+.empty {
+  margin: 12px 16px 8px 40px;
+  color: var(--pg-text-muted);
+  font-size: 12px;
+}
+
+.emptyBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 16px 8px 40px;
+
+  .empty {
+    margin: 12px 0 0;
+  }
+}
+
+.retryButton {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pg-text-primary);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--pg-icon-active);
+  }
+}
+
+.row,
+.rowSelected,
+.rowActive {
+  --row-indent: 0px;
+  display: flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  width: calc(100% - 16px);
+  min-width: calc(100% - 16px);
+  min-height: 38px;
+  margin: 1px 8px;
+  border-radius: var(--pg-radius-row);
+  color: var(--pg-text-primary);
+  transition: background var(--pg-transition-fast) ease;
+
+  &:hover {
+    background: rgb(255 255 255 / 5.5%);
+  }
+}
+
+.rowSelected {
+  background: var(--pg-row-selected);
+  color: var(--pg-text-primary);
+
+  &:hover {
+    background: var(--pg-row-selected);
+  }
+}
+
+.rowActive {
+  outline: 1px solid var(--pg-border-hover);
+}
+
+.open {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  padding: 4px 4px 4px 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.open > span {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.openLabel {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nameSlot {
+  position: relative;
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.nameSizer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.name {
+  display: block;
+  box-sizing: border-box;
+  max-width: max(4.5rem, calc(var(--tree-view) + var(--tree-scroll-x) - var(--row-indent) - var(--tree-name-gutter)));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disclosure,
+.disclosureSpacer {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 38px;
+}
+
+.disclosure {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.navGlyph,
+.sectionGlyph,
+.chevron,
+.treeGlyph,
+.treeGlyphDrive,
+.starGlyph,
+.starGlyphOn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.navGlyph {
+  width: 20px;
+  height: 20px;
+}
+
+.sectionGlyph,
+.treeGlyph,
+.treeGlyphDrive {
+  width: 20px;
+  height: 20px;
+}
+
+.sectionGlyph,
+.treeGlyph {
+  color: var(--pg-icon);
+}
+
+.treeGlyphDrive {
+  color: var(--pg-icon-drive);
+}
+
+.chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--pg-text-secondary);
+}
+
+.starGlyph,
+.starGlyphOn {
+  width: 16px;
+  height: 16px;
+}
+
+.starGlyphOn {
+  color: var(--pg-accent);
+}
+
+.loading {
+  color: inherit;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.star,
+.starOn {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 28px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pg-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.row:hover .star,
+.rowSelected:hover .star,
+.rowActive:hover .star,
+.starOn {
+  opacity: 1;
+  background: var(--pg-surface);
+  // Soft edge so a long name does not read through the sticky control.
+  box-shadow: -12px 0 10px -2px var(--pg-surface);
+}
+
+.rowSelected .star,
+.rowSelected .starOn,
+.rowSelected:hover .star,
+.rowSelected:hover .starOn {
+  background: color-mix(in srgb, var(--pg-row-selected) 70%, var(--pg-surface));
+  box-shadow: -12px 0 10px -2px color-mix(in srgb, var(--pg-row-selected) 70%, var(--pg-surface));
+}
+
+.row:hover .star,
+.rowActive:hover .star {
+  background: var(--pg-surface-hover);
+  box-shadow: -12px 0 10px -2px var(--pg-surface-hover);
+}

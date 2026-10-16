@@ -1,0 +1,54 @@
+@mixin modal-backdrop-motion {
+  opacity: 0;
+  transition: opacity var(--pg-transition-normal) var(--pg-ease-out);
+
+  &[data-modal-phase="open"] {
+    opacity: 1;
+  }
+
+  &[data-modal-phase="entering"],
+  &[data-modal-phase="exiting"] {
+    opacity: 0;
+  }
+
+  &[data-modal-phase="exiting"] {
+    pointer-events: none;
+  }
+}
+
+@mixin modal-dialog-motion {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition:
+    opacity var(--pg-transition-normal) var(--pg-ease-out),
+    transform var(--pg-transition-normal) var(--pg-ease-out);
+
+  &[data-modal-phase="open"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  &[data-modal-phase="entering"],
+  &[data-modal-phase="exiting"] {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@mixin modal-overlay-fade-motion {
+  opacity: 0;
+  transition: opacity var(--pg-transition-normal) var(--pg-ease-out);
+
+  &[data-modal-phase="open"] {
+    opacity: 1;
+  }
+
+  &[data-modal-phase="entering"],
+  &[data-modal-phase="exiting"] {
+    opacity: 0;
+  }
+
+  &[data-modal-phase="exiting"] {
+    pointer-events: none;
+  }
+}

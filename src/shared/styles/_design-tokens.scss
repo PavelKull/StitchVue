@@ -1,0 +1,62 @@
+:root {
+  --pg-bg: #080d12;
+
+  --pg-surface: #0c1218;
+  --pg-surface-toolbar: #0a0f14;
+  --pg-surface-hover: rgb(19 28 38 / 94%);
+  --pg-surface-active: rgb(18 68 126 / 82%);
+
+  --pg-border: rgb(190 210 230 / 28%);
+  --pg-border-hover: rgb(220 235 250 / 42%);
+
+  --pg-font: "Onest", "Segoe UI", sans-serif;
+
+  --pg-text-primary: #e6edf5;
+  --pg-text-secondary: #a8b2c0;
+  --pg-text-muted: #8a94a6;
+
+  --pg-icon: #e6edf5;
+  --pg-icon-hover: #fff;
+  --pg-icon-active: #5aa7ff;
+  --pg-icon-disabled: #8a94a6;
+  --pg-icon-drive: #5a9ee0;
+
+  --pg-accent: #5aa7ff;
+  --pg-accent-soft: rgb(90 167 255 / 16%);
+  --pg-row-selected: rgb(46 125 230 / 28%);
+
+  --pg-radius-panel: 22px;
+  --pg-radius-nav: 20px;
+  --pg-radius-toolbar: 24px;
+  --pg-radius-control: 10px;
+  --pg-radius-row: 9px;
+  --pg-radius-photo: 6px;
+
+  --pg-panel-gap: 14px;
+  --pg-edge: 16px;
+  --pg-top-nav-height: 54px;
+  --pg-top-chrome: calc(var(--pg-edge) + var(--pg-top-nav-height) + 12px);
+  --pg-sidebar-width: 280px;
+  --pg-gallery-inset-pinned: 312px;
+
+  --pg-transition-fast: 140ms;
+  --pg-transition-normal: 220ms;
+  --pg-transition-panel: 280ms;
+  --pg-transition-gallery: 380ms;
+  --pg-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --pg-ease-gallery: cubic-bezier(0.2, 0.9, 0.22, 1);
+
+  --pg-shadow-panel:
+    0 10px 35px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(255 255 255 / 3.5%);
+
+  --pg-shadow-toolbar: 0 12px 38px rgb(0 0 0 / 38%);
+
+  /* Legacy aliases */
+  --background: var(--pg-bg);
+  --surface: var(--pg-surface);
+  --elevated: rgb(16 22 28);
+  --border: var(--pg-border);
+  --text-primary: var(--pg-text-primary);
+  --text-secondary: var(--pg-text-secondary);
+}
