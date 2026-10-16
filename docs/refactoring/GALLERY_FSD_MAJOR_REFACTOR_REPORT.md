@@ -9,7 +9,7 @@
 
 | Метрика | До major (после TASK-005) | Сейчас |
 |---------|---------------------------|--------|
-| Строки `GalleryPage.tsx` | 4814 | **~4540** |
+| Строки `GalleryPage.tsx` | 4814 | **~4414** |
 | Прямые `invoke(` в page | ~20 | **~11** (viewer, favorites undo, file ops, remember_folder) |
 | Цель ТЗ | ≤1500, композиция | **не достигнута** |
 
@@ -22,8 +22,10 @@
 | TASK-020 tile SCSS | `4e80a33` | `FolderViewTile.module.scss`, без импорта `pages/**` |
 | Umbrella contract | `ebe694f` | `TASK-2026-GALLERY-FSD-MAJOR.md` + `--seal` |
 | TASK-007 drives + boot | `3631310` | `useGalleryDrives`, `useGalleryBoot`, `galleryBootStartPath` |
-| TASK-008 IPC adapters | (см. git log) | `features/gallery/api/*` — session, indexing, geometry, cache |
-| Interim report | `a1a563a` | этот файл (v1) |
+| TASK-008 IPC adapters | `57a970a` | `features/gallery/api/*` — session, indexing, geometry, cache |
+| TASK-009 thumb progress | `04b6e52` | `useGalleryThumbProgress` + poll |
+| TASK-010 indexing sync | `04b6e52` | `useGalleryIndexingSync`; `indexingPathEquality` → `features/gallery` |
+| Interim report | `a1a563a` | этот файл |
 
 ## Перенесённые ответственности (накопительно с TASK-001–005)
 
@@ -91,8 +93,8 @@ c5e2d42 refactor(gallery): extract pure view and index helpers from GalleryPage
 
 1. ~~TASK-007 boot/drives~~  
 2. ~~TASK-008 IPC adapters (`features/gallery/api/*`)~~  
-3. TASK-009 thumb progress  
-4. TASK-010 indexing sync  
+3. ~~TASK-009 thumb progress~~  
+4. ~~TASK-010 indexing sync~~  
 5. TASK-015 → 017 → 016 → **011** → 012 → 018  
 6. TASK-014, 013, 019  
 
