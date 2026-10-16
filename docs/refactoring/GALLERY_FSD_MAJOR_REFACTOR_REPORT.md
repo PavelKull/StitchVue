@@ -9,7 +9,7 @@
 
 | Метрика | До major (после TASK-005) | Сейчас |
 |---------|---------------------------|--------|
-| Строки `GalleryPage.tsx` | 4814 | **~4414** |
+| Строки `GalleryPage.tsx` | 4814 | **~4199** (после TASK-015) |
 | Прямые `invoke(` в page | ~20 | **~11** (viewer, favorites undo, file ops, remember_folder) |
 | Цель ТЗ | ≤1500, композиция | **не достигнута** |
 
@@ -26,6 +26,7 @@
 | TASK-009 thumb progress | `04b6e52` | `useGalleryThumbProgress` + poll |
 | TASK-010 indexing sync | `04b6e52` | `useGalleryIndexingSync`; `indexingPathEquality` → `features/gallery` |
 | Interim report | `a1a563a` | этот файл |
+| TASK-015 selection + keyboard | *(локальный коммит)* | `useGallerySelectionCoordinator` + `processGallerySelectionKeyDown` tests |
 
 ## Перенесённые ответственности (накопительно с TASK-001–005)
 
@@ -42,7 +43,7 @@
 - `runFileAction` + file progress
 - Viewer + `set_viewer`
 - Bootstrap / drives
-- Selection + global keyboard
+- ~~Selection + global keyboard~~ → `useGallerySelectionCoordinator` (TASK-015); `commandsRef` bindings остаются в page до TASK-016
 - Shell pointer routing / JSX composition
 - Cache settings (`setLimit`, `setTtl`), оставшиеся `invoke`
 
@@ -54,8 +55,8 @@
 ## Тесты
 
 - `npm run typecheck`: **PASS**
-- `npm test`: **336 pass** (на момент прогона)
-- Новые: `insertServiceFolder.test.ts`, `galleryFolderHistory.test.ts`
+- `npm test`: **402 pass** (после TASK-015)
+- Новые: `insertServiceFolder.test.ts`, `galleryFolderHistory.test.ts`, `useGallerySelectionCoordinator.test.ts`
 
 ## Gates
 
@@ -80,7 +81,16 @@ c5e2d42 refactor(gallery): extract pure view and index helpers from GalleryPage
 
 По ТЗ: **не вызывались** (делегирование недоступно без имитации; работа выполнена executor-ом напрямую).
 
-## Ручной smoke (ещё не выполнен)
+## TASK-015 smoke (обязателен перед 017)
+
+- [ ] Обычная папка: **Ctrl+A** выделяет все фото, панель bulk selection видна
+- [ ] **Ctrl+Shift+A** снимает выделение
+- [ ] Папка **Корзина**: Ctrl+A / клик по фото → toast «множественный выбор», без выделения
+- [ ] Открыты **настройки** → Escape закрывает настройки, выделение не трогает
+- [ ] Открыт **viewer** → Escape закрывает viewer; **Пробел** переключает выделение текущего фото (не в trash)
+- [ ] **Delete** с выделением → move to trash (как до рефактора); во время file op Delete не дублирует
+
+## Ручной smoke umbrella (ещё не выполнен)
 
 - [ ] Быстрое переключение папок (I1)
 - [ ] Сортировка
@@ -95,7 +105,7 @@ c5e2d42 refactor(gallery): extract pure view and index helpers from GalleryPage
 2. ~~TASK-008 IPC adapters (`features/gallery/api/*`)~~  
 3. ~~TASK-009 thumb progress~~  
 4. ~~TASK-010 indexing sync~~  
-5. TASK-015 → 017 → 016 → **011** → 012 → 018  
+5. ~~TASK-015~~ → **017** → 016 → **011** → 012 → 018  
 6. TASK-014, 013, 019  
 
 ## Архитектурные проблемы (открытые)

@@ -96,21 +96,14 @@ import { useGalleryScrollJump } from '../../features/gallery/model/viewport/useG
 import { FolderIcon } from '../../shared/icons/SvgIcon';
 import { StitchVueIcon } from '../../shared/icons/StitchVueIcon';
 import {
-    addRange,
     emptySelection,
-    isClearSelectionHotkey,
-    isSelectAllHotkey,
-    isTypingTarget,
     pathKey,
     pruneSelection,
     selectAll,
-    togglePath,
-    type SelectionState,
 } from '../../features/selection/lib/selection';
 import {
     clearSelectionPaths,
     enterSelectionMode,
-    escapeSelection,
     resetSelectionOnFolderChange,
     resolveUnfavoriteParentDirectory,
     selectionAfterMassUnfavorite,
@@ -119,11 +112,10 @@ import {
 } from '../../features/selection/lib/selectionMode';
 import { SelectionDiagOverlay } from '../../features/selection/ui/SelectionDiagOverlay';
 import {
-    installSelectionDiagGlobals,
     selectionDiag,
     selectionDiagEnabled,
-    selectionDiagKey,
 } from '../../features/selection/lib/selectionDiag';
+import { useGallerySelectionCoordinator } from '../../features/selection/useGallerySelectionCoordinator';
 import {
     commandAvailability,
     confirmMoveText,
@@ -363,6 +355,7 @@ export function GalleryPage() {
     } | null>(null);
     const [trashOriginPath, setTrashOriginPath] = useState<string | null>(null);
     const trashMultiSelectToastAt = useRef(0);
+    const showTrashMultiSelectToastRef = useRef<() => void>(() => undefined);
     const viewerNavAt = useRef(0);
     const viewerIntervals = useRef<number[]>([]);
     const viewerDirection = useRef<1 | -1>(1);
@@ -372,7 +365,6 @@ export function GalleryPage() {
         top: number;
     }>({ token: 0, top: 0 });
     const scrollRestoreToken = useRef(0);
-    const [selectionMode, setSelectionMode] = useState(false);
     const [propertiesPath, setPropertiesPath] = useState<string | null>(null);
     const shellRef = useRef<HTMLElement>(null);
     const photoGridViewportRef = useRef<HTMLDivElement>(null);
@@ -418,9 +410,6 @@ export function GalleryPage() {
     const [bootNotice, setBootNotice] = useState<string | null>(null);
     const settingsTriggerRef = useRef<HTMLButtonElement>(null);
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-    const [selection, setSelection] = useState<SelectionState>(
-        emptySelection(null),
-    );
     const [fileOperation, setFileOperation] = useState<{
         id: string;
         action: FileAction | 'remove_from_favorites';
@@ -474,10 +463,7 @@ export function GalleryPage() {
     }
     const viewRef = useRef(view);
     viewRef.current = view;
-    const selectionRef = useRef(selection);
-    selectionRef.current = selection;
-    const selectionModeRef = useRef(selectionMode);
-    selectionModeRef.current = selectionMode;
+    const orderedRef = useRef<readonly ImageFile[]>([]);
     const viewerIndexRef = useRef(viewerIndex);
     viewerIndexRef.current = viewerIndex;
     const viewerHoldRef = useRef<ImageFile | undefined>(undefined);
@@ -592,6 +578,31 @@ export function GalleryPage() {
     propertiesPathRef.current = propertiesPath;
     const appFullscreenRef = useRef(appFullscreen);
     appFullscreenRef.current = appFullscreen;
+
+    const {
+        selection,
+        setSelection,
+        selectionMode,
+        setSelectionMode,
+        selectionRef,
+        selectionModeRef,
+        commandsRef,
+        toggleAt,
+        extendAt,
+    } = useGallerySelectionCoordinator({
+        viewRef,
+        orderedRef,
+        showTrashMultiSelectToast: () => showTrashMultiSelectToastRef.current(),
+        setPropertiesPath,
+        confirmMoveRef,
+        unfavoritePromptRef,
+        settingsOpenRef,
+        viewerIndexRef,
+        fileOperationRef,
+        unfavoriteGateRef,
+        propertiesPathRef,
+        appFullscreenRef,
+    });
     const indexedPathsRef = useRef<string[]>([]);
     const thumbSeen = useRef(false);
     const noteThumbTimingRef = useRef<() => void>(() => undefined);
@@ -774,18 +785,6 @@ export function GalleryPage() {
         },
         [beginFolderExitAnimation],
     );
-    const commandsRef = useRef({
-        clearSelection: () => undefined as void,
-        selectAllImages: () => undefined as void,
-        deleteSelection: () => undefined as void,
-        closeSettings: () => undefined as void,
-        closeConfirm: () => undefined as void,
-        closeUnfavoritePrompt: () => undefined as void,
-        closeViewer: () => undefined as void,
-        selectViewerPhoto: () => undefined as void,
-        exitFullscreen: () => undefined as void,
-    });
-
     const refreshUsage = useCallback(() => {
         void invoke<CacheUsage>('cache_usage')
             .then(setUsage)
@@ -825,137 +824,6 @@ export function GalleryPage() {
         return () => {
             void setWindowFullscreen(false);
         };
-    }, []);
-
-    useEffect(() => {
-        installSelectionDiagGlobals();
-        function onWindowKeyDown(event: globalThis.KeyboardEvent) {
-            const commands = commandsRef.current;
-            const typing = isTypingTarget(event.target);
-            const blocks = {
-                isTypingTarget: typing,
-                confirmMove: confirmMoveRef.current !== null,
-                unfavoritePrompt: unfavoritePromptRef.current !== null,
-                settingsOpen: settingsOpenRef.current,
-                unfavoriteBusy: unfavoriteGateRef.current.busy,
-                viewerIndex: viewerIndexRef.current,
-                selectionMode: selectionModeRef.current,
-                selectedCount: selectionRef.current.paths.length,
-            };
-            if (
-                selectionDiagEnabled() &&
-                (event.ctrlKey ||
-                    event.key === 'Escape' ||
-                    event.key === 'Delete' ||
-                    event.key === ' ')
-            ) {
-                selectionDiagKey(event, blocks);
-            }
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                if (propertiesPathRef.current) {
-                    setPropertiesPath(null);
-                } else if (confirmMoveRef.current) {
-                    commands.closeConfirm();
-                } else if (unfavoritePromptRef.current) {
-                    commands.closeUnfavoritePrompt();
-                } else if (settingsOpenRef.current) {
-                    commands.closeSettings();
-                } else if (viewerIndexRef.current !== null) {
-                    commands.closeViewer();
-                } else if (appFullscreenRef.current) {
-                    commands.exitFullscreen();
-                } else {
-                    const directory = viewRef.current.path
-                        ? pathKey(viewRef.current.path)
-                        : null;
-                    const cleared = escapeSelection(directory);
-                    setSelectionMode(cleared.selectionMode);
-                    setSelection(cleared.selection);
-                }
-                return;
-            }
-            if (typing) {
-                selectionDiag('keydown-early-return', {
-                    earlyReturn: 'isTypingTarget',
-                    ...blocks,
-                });
-                return;
-            }
-            if (confirmMoveRef.current) {
-                selectionDiag('keydown-early-return', {
-                    earlyReturn: 'confirmMove',
-                    ...blocks,
-                });
-                return;
-            }
-            if (unfavoritePromptRef.current) {
-                selectionDiag('keydown-early-return', {
-                    earlyReturn: 'unfavoritePrompt',
-                    ...blocks,
-                });
-                return;
-            }
-            if (settingsOpenRef.current) {
-                selectionDiag('keydown-early-return', {
-                    earlyReturn: 'settingsOpen',
-                    ...blocks,
-                });
-                return;
-            }
-            // Capture Ctrl+A early so WebView2 does not treat it as native "select all".
-            if (isClearSelectionHotkey(event) || isSelectAllHotkey(event)) {
-                event.preventDefault();
-                event.stopPropagation();
-            }
-            if (isClearSelectionHotkey(event)) {
-                selectionDiag('ctrl-shift-a', {
-                    action: 'clearSelection',
-                    code: event.code,
-                    key: event.key,
-                    countBefore: selectionRef.current.paths.length,
-                    ...blocks,
-                });
-                commands.clearSelection();
-                return;
-            }
-            if (isSelectAllHotkey(event)) {
-                const countBefore = selectionRef.current.paths.length;
-                selectionDiag('ctrl-a', {
-                    action: 'selectAllImages',
-                    code: event.code,
-                    key: event.key,
-                    countBefore,
-                    path: viewRef.current.path,
-                    serviceRole: viewRef.current.serviceRole,
-                    imageCount: viewRef.current.images.length,
-                    ...blocks,
-                });
-                commands.selectAllImages();
-                return;
-            }
-            if (event.key === 'Delete' && !fileOperationRef.current) {
-                event.preventDefault();
-                commands.deleteSelection();
-            } else if (event.key === ' ' && viewerIndexRef.current !== null) {
-                const target = event.target;
-                if (
-                    target instanceof HTMLElement &&
-                    target.closest('button, a, input, textarea, select')
-                ) {
-                    selectionDiag('keydown-early-return', {
-                        earlyReturn: 'space-on-control',
-                        ...blocks,
-                    });
-                    return;
-                }
-                event.preventDefault();
-                commands.selectViewerPhoto();
-            }
-        }
-        window.addEventListener('keydown', onWindowKeyDown, true);
-        return () =>
-            window.removeEventListener('keydown', onWindowKeyDown, true);
     }, []);
 
     const toggleAppFullscreen = useCallback(() => {
@@ -1456,7 +1324,6 @@ export function GalleryPage() {
         });
     resetScrollActivityRef.current = resetScrollActivityForFolderChange;
 
-    const orderedRef = useRef(orderedImages);
     orderedRef.current = orderedImages;
 
     useGalleryPipelineEvents(
@@ -1576,6 +1443,7 @@ export function GalleryPage() {
             details: [],
         });
     }, [t]);
+    showTrashMultiSelectToastRef.current = showTrashMultiSelectToast;
 
     useEffect(() => {
         if (!inTrash) {
@@ -1934,92 +1802,6 @@ export function GalleryPage() {
             setAppFullscreen(false);
         },
     };
-
-    function toggleAt(index: number) {
-        const current = viewRef.current;
-        const file = orderedRef.current[index];
-        const countBefore = selectionRef.current.paths.length;
-        if (!current.path || !file) {
-            selectionDiag('toggleAt', {
-                aborted: 'missing-path-or-file',
-                index,
-                countBefore,
-            });
-            return;
-        }
-        if (current.serviceRole === 'trash') {
-            selectionDiag('toggleAt', {
-                aborted: 'trash',
-                index,
-                path: file.path,
-                countBefore,
-            });
-            showTrashMultiSelectToast();
-            return;
-        }
-        const ordered = orderedRef.current.map((item) => pathKey(item.path));
-        setSelectionMode(enterSelectionMode());
-        setSelection((previous) => {
-            const next = togglePath(
-                previous,
-                pathKey(current.path ?? ''),
-                ordered,
-                pathKey(file.path),
-            );
-            selectionDiag('toggleAt', {
-                index,
-                path: file.path,
-                countBefore: previous.paths.length,
-                countAfter: next.paths.length,
-                selectionMode: true,
-                anchor: next.anchor,
-            });
-            return next;
-        });
-    }
-
-    function extendAt(index: number) {
-        const current = viewRef.current;
-        const file = orderedRef.current[index];
-        const countBefore = selectionRef.current.paths.length;
-        if (!current.path || !file) {
-            selectionDiag('extendAt', {
-                aborted: 'missing-path-or-file',
-                index,
-                countBefore,
-            });
-            return;
-        }
-        if (current.serviceRole === 'trash') {
-            selectionDiag('extendAt', {
-                aborted: 'trash',
-                index,
-                path: file.path,
-                countBefore,
-            });
-            showTrashMultiSelectToast();
-            return;
-        }
-        const ordered = orderedRef.current.map((item) => pathKey(item.path));
-        setSelectionMode(enterSelectionMode());
-        setSelection((previous) => {
-            const next = addRange(
-                previous,
-                pathKey(current.path ?? ''),
-                ordered,
-                pathKey(file.path),
-            );
-            selectionDiag('extendAt', {
-                index,
-                path: file.path,
-                countBefore: previous.paths.length,
-                countAfter: next.paths.length,
-                selectionMode: true,
-                anchor: next.anchor,
-            });
-            return next;
-        });
-    }
 
     function currentTargets(): ImageFile[] {
         const current = viewRef.current;
