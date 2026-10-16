@@ -33,6 +33,16 @@ export function scrollModeUpdateFromSample(
     return { next, ipcChanged };
 }
 
+/** Shared by folder reset, unmount cleanup, and unit tests. */
+export function clearScrollActivityTimer(timerRef: { current: number }): void {
+    globalThis.clearTimeout(timerRef.current);
+    timerRef.current = 0;
+}
+
+export function scrollActivityStateAfterFolderReset(): ScrollModeState {
+    return initialScrollModeState();
+}
+
 export function useGalleryScrollActivity({
     scrollTopRef,
     viewportRef,
@@ -41,18 +51,11 @@ export function useGalleryScrollActivity({
     const scrollTimer = useRef(0);
     const scrollModeRef = useRef<ScrollModeState>(initialScrollModeState());
 
-    useEffect(
-        () => () => {
-            window.clearTimeout(scrollTimer.current);
-            scrollTimer.current = 0;
-        },
-        [],
-    );
+    useEffect(() => () => clearScrollActivityTimer(scrollTimer), []);
 
     const resetScrollActivityForFolderChange = useCallback(() => {
-        window.clearTimeout(scrollTimer.current);
-        scrollTimer.current = 0;
-        scrollModeRef.current = initialScrollModeState();
+        clearScrollActivityTimer(scrollTimer);
+        scrollModeRef.current = scrollActivityStateAfterFolderReset();
     }, []);
 
     const reportScrollActivity = useCallback(

@@ -4,7 +4,11 @@ import {
     initialScrollModeState,
     SCROLL_IDLE_MS,
 } from './scrollLoadMode.ts';
-import { scrollModeUpdateFromSample } from './useGalleryScrollActivity.ts';
+import {
+    clearScrollActivityTimer,
+    scrollActivityStateAfterFolderReset,
+    scrollModeUpdateFromSample,
+} from './useGalleryScrollActivity.ts';
 
 test('burst scroll invokes IPC only when mode or ahead changes', () => {
     let state = initialScrollModeState();
@@ -55,4 +59,26 @@ test('scrolling resumes after idle reset state', () => {
     const second = scrollModeUpdateFromSample(state, 40, 0, 3000);
     assert.equal(second.ipcChanged, true);
     assert.equal(second.next.mode, 'scrolling');
+});
+
+test('clearScrollActivityTimer clears pending id (unmount/reset contract)', () => {
+    let cleared = 0;
+    const original = globalThis.clearTimeout;
+    globalThis.clearTimeout = (id) => {
+        cleared = id as number;
+    };
+    const timerRef = { current: 42 };
+    clearScrollActivityTimer(timerRef);
+    assert.equal(cleared, 42);
+    assert.equal(timerRef.current, 0);
+    globalThis.clearTimeout = original;
+});
+
+test('scrollActivityStateAfterFolderReset matches initial mode', () => {
+    const reset = scrollActivityStateAfterFolderReset();
+    assert.equal(reset.mode, 'idle');
+    assert.equal(reset.ahead, 0);
+    let state = scrollModeUpdateFromSample(reset, 100, 0, 1000);
+    assert.equal(state.ipcChanged, true);
+    assert.equal(state.next.mode, 'scrolling');
 });
