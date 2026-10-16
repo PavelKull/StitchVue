@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { samePathList, samePathSet } from './indexingPathEquality';
 import { ttlPreset } from './ttlPreset';
 import {
     useCallback,
@@ -5119,29 +5120,6 @@ function indexPayload(files: ImageFile[]) {
         size: file.size,
         modifiedAt: file.modifiedAt,
     }));
-}
-
-function samePathList(
-    left: readonly string[],
-    right: readonly string[],
-): boolean {
-    return (
-        left.length === right.length &&
-        left.every(
-            (item, index) => pathKey(item) === pathKey(right[index] ?? ''),
-        )
-    );
-}
-
-function samePathSet(
-    left: readonly string[],
-    right: readonly string[],
-): boolean {
-    if (left.length !== right.length) {
-        return false;
-    }
-    const known = new Set(left.map((item) => pathKey(item)));
-    return right.every((item) => known.has(pathKey(item)));
 }
 
 function restorePromptText(code: string): string {
