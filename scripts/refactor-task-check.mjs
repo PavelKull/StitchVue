@@ -152,8 +152,17 @@ function pathMatchesScope(filePath, patterns) {
   });
 }
 
-function git(args) {
-  const r = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+function resolveGitRepoRoot(startDir) {
+  const r = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd: startDir,
+    encoding: "utf8",
+  });
+  if (r.status !== 0) return null;
+  return (r.stdout || "").trim();
+}
+
+function git(args, gitCwd) {
+  const r = spawnSync("git", args, { cwd: gitCwd, encoding: "utf8" });
   return { ok: r.status === 0, out: (r.stdout || "").trim(), err: (r.stderr || "").trim() };
 }
 
@@ -161,22 +170,73 @@ function splitLines(s) {
   return s ? s.split(/\r?\n/).filter(Boolean) : [];
 }
 
-function collectWorkingTreeFiles() {
+function collectWorkingTreeFiles(gitCwd) {
   const names = new Set();
-  const unstaged = git(["diff", "--name-only"]);
+  const unstaged = git(["diff", "--name-only"], gitCwd);
   if (unstaged.ok) splitLines(unstaged.out).forEach((f) => names.add(f));
-  const staged = git(["diff", "--name-only", "--cached"]);
+  const staged = git(["diff", "--name-only", "--cached"], gitCwd);
   if (staged.ok) splitLines(staged.out).forEach((f) => names.add(f));
-  const untracked = git(["ls-files", "--others", "--exclude-standard"]);
+  const untracked = git(["ls-files", "--others", "--exclude-standard"], gitCwd);
   if (untracked.ok) splitLines(untracked.out).forEach((f) => names.add(f));
   return [...names];
 }
 
-function collectCommittedSince(baseCommit) {
+function collectCommittedSince(baseCommit, gitCwd) {
   if (!baseCommit) return [];
-  const d = git(["diff", "--name-only", baseCommit, "HEAD"]);
+  const d = git(["diff", "--name-only", baseCommit, "HEAD"], gitCwd);
   if (!d.ok) return [];
   return splitLines(d.out);
+}
+
+const HEAD_APPROVED_STATUSES = new Set([
+  "approved",
+  "in_progress",
+  "verification",
+  "completed",
+]);
+
+function verifyTaskApprovalAtHead({
+  gate,
+  errors,
+  relTask,
+  data,
+  expectedHash,
+  storedHash,
+  gitCwd,
+}) {
+  const gitPath = relTask.replace(/\\/g, "/");
+  const shown = git(["show", `HEAD:${gitPath}`], gitCwd);
+  if (!shown.ok || !shown.out) {
+    errors.push(`${gate}: TASK отсутствует в HEAD — закоммитьте утверждённую задачу`);
+    return;
+  }
+  const headSnap = parseFrontmatter(shown.out);
+  if (headSnap.error || !headSnap.data) {
+    errors.push(`${gate}: не удалось разобрать TASK в HEAD`);
+    return;
+  }
+  const headStatus = headSnap.data.status;
+  if (!HEAD_APPROVED_STATUSES.has(headStatus)) {
+    errors.push(
+      `${gate}: в HEAD задача не утверждена (status=${headStatus ?? "?"})`,
+    );
+    return;
+  }
+  const headContractHash = contractHash(headSnap.data, shown.out);
+  if (headContractHash !== expectedHash) {
+    errors.push(`${gate}: контракт рабочей копии отличается от HEAD`);
+    return;
+  }
+  const headStoredHash = String(headSnap.data.approval_hash || "").trim();
+  if (!headStoredHash || headStoredHash !== storedHash) {
+    errors.push(`${gate}: approval_hash рабочей копии не совпадает с HEAD`);
+    return;
+  }
+  const workBase = String(data.base_commit || "").trim();
+  const headBase = String(headSnap.data.base_commit || "").trim();
+  if (workBase !== headBase) {
+    errors.push(`${gate}: base_commit рабочей копии не совпадает с HEAD`);
+  }
 }
 
 function isImplicitAllowed(filePath, relTask) {
@@ -248,7 +308,7 @@ function printHelp() {
 Без флагов     проверка шаблона (черновик допустим); вне scope — WARN
 --seal         только status=approved: записать approval_hash контракта (scope, инварианты, тесты)
 --auth         запись: approved|in_progress + совпадающий approval_hash (in_progress сам по себе не разрешение)
---preflight    старт работы: только approved + печать + чистые allowed_paths
+--preflight    старт: approved|in_progress + печать + TASK в HEAD + чистые allowed_paths
 --strict       после записи: diff ⊆ allowed_paths (+ файл задачи) + печать
 --run-tests    выполнить frontmatter tests:
 --allow-unrelated-dirty  незакоммиченное вне scope — WARN, не ERR
@@ -307,7 +367,8 @@ function main() {
     process.exit(1);
   }
   const abs = isAbsolute(taskPath) ? taskPath : join(process.cwd(), taskPath);
-  const relTask = relative(root, abs).replace(/\\/g, "/");
+  const gitCwd = resolveGitRepoRoot(dirname(abs)) ?? root;
+  const relTask = relative(gitCwd, abs).replace(/\\/g, "/");
   if (!existsSync(abs)) {
     console.error(`Файл не найден: ${relTask}`);
     process.exit(1);
@@ -358,9 +419,9 @@ function main() {
   }
 
   if (auth || preflight || strict) {
-    if (preflight && status !== "approved") {
+    if (preflight && status !== "approved" && status !== "in_progress") {
       errors.push(
-        `--preflight: старт только из approved (сейчас ${status}). in_progress не обходит утверждение`,
+        `--preflight: status должен быть approved или in_progress (сейчас ${status})`,
       );
     } else if (auth && !preflight && !strict && !writeStatuses.includes(status)) {
       errors.push(
@@ -392,50 +453,34 @@ function main() {
     errors.push(`${gate}: base_commit пуст — зафиксируйте SHA до исполнения`);
   }
 
-  const head = git(["rev-parse", "HEAD"]);
+  const head = git(["rev-parse", "HEAD"], gitCwd);
   const headSha = head.ok ? head.out : "";
 
   if (base && (auth || preflight || strict || seal)) {
-    const obj = git(["cat-file", "-t", base]);
+    const obj = git(["cat-file", "-t", base], gitCwd);
     if (!obj.ok || obj.out !== "commit") {
       errors.push(`base_commit не является валидным commit: ${base.slice(0, 12)}`);
     }
   }
 
-  if ((preflight || auth || strict) && base && expectedHash && data && !fmError) {
-    const gitPath = relTask.replace(/\\/g, "/");
-    const shown = git(["show", `${base}:${gitPath}`]);
-    if (shown.ok && shown.out) {
-      const snap = parseFrontmatter(shown.out);
-      if (!snap.error && snap.data) {
-        if (snap.data.status === "draft") {
-          errors.push(
-            `в base_commit задача ещё draft — утверждение не зафиксировано в git`,
-          );
-        }
-        const snapHash = contractHash(snap.data, shown.out);
-        if (snapHash !== expectedHash) {
-          errors.push(
-            "контракт рабочей копии отличается от задачи в base_commit — нужно повторное утверждение",
-          );
-        }
-      }
-    } else if (status === "in_progress") {
-      warnings.push(
-        "задачи нет в base_commit; in_progress опирается на approval_hash. После --seal закоммитьте TASK",
-      );
-    } else if (preflight) {
-      warnings.push(
-        "задачи нет в base_commit; защита — approval_hash. После --seal желательно закоммитить файл задачи",
-      );
-    }
+  if ((preflight || auth || strict) && base && expectedHash && data && !fmError && storedHash) {
+    verifyTaskApprovalAtHead({
+      gate,
+      errors,
+      relTask,
+      data,
+      expectedHash,
+      storedHash,
+      gitCwd,
+    });
   }
 
   if (base && head.ok && base !== headSha) {
     const msg = `HEAD (${headSha.slice(0, 7)}) ≠ base_commit (${base.slice(0, 7)})`;
     if (preflight) {
-      const inAllowedSince = collectCommittedSince(base).filter((f) =>
-        inAllowed(f, allowed, relTask),
+      const inAllowedSince = collectCommittedSince(base, gitCwd).filter(
+        (f) =>
+          inAllowed(f, allowed, relTask) && !isImplicitAllowed(f, relTask),
       );
       if (inAllowedSince.length) {
         errors.push(
@@ -449,8 +494,8 @@ function main() {
     }
   }
 
-  const working = collectWorkingTreeFiles();
-  const committed = collectCommittedSince(base);
+  const working = collectWorkingTreeFiles(gitCwd);
+  const committed = collectCommittedSince(base, gitCwd);
   const changedForScope = [...new Set([...working, ...committed])];
 
   const dirtyAllowed = working.filter((f) => inAllowed(f, allowed, relTask));
