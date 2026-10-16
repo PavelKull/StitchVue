@@ -222,6 +222,7 @@ import {
 import selectionActionsStyles from '../../widgets/selection-actions/SelectionActions.module.scss';
 import { FolderSidebar } from '../../widgets/folder-sidebar/FolderSidebar';
 import { orderFoldersForDisplay } from '../../features/folder/folderOrder';
+import { insertServiceFolder } from '../../features/folder/insertServiceFolder';
 import {
     captureFolderTileRects,
     playFolderTileFlip,
@@ -275,6 +276,7 @@ import {
 } from '../../features/gallery/galleryDirectoryView';
 import { indexPayload } from '../../features/gallery/galleryIndexPayload';
 import { restorePromptText } from '../../features/gallery/restorePromptText';
+import { useGalleryFolderHistory } from '../../features/gallery/useGalleryFolderHistory';
 import { DISK_SERVICE_FOLDER_LEAF } from '../../entities/folder/serviceFolder';
 import { formatInvokeError } from '../../shared/i18n';
 import { FolderViewTile } from '../../widgets/folder-tile/FolderViewTile';
@@ -429,11 +431,6 @@ export function GalleryPage() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [bootNotice, setBootNotice] = useState<string | null>(null);
     const settingsTriggerRef = useRef<HTMLButtonElement>(null);
-    const [history, setHistory] = useState<FolderHistory>({
-        index: 0,
-        entries: [null],
-    });
-    const historyRef = useRef<FolderHistory>({ index: 0, entries: [null] });
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
     const [selection, setSelection] = useState<SelectionState>(
         emptySelection(null),
@@ -615,6 +612,15 @@ export function GalleryPage() {
             focusImagePath?: string | null,
         ) => Promise<void>
     >(async () => undefined);
+    const {
+        history,
+        historyRef,
+        recordHistory,
+        goHistory,
+        applyHistory,
+    } = useGalleryFolderHistory((path, record) =>
+        loadImplRef.current(path, record),
+    );
     const scheduleFolderRefreshRef = useRef(
         coalesceFolderRefresh((path) => refreshFolderImplRef.current(path)),
     );
@@ -681,8 +687,7 @@ export function GalleryPage() {
                 removed.folderPath,
                 removed.parentDirectory,
             );
-            historyRef.current = nextHistory;
-            setHistory(nextHistory);
+            applyHistory(nextHistory);
             forgetHotFolder(removed.folderPath);
             if (preferencesRef.current.rememberLastFolder) {
                 const memory = loadGallerySessionMemory();
@@ -4742,30 +4747,6 @@ export function GalleryPage() {
         </main>
     );
 
-    function recordHistory(path: string | null) {
-        const current = historyRef.current;
-        const entries = current.entries.slice(0, current.index + 1);
-        if (entries[entries.length - 1] === path) {
-            return;
-        }
-        entries.push(path);
-        const next = { index: entries.length - 1, entries };
-        historyRef.current = next;
-        setHistory(next);
-    }
-
-    function goHistory(delta: number) {
-        const current = historyRef.current;
-        const index = current.index + delta;
-        if (index < 0 || index >= current.entries.length) {
-            return;
-        }
-        const next = { index, entries: current.entries };
-        historyRef.current = next;
-        setHistory(next);
-        void load(current.entries[index], false);
-    }
-
     async function setLimit(bytes: number): Promise<CacheUsage> {
         const next = await invoke<CacheUsage>('set_cache_limit', { bytes });
         setUsage(next);
@@ -4779,36 +4760,3 @@ export function GalleryPage() {
     }
 }
 
-const SERVICE_FOLDER_LEAF = DISK_SERVICE_FOLDER_LEAF;
-
-function insertServiceFolder(
-    folders: FolderShortcut[],
-    folderPath: string,
-    role: ServiceRole,
-): FolderShortcut[] {
-    const key = pathKey(folderPath);
-    const serviceLeaf = SERVICE_FOLDER_LEAF[role];
-    const without = folders.filter((folder) => {
-        if (pathKey(folder.path) === key) {
-            return false;
-        }
-        if (folder.serviceRole === role) {
-            return false;
-        }
-        if (folder.kind === 'folder' && folder.name === serviceLeaf) {
-            return false;
-        }
-        return true;
-    });
-    const name = folderPath.split(/[\\/]/).filter(Boolean).pop() ?? folderPath;
-    const next = [
-        ...without,
-        { name, path: folderPath, kind: 'folder' as const, serviceRole: role },
-    ];
-    return orderFoldersForDisplay(next);
-}
-
-type FolderHistory = {
-    index: number;
-    entries: (string | null)[];
-};
