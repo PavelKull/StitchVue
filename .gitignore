@@ -16,12 +16,27 @@ dist-ssr
 .vscode/
 .idea/
 
-# Cursor: agents, rules, skills (local only)
-.cursor/
+# Cursor: ignore local IDE/MCP state; track shared agents, rules, skills
+.cursor/*
+!.cursor/agents/
+!.cursor/agents/**
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/skills/
+!.cursor/skills/**
 
-# Local / agent docs (not part of the app)
-docs/
-scripts/refactor-task-check.mjs
+# Secrets / env / local credentials (anywhere)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+**/mcp.json
+
+# Project technical docs and refactoring TASK files are tracked
+# (do not ignore docs/)
+
 .DS_Store
 *.suo
 *.ntvs*
@@ -32,3 +47,6 @@ scripts/refactor-task-check.mjs
 # Local test corpus (HEIC/RAW samples, not committed)
 /fixtures-local/
 
+# Python bytecode from icon helpers
+__pycache__/
+*.py[cod]

@@ -1,0 +1,42 @@
+---
+name: pre-commit-review
+description: Reviews a StitchVue change before a stage is called done. Use when finishing a stage, preparing a commit, or when the user asks to check the diff, typecheck, lint, tests, or build.
+---
+
+# Pre-commit review
+
+This skill reviews. It does not create a git commit unless the user explicitly asks.
+
+```text
+git diff → accidental changes → typecheck → lint → tests → build
+```
+
+1. Read `git status` and `git diff`. List files that are not part of the task.
+2. Revert or leave unstaged those accidental edits. Do not "fix" old warnings and unrelated formatting in the same change.
+3. Run the scripts that exist:
+
+```text
+npm run typecheck
+npm run lint
+npm test
+npm run build
+cargo check --manifest-path src-tauri/Cargo.toml
+cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+If a script or manifest is missing, record `not run` and why. Do not add the script just to make this checklist green.
+
+4. Update `документация-проекта/TODO.md` when it exists: move finished items to Done, set Current, set Last verified to the commands that passed.
+
+## Scope
+
+Flag these in the diff even when everything compiles:
+
+- post-MVP functionality added because it was easy (§16.4, §18, §31)
+- abstraction with a single current caller: generic repository, service layer, event bus, plugin hook, `Base*` class, universal React wrapper
+- a new dependency without a `dependency-evaluator` decision in the reply
+- an invariant of `документация-проекта/PROJECT_SPEC.md` relaxed in code instead of in the spec
+
+## Commit shape
+
+When the user asks to commit, one logical change per commit, for example `feat(scanner): add directory scanning`. Do not commit `implement app`. Do not commit secrets.

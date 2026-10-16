@@ -1,0 +1,18 @@
+---
+description: Безопасный поэтапный рефакторинг StitchVue
+alwaysApply: true
+---
+
+# Safe refactoring
+
+- Один этап — один файл задачи `docs/refactoring/tasks/*.md` (`TASK_TEMPLATE.md`, маршруты в `TASK_HANDOFF.md`).
+- `approved` недостаточно: пользователь `--seal`, до записи `--preflight` (не из `in_progress`), перед Write `--auth`, после `--strict`. Промпт не блокирует инструменты.
+- `in_progress` без `approval_hash` не разрешение. Смена scope после печати — снова `approved` + `--seal`.
+- Не расширять `allowed_paths` самостоятельно. Diff вне списка — стоп. Перенос функции — таблица границ, не только `--strict`.
+- Риск по затронутым инвариантам, не по числу файлов: чистые функции — low; hooks/эффекты/подписки — medium; ФС, SQLite, IPC, сессии, thumbnail scheduler — high. `directorySession` не считать low.
+- Не менять несвязанный код, IPC, схему SQLite, UX без отдельного ТЗ.
+- Пользовательские фото и боевая БД: запрет. Тесты только fixture/temp.
+- Соблюдать бизнес-инварианты (`.cursor/rules/business-invariants.mdc`). Успешный typecheck не доказывает отсутствие регрессий; medium/high — smoke по HANDOFF.
+- Не выполнять `reset --hard`, `clean`, force push; не перезаписывать чужие незакоммиченные изменения (preflight это ловит).
+- При неясных требованиях или необходимости расширить scope — стоп.
+- Исполнители: не более двух попыток исправить одну ошибку; вне scope — сообщить, не чинить.

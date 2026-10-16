@@ -13,4 +13,10 @@ The first launch compiles Rust and can take several minutes.
 
 ## Documentation
 
-All project docs live in [`документация-проекта/`](./документация-проекта/README.md) (`PROJECT_SPEC`, `ARCHITECTURE`, `TODO`, `PERFORMANCE`, and feature notes).
+Technical docs live under [`docs/`](./docs/DEVELOPMENT.md):
+
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — module map and data flows
+- [`docs/INVARIANTS.md`](./docs/INVARIANTS.md) — business invariants
+- [`docs/IPC.md`](./docs/IPC.md) — Tauri commands and events
+- [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) — scripts, layout, tests
+- [`docs/refactoring/TASK_HANDOFF.md`](./docs/refactoring/TASK_HANDOFF.md) — safe refactoring handoff
