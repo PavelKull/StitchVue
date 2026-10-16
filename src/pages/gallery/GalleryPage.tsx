@@ -31,12 +31,8 @@ import {
     listingHasTrustedGeometry,
 } from '../../features/gallery/galleryGeometryGate';
 import { useGalleryPipelineEvents } from '../../features/gallery/galleryPipelineEvents';
-import {
-    applyDrivesSnapshot,
-    initialDrivesState,
-    type DrivesState,
-} from '../../features/folder/drivesState';
-import { listDrives } from '../../features/folder/listDrives';
+import { useGalleryBoot } from '../../features/gallery/useGalleryBoot';
+import { useGalleryDrives } from '../../features/gallery/useGalleryDrives';
 import {
     browseDirectory,
     selectFolder,
@@ -320,13 +316,13 @@ export function GalleryPage() {
     const [layoutMode, setLayoutMode] = useState<LayoutMode>(() =>
         resolveInitialLayoutMode(loadPreferences(), initialMemory),
     );
-    const [drivesState, setDrivesState] = useState<DrivesState>(() =>
-        initialDrivesState(),
-    );
-    const drivesStateRef = useRef(drivesState);
-    drivesStateRef.current = drivesState;
-    const drivesRequestRef = useRef(0);
-    const refreshDrivesRef = useRef<(force?: boolean) => void>(() => undefined);
+    const {
+        drivesState,
+        refreshDrives,
+        refreshDrivesRef,
+        abandonInFlightDriveRequests,
+        applyHomeDrivesSnapshot,
+    } = useGalleryDrives();
     const [sidebarPinned, setSidebarPinned] = useState(() =>
         loadPreferences().rememberPanelsPinned
             ? loadPanelMemory().sidebarPinned
@@ -801,90 +797,18 @@ export function GalleryPage() {
     );
     useExternalFileDrop(onExternalDrop);
 
-    const refreshDrives = useCallback((force = false) => {
-        if (!force && drivesStateRef.current.status === 'loading') {
-            return;
-        }
-        const id = drivesRequestRef.current + 1;
-        drivesRequestRef.current = id;
-        const loading: DrivesState = {
-            ...drivesStateRef.current,
-            status: 'loading',
-            error: null,
-            requestId: id,
-        };
-        drivesStateRef.current = loading;
-        setDrivesState(loading);
-        void listDrives()
-            .then((drives) => {
-                if (id !== drivesRequestRef.current) {
-                    return;
-                }
-                const next: DrivesState = {
-                    status: 'success',
-                    drives,
-                    error: null,
-                    requestId: id,
-                };
-                drivesStateRef.current = next;
-                setDrivesState(next);
-            })
-            .catch((err: unknown) => {
-                if (id !== drivesRequestRef.current) {
-                    return;
-                }
-                const next: DrivesState = {
-                    ...drivesStateRef.current,
-                    status: 'error',
-                    error: err instanceof Error ? err.message : String(err),
-                    requestId: id,
-                };
-                drivesStateRef.current = next;
-                setDrivesState(next);
-            });
+    const bootLoad = useCallback((path: string | null) => {
+        void loadImplRef.current(path);
     }, []);
-    refreshDrivesRef.current = refreshDrives;
-
-    useEffect(() => {
-        let cancelled = false;
-        async function bootstrap() {
-            refreshUsage();
-            void invoke('set_storage_profile', { mode: 'auto' }).catch(
-                () => undefined,
-            );
-            const prefs = loadPreferences();
-            const memory = loadGallerySessionMemory();
-            let startPath: string | null = null;
-            if (prefs.rememberLastFolder && memory.lastFolderPath) {
-                try {
-                    const ok = await invoke<boolean>('directory_accessible', {
-                        path: memory.lastFolderPath,
-                    });
-                    if (ok) {
-                        startPath = memory.lastFolderPath;
-                    } else if (!cancelled) {
-                        setBootNotice(t('gallery.bootLastFolderUnavailable'));
-                    }
-                } catch {
-                    if (!cancelled) {
-                        setBootNotice(t('gallery.bootLastFolderFailed'));
-                    }
-                }
-            }
-            await pipelineListenersReady.current.promise;
-            if (!cancelled) {
-                refreshDrives(true);
-                void load(startPath);
-            }
-        }
-        void bootstrap();
-        return () => {
-            cancelled = true;
-            // Abandon in-flight drive requests so a remount (Strict Mode / HMR) can start fresh
-            // instead of staying stuck on "loading" with no live promise.
-            drivesRequestRef.current += 1;
-        };
-    }, [refreshUsage, refreshDrives]);
+    useGalleryBoot({
+        refreshUsage,
+        refreshDrives,
+        load: bootLoad,
+        pipelineListenersReady,
+        setBootNotice,
+        translate: t,
+        abandonInFlightDriveRequests,
+    });
 
     useEffect(() => {
         if (!bootNotice) {
@@ -1416,11 +1340,7 @@ export function GalleryPage() {
                 const homeDrives = next.folders.filter(
                     (folder) => folder.kind === 'drive',
                 );
-                setDrivesState((current) => {
-                    const applied = applyDrivesSnapshot(current, homeDrives);
-                    drivesStateRef.current = applied;
-                    return applied;
-                });
+                applyHomeDrivesSnapshot(homeDrives);
             } else {
                 void invoke('remember_folder', {
                     path: next.path,
