@@ -4,7 +4,7 @@ import { serviceFolderHint } from "../../entities/folder/serviceFolder";
 import type { FolderShortcut } from "../../entities/folder/types";
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "../../shared/ui/Tooltip";
-import styles from "../../pages/gallery/GalleryPage.module.scss";
+import styles from "./FolderViewTile.module.scss";
 
 type FolderViewTileProps = {
   folder: FolderShortcut;
