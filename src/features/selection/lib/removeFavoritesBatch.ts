@@ -1,5 +1,5 @@
-import type { ImageFile } from "../../entities/image/types";
-import i18n from "../../shared/i18n/i18n.ts";
+import type { ImageFile } from "../../../entities/image/types";
+import i18n from "../../../shared/i18n/i18n.ts";
 import type {
   FavoriteBatchPathResult,
   FavoritesCleanupStatus,

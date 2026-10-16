@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ImageFile } from "../../entities/image/types.ts";
-import { initI18n } from "../../shared/i18n/i18n.ts";
+import type { ImageFile } from "../../../entities/image/types.ts";
+import { initI18n } from "../../../shared/i18n/i18n.ts";
 import {
   batchUnfavoriteConfirmLines,
   batchUnfavoritePromptCopy,

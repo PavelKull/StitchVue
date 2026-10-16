@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { supportMailtoUrl } from "../../shared/config";
+import { supportMailtoUrl } from "../../../shared/config";
 import { CONTACT_SUBJECT } from "./reportProblem";
 
 export type ExternalLinkKind =

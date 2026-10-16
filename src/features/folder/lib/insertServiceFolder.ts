@@ -1,9 +1,9 @@
 import {
     DISK_SERVICE_FOLDER_LEAF,
     type ServiceRole,
-} from '../../entities/folder/serviceFolder.ts';
-import type { FolderShortcut } from '../../entities/folder/types.ts';
-import { pathKey } from '../selection/selection.ts';
+} from '../../../entities/folder/serviceFolder.ts';
+import type { FolderShortcut } from '../../../entities/folder/types.ts';
+import { pathKey } from '../../selection/lib/selection.ts';
 import { orderFoldersForDisplay } from './folderOrder.ts';
 
 const SERVICE_FOLDER_LEAF = DISK_SERVICE_FOLDER_LEAF;

@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ServiceFolderCleanupResult, ServiceFolderLocation } from "../selection/fileOperation";
+import type { ServiceFolderCleanupResult, ServiceFolderLocation } from "../../selection/lib/fileOperation";
 
 export type FolderMenuOptions = {
   canRename: boolean;

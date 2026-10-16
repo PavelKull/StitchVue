@@ -1,13 +1,13 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
-import { displayAspect, rotationQuarters, tilePhotoStyle } from "../../features/gallery/displayRotation";
-import { photoDateLabel } from "../../features/gallery/galleryOrder";
+import { displayAspect, rotationQuarters, tilePhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
+import { photoDateLabel } from "../../features/gallery/lib/listing/galleryOrder";
 import {
   resolveGalleryPhotoClick,
   shouldSuppressNativeSelection,
   suppressGalleryNativeSelectStart,
-} from "../../features/selection/galleryPhotoClick";
+} from "../../features/selection/lib/galleryPhotoClick";
 import {
   selectionDiag,
   selectionDiagBeginGesture,
@@ -16,8 +16,8 @@ import {
   selectionDiagNoteHandler,
   selectionDiagPointer,
   selectionDiagSelectStart,
-} from "../../features/selection/selectionDiag";
-import { pathKey } from "../../features/selection/selection";
+} from "../../features/selection/lib/selectionDiag";
+import { pathKey } from "../../features/selection/lib/selection";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import type { StitchVueIconName } from "../../shared/icons/stitchvue-icons";
@@ -50,7 +50,7 @@ import {
   type PhotoFlipRequest,
 } from "./photoDeleteFlip";
 import { isModalMotionEnabled } from "../../shared/ui/modalMotion";
-import { resolveBottomScrollPad } from "../../features/gallery/bottomScrollPad";
+import { resolveBottomScrollPad } from "../../features/gallery/lib/viewport/bottomScrollPad";
 import styles from "./StitchVueGrid.module.scss";
 
 export const ZOOM_STEPS = [8, 6, 4, 3, 2, 1.5, 1];

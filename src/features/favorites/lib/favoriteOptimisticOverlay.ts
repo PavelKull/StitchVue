@@ -1,4 +1,4 @@
-import { pathKey } from "../selection/selection.ts";
+import { pathKey } from "../../selection/lib/selection.ts";
 
 /** Per-path optimistic star overlay on top of `favoritePaths` (confirmed listing). */
 

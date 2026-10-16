@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { RecycleItemResult } from "../selection/fileOperation";
+import type { RecycleItemResult } from "../selection/lib/fileOperation";
 
 export type LocalTrashFolderSnapshot = {
   photoCount: number;

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { insertServiceFolder } from './insertServiceFolder.ts';
-import type { FolderShortcut } from '../../entities/folder/types.ts';
-import { pathKey } from '../selection/selection.ts';
+import type { FolderShortcut } from '../../../entities/folder/types.ts';
+import { pathKey } from '../../selection/lib/selection.ts';
 
 const folder = (
     name: string,

@@ -1,4 +1,4 @@
-import type { FolderShortcut } from "../../entities/folder/types";
+import type { FolderShortcut } from "../../../entities/folder/types";
 
 /** «Избранное» и «Удаленное» в начале; остальные папки — в исходном порядке с бэкенда. */
 export function orderFoldersForDisplay(folders: readonly FolderShortcut[]): FolderShortcut[] {

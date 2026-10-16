@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { DirectoryView } from "../../entities/folder/types";
-import i18n from "../../shared/i18n/i18n.ts";
+import type { DirectoryView } from "../../../entities/folder/types";
+import i18n from "../../../shared/i18n/i18n.ts";
 
 export async function selectFolder(): Promise<string | null> {
   const selected = await open({

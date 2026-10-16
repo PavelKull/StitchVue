@@ -67,7 +67,7 @@ describe("i18n init (stage 5)", () => {
     assert.equal(i18n.t("places.favorites"), "Favorites");
     assert.equal(i18n.t("places.trash"), "Deleted");
     const { loadPreferences } = await import(
-      "../../../features/settings/settingsPreferences.ts"
+      "../../../features/settings/lib/settingsPreferences.ts"
     );
     assert.equal(loadPreferences().locale, "en");
   });

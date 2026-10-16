@@ -9,13 +9,13 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import { parentDirectoryPath } from "../../features/folder/parentPath";
-import { driveIconName } from "../../features/gallery/driveIcon";
+import { parentDirectoryPath } from "../../features/folder/lib/parentPath";
+import { driveIconName } from "../../features/gallery/lib/chrome/driveIcon";
 import { serviceFolderHint, serviceFolderIcon } from "../../entities/folder/serviceFolder";
 import { folderDisplayName } from "../../entities/folder/folderDisplayName";
 import type { DriveMedia, FolderKind, FolderShortcut } from "../../entities/folder/types";
 import type { ServiceRole } from "../../entities/folder/serviceFolder";
-import type { DrivesStatus } from "../../features/folder/drivesState";
+import type { DrivesStatus } from "../../features/folder/lib/drivesState";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import type { StitchVueIconName } from "../../shared/icons/stitchvue-icons";

@@ -2,20 +2,20 @@ import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
-import { useAppFullscreen } from "../../features/app-fullscreen/useAppFullscreen";
+import { useAppFullscreen } from "../../features/app-fullscreen/model/useAppFullscreen";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import { ViewerControlBar } from "./ViewerControlBar";
 import { aspectFromMeta, computeViewerFrame } from "./viewerFrame";
-import { displayAspect, rotationQuarters, viewerPhotoStyle } from "../../features/gallery/displayRotation";
-import { viewerBackgroundClick } from "../../features/gallery/viewerNav";
+import { displayAspect, rotationQuarters, viewerPhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
+import { viewerBackgroundClick } from "../../features/gallery/lib/viewer/viewerNav";
 import {
   toolbarPeekDistanceFromBottom,
   toolbarPeekShouldActivate,
   toolbarPeekShouldHide,
   toolbarPeekShouldKeepOnLeave,
-} from "../../features/gallery/toolbarPeekGeometry";
-import { peekPreloaded, promotePreloaded } from "../../features/gallery/viewerPreload";
+} from "../../features/gallery/lib/chrome/toolbarPeekGeometry";
+import { peekPreloaded, promotePreloaded } from "../../features/gallery/lib/viewer/viewerPreload";
 import { markFirstFrame, markQualityFrame, markViewerOpened, markWebviewDecode } from "./viewerTiming";
 import { VIEWER_ZOOM_STEPS, viewerNeededEdge, viewerZoomFromIndex, viewerZoomIndex } from "./viewerZoom";
 import styles from "./ImageViewer.module.scss";

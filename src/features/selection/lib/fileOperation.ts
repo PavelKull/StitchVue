@@ -1,6 +1,6 @@
-import { formatOutcomeError } from "../../shared/i18n/errors.ts";
-import { formatFileSize } from "../../shared/i18n/formatters.ts";
-import i18n from "../../shared/i18n/i18n.ts";
+import { formatOutcomeError } from "../../../shared/i18n/errors.ts";
+import { formatFileSize } from "../../../shared/i18n/formatters.ts";
+import i18n from "../../../shared/i18n/i18n.ts";
 
 export type FileAction = "move_to_local_trash" | "copy_to_local_favorites";
 

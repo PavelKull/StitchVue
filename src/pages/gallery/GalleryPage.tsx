@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { samePathList } from '../../features/gallery/indexingPathEquality';
+import { samePathList } from '../../features/gallery/lib/indexing/indexingPathEquality';
 import { ttlPreset } from './ttlPreset';
 import {
     useCallback,
@@ -10,8 +10,8 @@ import {
     useState,
 } from 'react';
 import { flushSync } from 'react-dom';
-import { setWindowFullscreen } from '../../features/app-fullscreen/appFullscreenWindow';
-import { useAppFullscreen } from '../../features/app-fullscreen/useAppFullscreen';
+import { setWindowFullscreen } from '../../features/app-fullscreen/lib/appFullscreenWindow';
+import { useAppFullscreen } from '../../features/app-fullscreen/model/useAppFullscreen';
 import {
     serviceFolderIcon,
     type ServiceRole,
@@ -25,20 +25,20 @@ import type {
     ImageMeta,
     ThumbInfo,
 } from '../../entities/image/types';
-import { coalesceFolderRefresh } from '../../features/gallery/folderRefresh';
+import { coalesceFolderRefresh } from '../../features/gallery/lib/directory/folderRefresh';
 import {
     createDeferredVoid,
     listingHasTrustedGeometry,
-} from '../../features/gallery/galleryGeometryGate';
-import { useGalleryPipelineEvents } from '../../features/gallery/galleryPipelineEvents';
-import { useGalleryBoot } from '../../features/gallery/useGalleryBoot';
-import { useGalleryDrives } from '../../features/gallery/useGalleryDrives';
+} from '../../features/gallery/lib/viewport/galleryGeometryGate';
+import { useGalleryPipelineEvents } from '../../features/gallery/model/pipeline/galleryPipelineEvents';
+import { useGalleryBoot } from '../../features/gallery/model/boot/useGalleryBoot';
+import { useGalleryDrives } from '../../features/gallery/model/directory/useGalleryDrives';
 import {
     browseDirectory,
     selectFolder,
-} from '../../features/select-folder/selectFolder';
-import { driveIconName } from '../../features/gallery/driveIcon';
-import { listingStamp } from '../../features/gallery/galleryListing';
+} from '../../features/select-folder/lib/selectFolder';
+import { driveIconName } from '../../features/gallery/lib/chrome/driveIcon';
+import { listingStamp } from '../../features/gallery/lib/listing/galleryListing';
 import {
     captureVisiblePhotoRects,
     shouldStartPhotoFlip,
@@ -51,48 +51,48 @@ import {
     sortPhotos,
     viewerIndexAfterRemoval,
     type GallerySort,
-} from '../../features/gallery/galleryOrder';
+} from '../../features/gallery/lib/listing/galleryOrder';
 import {
     createGalleryHover,
     setHoverFolderSession,
     viewerEdge,
-} from '../../features/gallery/galleryHover';
+} from '../../features/gallery/lib/viewer/galleryHover';
 import {
     hoverWindow,
     type HoverController,
-} from '../../features/gallery/hoverPrefetch';
+} from '../../features/gallery/lib/pipeline/hoverPrefetch';
 import {
     forgetHotFolder,
     recallHotFolder,
     rememberHotFolder,
     retainUnchanged,
-} from '../../features/gallery/folderHotCache';
-import { useGalleryIndexingSync } from '../../features/gallery/useGalleryIndexingSync';
+} from '../../features/gallery/lib/cache/folderHotCache';
+import { useGalleryIndexingSync } from '../../features/gallery/model/indexing/useGalleryIndexingSync';
 import { useGalleryThumbProgress } from '../../features/gallery/useGalleryThumbProgress';
 import {
     aheadForInterval,
     isFastPace,
     smoothInterval,
-} from '../../features/gallery/viewerPace';
+} from '../../features/gallery/lib/viewer/viewerPace';
 import {
     cancelViewerPreload,
     notifyNeighborThumbs,
     preloadViewerNeighbors,
-} from '../../features/gallery/viewerPreload';
+} from '../../features/gallery/lib/viewer/viewerPreload';
 import {
     clampSidebarWidth,
     loadPanelMemory,
     savePanelMemory,
-} from '../../features/gallery/panelMemory';
+} from '../../features/gallery/lib/chrome/panelMemory';
 import {
     toolbarPeekDistanceFromBottom,
     toolbarPeekShouldKeepOnLeave,
-} from '../../features/gallery/toolbarPeekGeometry';
-import { topNavPeekShouldShow } from '../../features/gallery/topNavPeekGeometry';
-import { useGalleryPanelPeek } from '../../features/gallery/useGalleryPanelPeek';
-import { useGalleryBottomOverlayReserve } from '../../features/gallery/useGalleryBottomOverlayReserve';
-import { useGalleryScrollActivity } from '../../features/gallery/useGalleryScrollActivity';
-import { useGalleryScrollJump } from '../../features/gallery/useGalleryScrollJump';
+} from '../../features/gallery/lib/chrome/toolbarPeekGeometry';
+import { topNavPeekShouldShow } from '../../features/gallery/lib/chrome/topNavPeekGeometry';
+import { useGalleryPanelPeek } from '../../features/gallery/model/chrome/useGalleryPanelPeek';
+import { useGalleryBottomOverlayReserve } from '../../features/gallery/model/viewport/useGalleryBottomOverlayReserve';
+import { useGalleryScrollActivity } from '../../features/gallery/model/viewport/useGalleryScrollActivity';
+import { useGalleryScrollJump } from '../../features/gallery/model/viewport/useGalleryScrollJump';
 import { FolderIcon } from '../../shared/icons/SvgIcon';
 import { StitchVueIcon } from '../../shared/icons/StitchVueIcon';
 import {
@@ -106,7 +106,7 @@ import {
     selectAll,
     togglePath,
     type SelectionState,
-} from '../../features/selection/selection';
+} from '../../features/selection/lib/selection';
 import {
     clearSelectionPaths,
     enterSelectionMode,
@@ -116,14 +116,14 @@ import {
     selectionAfterMassUnfavorite,
     shouldShowSelectionActions,
     toggleSelectionModeButton,
-} from '../../features/selection/selectionMode';
-import { SelectionDiagOverlay } from '../../features/selection/SelectionDiagOverlay';
+} from '../../features/selection/lib/selectionMode';
+import { SelectionDiagOverlay } from '../../features/selection/ui/SelectionDiagOverlay';
 import {
     installSelectionDiagGlobals,
     selectionDiag,
     selectionDiagEnabled,
     selectionDiagKey,
-} from '../../features/selection/selectionDiag';
+} from '../../features/selection/lib/selectionDiag';
 import {
     commandAvailability,
     confirmMoveText,
@@ -142,7 +142,7 @@ import {
     type RemoveFavoriteCopyResult,
     type RestoreTrashResult,
     type ServiceFolderLocation,
-} from '../../features/selection/fileOperation';
+} from '../../features/selection/lib/fileOperation';
 import {
     batchUnfavoriteConfirmLines,
     batchUnfavoritePromptCopy,
@@ -159,8 +159,8 @@ import {
     summarizeUnfavoriteBatch,
     type UnfavoriteBatchItemResult,
     type UnfavoriteCleanupOutcome,
-} from '../../features/selection/removeFavoritesBatch';
-import { logUnfavoriteBatchClassifyDebug } from '../../features/selection/unfavoriteClassifyDiag';
+} from '../../features/selection/lib/removeFavoritesBatch';
+import { logUnfavoriteBatchClassifyDebug } from '../../features/selection/lib/unfavoriteClassifyDiag';
 import {
     beginUnfavorite,
     beginUnfavoriteConfirmPass,
@@ -169,7 +169,7 @@ import {
     idleUnfavoriteGate,
     markUnfavoriteConfirmPending,
     type UnfavoriteGate,
-} from '../../features/selection/unfavoriteGate';
+} from '../../features/selection/lib/unfavoriteGate';
 import {
     applyFavoriteOverlayPending,
     applyFavoriteOverlayPendingBatch,
@@ -181,18 +181,18 @@ import {
     mapSnapshotCopyOrigins,
     nextFavoriteOverlayGeneration,
     type FavoriteOverlayMap,
-} from '../../features/favorites/favoriteOptimisticOverlay';
+} from '../../features/favorites/lib/favoriteOptimisticOverlay';
 import {
     beginFavoritePathsFetch,
     bumpFavoritePathsConfirmedRevision,
     needsFavoritePathsResyncAfterStaleReject,
     resolveFavoritePathsFetch,
     type FavoritePathsSyncCounters,
-} from '../../features/favorites/favoritePathsServerSync';
+} from '../../features/favorites/lib/favoritePathsServerSync';
 import {
     browseErrorLooksLikeMissingFolder,
     favoritesActivityAfterRename,
-} from '../../features/favorites/favoritesCollectionLifecycle';
+} from '../../features/favorites/lib/favoritesCollectionLifecycle';
 import {
     copyOriginRowsFromCache,
     ensureFavoriteCopyOriginCacheScope,
@@ -200,12 +200,12 @@ import {
     nextFavoritesFolderHideGeneration,
     shouldOptimisticallyHideFavoritesServiceFolder,
     type FavoritesServiceFolderHideOverlay,
-} from '../../features/favorites/favoriteMassUnfavoriteOptimistic';
+} from '../../features/favorites/lib/favoriteMassUnfavoriteOptimistic';
 import {
     buildFavoriteOptimisticMemorySnapshot,
     installFavoriteOptimisticMemoryDiag,
-} from '../../features/favorites/favoriteOptimisticMemoryDiag';
-import { cleanupEmptyServiceFolder } from '../../features/folder/folderMenu';
+} from '../../features/favorites/lib/favoriteOptimisticMemoryDiag';
+import { cleanupEmptyServiceFolder } from '../../features/folder/lib/folderMenu';
 import {
     ConfirmMoveDialog,
     OperationNoticeView,
@@ -213,12 +213,12 @@ import {
 } from '../../widgets/selection-actions/SelectionActions';
 import selectionActionsStyles from '../../widgets/selection-actions/SelectionActions.module.scss';
 import { FolderSidebar } from '../../widgets/folder-sidebar/FolderSidebar';
-import { orderFoldersForDisplay } from '../../features/folder/folderOrder';
-import { insertServiceFolder } from '../../features/folder/insertServiceFolder';
+import { orderFoldersForDisplay } from '../../features/folder/lib/folderOrder';
+import { insertServiceFolder } from '../../features/folder/lib/insertServiceFolder';
 import {
     captureFolderTileRects,
     playFolderTileFlip,
-} from '../../features/folder/folderTileFlip';
+} from '../../features/folder/lib/folderTileFlip';
 import { useFolderContextMenu } from '../../widgets/folder-context/useFolderContextMenu';
 import type { LayoutMode } from '../../entities/gallery/layoutMode';
 import {
@@ -229,13 +229,13 @@ import {
     saveGallerySessionMemory,
     validateRowsPerScreen,
     ZOOM_DEFAULT,
-} from '../../features/settings/gallerySessionMemory';
+} from '../../features/settings/lib/gallerySessionMemory';
 import {
     loadPreferences,
     resetPreferencesToDefaults,
     savePreferences,
     type AppPreferences,
-} from '../../features/settings/settingsPreferences';
+} from '../../features/settings/lib/settingsPreferences';
 import { FOLDER_HEADER_TOP_PX } from '../../widgets/gallery-grid/folderHeaderScroll';
 import { firstGeometryRange } from '../../widgets/gallery-grid/layout';
 import {
@@ -252,7 +252,7 @@ import { SettingsDialog } from '../../widgets/settings-dialog/SettingsDialog';
 import { ImageViewer } from '../../widgets/image-viewer/ImageViewer';
 import { PhotoPropertiesDialog } from '../../widgets/photo-properties/PhotoPropertiesDialog';
 import { TopNavigationBar } from '../../widgets/top-navigation-bar/TopNavigationBar';
-import { useExternalFileDrop } from '../../features/gallery/externalDrop';
+import { useExternalFileDrop } from '../../features/gallery/lib/directory/externalDrop';
 import { usePathCopyFeedback } from '../../shared/hooks/usePathCopyFeedback';
 import {
     recycleLocalTrashFile,
@@ -262,7 +262,7 @@ import { useTranslation } from 'react-i18next';
 import {
     createEmptyView,
     withLocalizedDirectory,
-} from '../../features/gallery/galleryDirectoryView';
+} from '../../features/gallery/lib/directory/galleryDirectoryView';
 import { clearThumbnailCache } from '../../features/gallery/api/galleryCacheApi';
 import {
     setGeometryRange,
@@ -270,8 +270,8 @@ import {
 } from '../../features/gallery/api/galleryGeometryApi';
 import { startIndexing } from '../../features/gallery/api/galleryIndexingApi';
 import { beginDirectorySession } from '../../features/gallery/api/gallerySessionApi';
-import { restorePromptText } from '../../features/gallery/restorePromptText';
-import { useGalleryFolderHistory } from '../../features/gallery/useGalleryFolderHistory';
+import { restorePromptText } from '../../features/gallery/lib/directory/restorePromptText';
+import { useGalleryFolderHistory } from '../../features/gallery/model/directory/useGalleryFolderHistory';
 import { DISK_SERVICE_FOLDER_LEAF } from '../../entities/folder/serviceFolder';
 import { formatInvokeError } from '../../shared/i18n';
 import { FolderViewTile } from '../../widgets/folder-tile/FolderViewTile';

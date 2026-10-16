@@ -1,4 +1,4 @@
-import { isFavoritesFolderName, type ServiceRole } from "../../entities/folder/serviceFolder.ts";
+import { isFavoritesFolderName, type ServiceRole } from "../../../entities/folder/serviceFolder.ts";
 
 export type FavoritesActivityAfterRename =
   | "stays-active"

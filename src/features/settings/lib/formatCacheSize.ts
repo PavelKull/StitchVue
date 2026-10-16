@@ -1,5 +1,5 @@
-import { formatNumber } from "../../shared/i18n/formatters.ts";
-import i18n from "../../shared/i18n/i18n.ts";
+import { formatNumber } from "../../../shared/i18n/formatters.ts";
+import i18n from "../../../shared/i18n/i18n.ts";
 
 /**
  * Cache used/limit label — MB/GB tiers only (same thresholds as before i18n).

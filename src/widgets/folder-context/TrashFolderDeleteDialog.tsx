@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { describeLocalTrashFolder, recycleLocalTrashFolder, type LocalTrashFolderSnapshot } from "../../features/trash/trashApi";
 
-import type { ServiceFolderLocation } from "../../features/selection/fileOperation";
+import type { ServiceFolderLocation } from "../../features/selection/lib/fileOperation";
 
 import { formatInvokeError, localizeErrorCode } from "../../shared/i18n";
 

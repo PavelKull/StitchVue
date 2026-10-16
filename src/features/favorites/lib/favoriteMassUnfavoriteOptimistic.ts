@@ -1,6 +1,6 @@
-import type { ImageFile } from "../../entities/image/types.ts";
-import { pathKey } from "../selection/selection.ts";
-import type { FavoriteCopyOrigin } from "../selection/fileOperation.ts";
+import type { ImageFile } from "../../../entities/image/types.ts";
+import { pathKey } from "../../selection/lib/selection.ts";
+import type { FavoriteCopyOrigin } from "../../selection/lib/fileOperation.ts";
 
 export type FavoritesServiceFolderHideOverlay = {
   operationId: string;

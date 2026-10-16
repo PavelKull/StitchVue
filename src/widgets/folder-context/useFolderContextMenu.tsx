@@ -2,9 +2,9 @@ import { useCallback, useState, type MouseEvent } from "react";
 
 import type { FolderShortcut } from "../../entities/folder/types";
 
-import { loadFolderMenuOptions, removeEmptyServiceFolder, renameFolder } from "../../features/folder/folderMenu";
+import { loadFolderMenuOptions, removeEmptyServiceFolder, renameFolder } from "../../features/folder/lib/folderMenu";
 
-import type { ServiceFolderLocation } from "../../features/selection/fileOperation";
+import type { ServiceFolderLocation } from "../../features/selection/lib/fileOperation";
 
 import { formatInvokeError } from "../../shared/i18n";
 

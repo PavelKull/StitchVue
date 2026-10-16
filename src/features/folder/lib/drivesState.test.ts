@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { FolderShortcut } from "../../entities/folder/types";
+import type { FolderShortcut } from "../../../entities/folder/types";
 import {
   applyDrivesSnapshot,
   beginDrivesRequest,

@@ -4,7 +4,7 @@ import {
   browseErrorLooksLikeMissingFolder,
   favoritesActivityAfterRename,
 } from "./favoritesCollectionLifecycle.ts";
-import { isFavoritesFolderName } from "../../entities/folder/serviceFolder.ts";
+import { isFavoritesFolderName } from "../../../entities/folder/serviceFolder.ts";
 
 test("isFavoritesFolderName accepts both canonical names", () => {
   assert.equal(isFavoritesFolderName("Избранное"), true);

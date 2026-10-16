@@ -1,10 +1,10 @@
-import { normalizeLayoutMode, type LayoutMode } from "../../entities/gallery/layoutMode.ts";
+import { normalizeLayoutMode, type LayoutMode } from "../../../entities/gallery/layoutMode.ts";
 import {
   readSystemLanguages,
   resolveLocale,
   type UserFacingLocale,
-} from "../../shared/i18n/config.ts";
-import type { MoveConfirm } from "../selection/fileOperation.ts";
+} from "../../../shared/i18n/config.ts";
+import type { MoveConfirm } from "../../selection/lib/fileOperation.ts";
 import {
   loadGallerySessionMemory,
   saveGallerySessionMemory,

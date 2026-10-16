@@ -4,8 +4,8 @@ import {
   AppFullscreenController,
   type AppFullscreenSnapshot,
 } from "./appFullscreenController.ts";
-import type { FullscreenWindowBridge } from "./appFullscreenBridge.ts";
-import type { SettleSignal } from "./waitForWindowSettle.ts";
+import type { FullscreenWindowBridge } from "../lib/appFullscreenBridge.ts";
+import type { SettleSignal } from "../lib/waitForWindowSettle.ts";
 
 function createMockBridge(initial = false): FullscreenWindowBridge & {
   fullscreen: boolean;

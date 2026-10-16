@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useSupportReminder } from "../../features/support-reminder/useSupportReminder.ts";
+import { useSupportReminder } from "../../features/support-reminder/model/useSupportReminder.ts";
 import { SupportReminderDialog } from "./SupportReminderDialog.tsx";
 
 export type GallerySupportReminderProps = {

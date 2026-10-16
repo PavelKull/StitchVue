@@ -1,4 +1,4 @@
-import type { FolderShortcut } from "../../entities/folder/types";
+import type { FolderShortcut } from "../../../entities/folder/types";
 
 export type DrivesStatus = "idle" | "loading" | "success" | "error";
 

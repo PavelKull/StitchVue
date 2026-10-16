@@ -1,18 +1,18 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { LAYOUT_MODES } from "../../entities/gallery/layoutMode";
-import { formatCacheSize } from "../../features/settings/formatCacheSize";
-import { openExternalLink } from "../../features/settings/openExternalLink";
+import { formatCacheSize } from "../../features/settings/lib/formatCacheSize";
+import { openExternalLink } from "../../features/settings/api/openExternalLink";
 import {
   loadSupportReminderState,
   setSupportReminderNeverShowAgain,
-} from "../../features/support-reminder/supportReminderState";
+} from "../../features/support-reminder/lib/supportReminderState";
 import {
   BUG_REPORT_SUBJECT,
   CONTACT_SUBJECT,
   resolveReportProblemRoute,
-} from "../../features/settings/reportProblem";
-import type { AppPreferences, SettingsTab } from "../../features/settings/settingsPreferences";
+} from "../../features/settings/api/reportProblem";
+import type { AppPreferences, SettingsTab } from "../../features/settings/lib/settingsPreferences";
 import {
   BOOSTY_URL,
   CLOUDTIPS_URL,

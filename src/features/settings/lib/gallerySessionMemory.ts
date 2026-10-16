@@ -1,4 +1,4 @@
-import { normalizeLayoutMode, type LayoutMode } from "../../entities/gallery/layoutMode.ts";
+import { normalizeLayoutMode, type LayoutMode } from "../../../entities/gallery/layoutMode.ts";
 
 /** Keep in sync with `ZOOM_STEPS` in `StitchVueGrid.tsx`. */
 const ZOOM_STEPS = [8, 6, 4, 3, 2, 1.5, 1] as const;

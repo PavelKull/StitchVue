@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eventSessionIsCurrent } from "../../features/gallery/directorySession.ts";
-import { listingStamp } from "../../features/gallery/galleryListing.ts";
-import { DEFAULT_GALLERY_SORT } from "../../features/gallery/galleryOrder.ts";
+import { eventSessionIsCurrent } from "../../features/gallery/lib/directory/directorySession.ts";
+import { listingStamp } from "../../features/gallery/lib/listing/galleryListing.ts";
+import { DEFAULT_GALLERY_SORT } from "../../features/gallery/lib/listing/galleryOrder.ts";
 import {
   ESTIMATED_ASPECT,
   layoutColumnsPublished,

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { openExternalLink } from "../../features/settings/openExternalLink";
-import type { SupportMilestone } from "../../features/support-reminder/supportReminderTypes";
+import { openExternalLink } from "../../features/settings/api/openExternalLink";
+import type { SupportMilestone } from "../../features/support-reminder/lib/supportReminderTypes";
 import { BOOSTY_URL, CLOUDTIPS_URL } from "../../shared/config";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import { useAnimatedModal } from "../../shared/ui/useAnimatedModal";

@@ -5,8 +5,8 @@ import {
   emptyStreamListing,
   finishListing,
   publishedListing,
-} from "../../features/gallery/galleryListing.ts";
-import { DEFAULT_GALLERY_SORT } from "../../features/gallery/galleryOrder.ts";
+} from "../../features/gallery/lib/listing/galleryListing.ts";
+import { DEFAULT_GALLERY_SORT } from "../../features/gallery/lib/listing/galleryOrder.ts";
 import {
   ESTIMATED_ASPECT,
   firstGeometryRange,
@@ -295,7 +295,7 @@ test("date-grouped streaming stats must not invent a new visual order for alread
 });
 
 test("a stale metadata session does not keep items from a previous folder open", async () => {
-  const { keepCurrentSession } = await import("../../features/gallery/directorySession.ts");
+  const { keepCurrentSession } = await import("../../features/gallery/lib/directory/directorySession.ts");
   const kept = keepCurrentSession(
     [
       { session: 1, path: "C:\\old\\a.jpg", width: 4000, height: 3000 },

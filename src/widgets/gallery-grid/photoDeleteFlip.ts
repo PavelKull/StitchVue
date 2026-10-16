@@ -1,4 +1,4 @@
-import { pathKey } from "../../features/selection/selection.ts";
+import { pathKey } from "../../features/selection/lib/selection.ts";
 
 export const PHOTO_FLIP_MS = 240;
 export const PHOTO_FLIP_EASING = "cubic-bezier(0.22, 1, 0.36, 1)";

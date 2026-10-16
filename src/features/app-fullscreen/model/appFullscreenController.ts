@@ -1,18 +1,18 @@
-import { measureFullscreenBottomInset } from "./appFullscreenWindow.ts";
+import { measureFullscreenBottomInset } from "../lib/appFullscreenWindow.ts";
 import {
   createTauriFullscreenBridge,
   type FullscreenWindowBridge,
-} from "./appFullscreenBridge.ts";
+} from "../lib/appFullscreenBridge.ts";
 import {
   fsDiagBegin,
   fsDiagEnd,
   fsDiagMark,
-} from "./appFullscreenDiag.ts";
+} from "../lib/appFullscreenDiag.ts";
 import {
   readPrefersReducedMotion,
   resolvePanelMotionMs,
-} from "./appFullscreenMotion.ts";
-import { waitForWindowSettle, type SettleSignal } from "./waitForWindowSettle.ts";
+} from "../lib/appFullscreenMotion.ts";
+import { waitForWindowSettle, type SettleSignal } from "../lib/waitForWindowSettle.ts";
 
 export type FullscreenPhase = "idle" | "preparing" | "switching" | "settling";
 

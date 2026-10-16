@@ -1,4 +1,4 @@
-import { pathKey } from "../selection/selection.ts";
+import { pathKey } from "../../selection/lib/selection.ts";
 import {
   favoritePathsFromServerWithOverlay,
   type FavoriteOverlayMap,

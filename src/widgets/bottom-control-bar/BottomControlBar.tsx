@@ -13,7 +13,7 @@ import {
     defaultSortDirection,
     type GallerySort,
     type SortKey,
-} from '../../features/gallery/galleryOrder';
+} from '../../features/gallery/lib/listing/galleryOrder';
 import { useTranslation } from 'react-i18next';
 import { StitchVueIcon } from '../../shared/icons/StitchVueIcon';
 import type { StitchVueIconName } from '../../shared/icons/stitchvue-icons';

@@ -8,7 +8,7 @@ import { Tooltip } from "../../shared/ui/Tooltip";
 
 import { useAnimatedModal } from "../../shared/ui/useAnimatedModal";
 
-import type { OperationNotice } from "../../features/selection/fileOperation";
+import type { OperationNotice } from "../../features/selection/lib/fileOperation";
 
 import styles from "./SelectionActions.module.scss";
 

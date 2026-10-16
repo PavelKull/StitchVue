@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { orderFoldersForDisplay } from "./folderOrder.ts";
-import type { FolderShortcut } from "../../entities/folder/types";
+import type { FolderShortcut } from "../../../entities/folder/types";
 
 const folder = (name: string, serviceRole?: FolderShortcut["serviceRole"]): FolderShortcut => ({
   name,

@@ -5,7 +5,7 @@ import {
   selectionDiagEnabled,
   selectionDiagText,
   subscribeSelectionDiag,
-} from "./selectionDiag";
+} from "../lib/selectionDiag";
 
 /** Floating DEV panel — last selection diag lines + copy dump. */
 export function SelectionDiagOverlay() {

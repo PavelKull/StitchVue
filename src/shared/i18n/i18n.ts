@@ -8,7 +8,7 @@ import { initReactI18next } from "react-i18next";
 import {
   loadPreferences,
   savePreferences,
-} from "../../features/settings/settingsPreferences.ts";
+} from "../../features/settings/lib/settingsPreferences.ts";
 import {
   applyDocumentLang,
   isUserFacingLocale,

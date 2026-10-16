@@ -1,5 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
-import { pointerOverTopNavDock } from "../../features/gallery/topNavDock";
+import { pointerOverTopNavDock } from "../../features/gallery/lib/chrome/topNavDock";
 import { useTranslation } from "react-i18next";
 import {
   inScrollbarRevealLane,

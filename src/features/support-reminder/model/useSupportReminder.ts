@@ -4,16 +4,16 @@ import {
   SUPPORT_REMINDER_DEBUG_DELAY_MS,
   SUPPORT_REMINDER_DEBUG_MILESTONE,
   SUPPORT_REMINDER_DEBUG_SHOW_ON_LAUNCH,
-} from "./supportReminderTypes.ts";
-import { canShowSupportReminderNow, type SupportReminderShowContext } from "./supportReminderLogic.ts";
-import type { SupportMilestone } from "./supportReminderTypes.ts";
+} from "../lib/supportReminderTypes.ts";
+import { canShowSupportReminderNow, type SupportReminderShowContext } from "../lib/supportReminderLogic.ts";
+import type { SupportMilestone } from "../lib/supportReminderTypes.ts";
 import {
   dismissSupportReminder,
   permanentlyDismissSupportReminders,
   persistenceBlockedThisSession,
   readPendingMilestone,
   recordAppLaunch,
-} from "./supportReminderState.ts";
+} from "../lib/supportReminderState.ts";
 
 export type SupportReminderHostSnapshot = {
   galleryReady: boolean;
