@@ -125,4 +125,7 @@ src/features/gallery/
 
 ## Коммиты
 
-См. `git log refactor/fsd-folder-structure` после фиксации (ожидаются 2–3 атомарных коммита: gallery, остальные features, chore test script + отчёт).
+| Hash | Сообщение |
+|------|-----------|
+| `c62beaf` | `refactor(gallery): organize modules into FSD lib/model/api segments` — перемещения модулей (включая все feature-срезы) + скрипты gallery |
+| `99daeae` | `refactor(features): update imports and tests after FSD folder layout` — потребители, `package.json` test paths, отчёт, скрипты features |
