@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import type { ImageFile } from '../../../entities/image/types';
-import { indexPayload } from '../galleryIndexPayload';
+import { indexPayload } from '../lib/indexing/galleryIndexPayload';
 
 export function startIndexing(
     folder: string,

@@ -6,13 +6,13 @@ import {
     type RefObject,
 } from 'react';
 import type { ImageFile, ThumbInfo } from '../../entities/image/types';
-import { pathKey } from '../selection/selection.ts';
+import { pathKey } from '../selection/lib/selection.ts';
 import {
     folderThumbnailsPending as computeFolderThumbnailsPending,
     markThumbSettled,
     seedSettledThumbKeys,
-} from './folderThumbnailsPending';
-import { fetchPipelineStats } from './pipelineStats';
+} from './lib/thumbnails/folderThumbnailsPending.ts';
+import { fetchPipelineStats } from './api/pipelineStats.ts';
 
 export type FolderThumbProgressInputs = {
     listingBusy: boolean;
