@@ -78,12 +78,6 @@ import {
 } from '../../features/gallery/folderThumbnailsPending';
 import { fetchPipelineStats } from '../../features/gallery/pipelineStats';
 import {
-    advanceScrollMode,
-    initialScrollModeState,
-    SCROLL_IDLE_MS,
-    type ScrollModeState,
-} from '../../features/gallery/scrollLoadMode';
-import {
     aheadForInterval,
     isFastPace,
     smoothInterval,
@@ -104,7 +98,9 @@ import {
 } from '../../features/gallery/toolbarPeekGeometry';
 import { topNavPeekShouldShow } from '../../features/gallery/topNavPeekGeometry';
 import { useGalleryPanelPeek } from '../../features/gallery/useGalleryPanelPeek';
-import { bottomScrollPadNeeded } from '../../features/gallery/bottomScrollPad';
+import { useGalleryBottomOverlayReserve } from '../../features/gallery/useGalleryBottomOverlayReserve';
+import { useGalleryScrollActivity } from '../../features/gallery/useGalleryScrollActivity';
+import { useGalleryScrollJump } from '../../features/gallery/useGalleryScrollJump';
 import { FolderIcon } from '../../shared/icons/SvgIcon';
 import { StitchVueIcon } from '../../shared/icons/StitchVueIcon';
 import {
@@ -390,11 +386,6 @@ export function GalleryPage() {
     const shellRef = useRef<HTMLElement>(null);
     const photoGridViewportRef = useRef<HTMLDivElement>(null);
     const bottomBarDockRef = useRef<HTMLDivElement>(null);
-    const [bottomOverlayReserve, setBottomOverlayReserve] = useState(0);
-    const [scrollJump, setScrollJump] = useState({
-        canScroll: false,
-        pointUp: false,
-    });
     const [folderListingBusy, setFolderListingBusy] = useState(true);
     const [folderThumbnailsPending, setFolderThumbnailsPending] =
         useState(true);
@@ -486,8 +477,7 @@ export function GalleryPage() {
     const geometryNudgeSessionRef = useRef(0);
     const scanFolderRef = useRef<string | null>(null);
     const listingRescanRef = useRef(true);
-    const scrollTimer = useRef(0);
-    const scrollModeRef = useRef<ScrollModeState>(initialScrollModeState());
+    const resetScrollActivityRef = useRef<() => void>(() => undefined);
     const hoverRef = useRef<HoverController | null>(null);
     if (hoverRef.current == null) {
         hoverRef.current = createGalleryHover();
@@ -1184,28 +1174,6 @@ export function GalleryPage() {
 
     useEffect(() => () => hoverRef.current?.dispose(), []);
 
-    useLayoutEffect(() => {
-        const dock = bottomBarDockRef.current;
-        if (!dock) {
-            return;
-        }
-        const measure = () => {
-            const edgeRaw = getComputedStyle(dock).bottom;
-            const edgePx = Number.parseFloat(edgeRaw);
-            const next = bottomScrollPadNeeded(
-                dock.offsetHeight,
-                Number.isFinite(edgePx) ? edgePx : 16,
-            );
-            setBottomOverlayReserve((current) =>
-                current === next ? current : next,
-            );
-        };
-        measure();
-        const observer = new ResizeObserver(measure);
-        observer.observe(dock);
-        return () => observer.disconnect();
-    }, []);
-
     useEffect(() => {
         if (!fileOperation) {
             setShowFileProgress(false);
@@ -1343,7 +1311,7 @@ export function GalleryPage() {
         await invoke('begin_directory_session', { session: id, folder: path });
         stashOpenFolder();
         scrollTopRef.current = 0;
-        scrollModeRef.current = initialScrollModeState();
+        resetScrollActivityRef.current();
         scrollRestoreToken.current += 1;
         setScrollRestore({ token: scrollRestoreToken.current, top: 0 });
         const hot = path ? recallHotFolder(path) : null;
@@ -1542,79 +1510,6 @@ export function GalleryPage() {
         }
     }
 
-    const syncScrollJump = useCallback(() => {
-        const node = photoGridViewportRef.current;
-        if (!node) {
-            setScrollJump((current) =>
-                current.canScroll || current.pointUp
-                    ? { canScroll: false, pointUp: false }
-                    : current,
-            );
-            return;
-        }
-        const max = Math.max(0, node.scrollHeight - node.clientHeight);
-        const canScroll = max > 2;
-        const pointUp = canScroll && node.scrollTop > node.clientHeight;
-        setScrollJump((current) =>
-            current.canScroll === canScroll && current.pointUp === pointUp
-                ? current
-                : { canScroll, pointUp },
-        );
-    }, []);
-
-    const reportScrollActivity = useCallback((top: number) => {
-        const previous = scrollTopRef.current;
-        scrollTopRef.current = top;
-        const next = advanceScrollMode(
-            scrollModeRef.current,
-            top,
-            previous,
-            performance.now(),
-        );
-        const prevMode = scrollModeRef.current;
-        scrollModeRef.current = next;
-        if (next.mode !== prevMode.mode || next.ahead !== prevMode.ahead) {
-            void invoke('set_scrolling', { mode: next.mode, ahead: next.ahead });
-        }
-        window.clearTimeout(scrollTimer.current);
-        scrollTimer.current = window.setTimeout(() => {
-            if (scrollModeRef.current.mode === 'idle') {
-                return;
-            }
-            scrollModeRef.current = initialScrollModeState();
-            void invoke('set_scrolling', { mode: 'idle', ahead: 0 });
-        }, SCROLL_IDLE_MS);
-        const node = photoGridViewportRef.current;
-        if (node) {
-            const max = Math.max(0, node.scrollHeight - node.clientHeight);
-            const canScroll = max > 2;
-            const pointUp = canScroll && top > node.clientHeight;
-            setScrollJump((current) =>
-                current.canScroll === canScroll && current.pointUp === pointUp
-                    ? current
-                    : { canScroll, pointUp },
-            );
-        }
-    }, []);
-
-    const jumpGalleryScroll = useCallback((toTop: boolean) => {
-        const node = photoGridViewportRef.current;
-        if (!node) {
-            return;
-        }
-        const max = Math.max(0, node.scrollHeight - node.clientHeight);
-        if (max <= 2) {
-            return;
-        }
-        const reduceMotion = window.matchMedia(
-            '(prefers-reduced-motion: reduce)',
-        ).matches;
-        node.scrollTo({
-            top: toTop ? 0 : max,
-            behavior: reduceMotion ? 'auto' : 'smooth',
-        });
-    }, []);
-
     async function openFolder() {
         const selected = await selectFolder();
         if (selected) {
@@ -1694,24 +1589,25 @@ export function GalleryPage() {
         [status, orderedImages, metaVersion, failedVersion],
     );
 
-    useEffect(() => {
-        const node = photoGridViewportRef.current;
-        if (!node || orderedImages.length === 0) {
-            setScrollJump({ canScroll: false, pointUp: false });
-            return;
-        }
-        syncScrollJump();
-        const observer = new ResizeObserver(() => syncScrollJump());
-        observer.observe(node);
-        return () => observer.disconnect();
-    }, [
-        orderedImages.length,
-        directoryKey,
-        layoutMode,
-        rowsPerScreen,
-        bottomOverlayReserve,
-        syncScrollJump,
-    ]);
+    const bottomOverlayReserve =
+        useGalleryBottomOverlayReserve(bottomBarDockRef);
+    const { scrollJump, jumpGalleryScroll, commitScrollJump } =
+        useGalleryScrollJump({
+            viewportRef: photoGridViewportRef,
+            orderedImagesLength: orderedImages.length,
+            directoryKey: directoryKey ?? '',
+            layoutMode,
+            rowsPerScreen,
+            bottomOverlayReserve,
+        });
+    const { reportScrollActivity, resetScrollActivityForFolderChange } =
+        useGalleryScrollActivity({
+            scrollTopRef,
+            viewportRef: photoGridViewportRef,
+            commitScrollJump,
+        });
+    resetScrollActivityRef.current = resetScrollActivityForFolderChange;
+
     const orderedRef = useRef(orderedImages);
     orderedRef.current = orderedImages;
 
