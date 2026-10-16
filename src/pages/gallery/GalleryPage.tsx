@@ -269,24 +269,18 @@ import {
     trashEntryOrigin,
 } from '../../features/trash/trashApi';
 import { useTranslation } from 'react-i18next';
-import { directoryTitle } from '../../entities/folder/folderDisplayName';
+import {
+    createEmptyView,
+    withLocalizedDirectory,
+} from '../../features/gallery/galleryDirectoryView';
+import { indexPayload } from '../../features/gallery/galleryIndexPayload';
+import { restorePromptText } from '../../features/gallery/restorePromptText';
 import { DISK_SERVICE_FOLDER_LEAF } from '../../entities/folder/serviceFolder';
-import { formatInvokeError, localizeErrorCode } from '../../shared/i18n';
+import { formatInvokeError } from '../../shared/i18n';
 import { FolderViewTile } from '../../widgets/folder-tile/FolderViewTile';
 import { useAnimatedModal } from '../../shared/ui/useAnimatedModal';
 import { GallerySupportReminder } from '../../widgets/support-reminder/GallerySupportReminder';
 import styles from './GalleryPage.module.scss';
-
-function createEmptyView(title: string): DirectoryView {
-    return {
-        title,
-        path: null,
-        parent: null,
-        folders: [],
-        images: [],
-        serviceRole: null,
-    };
-}
 
 type CacheUsage = {
     usedBytes: number;
@@ -4812,28 +4806,6 @@ function insertServiceFolder(
         { name, path: folderPath, kind: 'folder' as const, serviceRole: role },
     ];
     return orderFoldersForDisplay(next);
-}
-
-function indexPayload(files: ImageFile[]) {
-    return files.map((file) => ({
-        path: file.path,
-        size: file.size,
-        modifiedAt: file.modifiedAt,
-    }));
-}
-
-function restorePromptText(code: string): string {
-    if (code === 'name_taken') {
-        return localizeErrorCode('name_taken');
-    }
-    if (code === 'origin_missing') {
-        return localizeErrorCode('origin_missing');
-    }
-    return localizeErrorCode(code);
-}
-
-function withLocalizedDirectory(view: DirectoryView): DirectoryView {
-    return { ...view, title: directoryTitle(view) };
 }
 
 type FolderHistory = {
