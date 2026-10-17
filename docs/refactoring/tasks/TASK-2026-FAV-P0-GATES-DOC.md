@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P0-GATES-DOC
 title: "P0 Safe Favorites — gates doc & baseline (T007)"
-status: verification
+status: completed
 risk: low
 responsible_agent: frontend-executor
 base_commit: "8ca8deb4880d066cf4d81972ca95cd35c5de2269"
@@ -28,7 +28,7 @@ tests:
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-GATES-DOC |
-| Статус | verification |
+| Статус | completed |
 | Риск | low |
 | Ответственный | любой executor (docs) или владелец |
 | SpecKit | T007 |

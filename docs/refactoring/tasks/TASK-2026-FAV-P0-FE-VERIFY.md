@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P0-FE-VERIFY
 title: "P0 Safe Favorites — Frontend VERIFY (T005–T006)"
-status: verification
+status: completed
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "6db721cf99c737ffccc410795153ce2a7c59a383"
@@ -32,7 +32,7 @@ SpecKit T005–T006. **TDD:** сначала тесты (и минимальны
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-FE-VERIFY |
-| Статус | verification |
+| Статус | completed |
 | Риск | medium — новый routing lib + batch test expectations |
 | Ответственный | frontend-executor |
 | SpecKit | T005, T006 |
