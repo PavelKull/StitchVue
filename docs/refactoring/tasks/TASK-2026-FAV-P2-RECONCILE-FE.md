@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P2-RECONCILE-FE
 title: "P2 Safe Favorites — FE reconcile triggers (T017–T020)"
-status: verification
+status: completed
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "73e3e36223ff2be3850081913569dd87e5e45784"
