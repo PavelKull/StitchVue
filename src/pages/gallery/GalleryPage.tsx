@@ -201,6 +201,7 @@ import {
     buildFavoriteOptimisticMemorySnapshot,
     installFavoriteOptimisticMemoryDiag,
 } from '../../features/favorites/lib/favoriteOptimisticMemoryDiag';
+import { createFavoritesReconcileScheduler } from '../../features/favorites/lib/favoritesReconcile';
 import { cleanupEmptyServiceFolder } from '../../features/folder/lib/folderMenu';
 import {
     ConfirmMoveDialog,
@@ -631,6 +632,12 @@ export function GalleryPage() {
     const rowsRef = useRef(rowsPerScreen);
     rowsRef.current = rowsPerScreen;
     const refreshRef = useRef<(path: string) => void>(() => undefined);
+    const favoritesRefetchRef = useRef<(path: string) => void>(() => undefined);
+    const favoritesReconcileRef = useRef(
+        createFavoritesReconcileScheduler((directoryKey) => {
+            favoritesRefetchRef.current(directoryKey);
+        }),
+    );
     const refreshFolderImplRef = useRef<(path: string) => Promise<void>>(
         async () => undefined,
     );
@@ -1376,6 +1383,7 @@ export function GalleryPage() {
             failedRef,
             viewRef,
             refreshRef,
+            favoritesRefetchRef,
             fileOperationRef,
             thumbSeen,
             noteThumbTimingRef,
@@ -1572,6 +1580,13 @@ export function GalleryPage() {
         };
     }, [view.path, inFavorites, fileOperation]);
     useEffect(() => {
+        if (status !== 'ready' || !view.path || inFavorites) {
+            return;
+        }
+        // Debounced light star refetch after browse ready (CL-P01); skip window in scheduler.
+        favoritesReconcileRef.current.schedule(view.path);
+    }, [status, view.path, inFavorites]);
+    useEffect(() => {
         if (view.serviceRole !== 'favorites' || !view.path) {
             ensureFavoriteCopyOriginCacheScope(
                 favoriteCopyOriginCacheRef.current,
@@ -1754,6 +1769,12 @@ export function GalleryPage() {
     refreshFolderImplRef.current = refreshFolder;
     refreshRef.current = (path) => {
         scheduleFolderRefreshRef.current(path);
+    };
+    favoritesRefetchRef.current = (directory) => {
+        if (viewRef.current.serviceRole === 'favorites') {
+            return;
+        }
+        void fetchFavoriteOriginPaths(directory);
     };
     commandsRef.current = {
         clearSelection: () =>

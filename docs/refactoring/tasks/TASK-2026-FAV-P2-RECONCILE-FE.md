@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P2-RECONCILE-FE
 title: "P2 Safe Favorites — FE reconcile triggers (T017–T020)"
-status: approved
+status: verification
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "73e3e36223ff2be3850081913569dd87e5e45784"
@@ -33,7 +33,7 @@ Close remove-gap via album-open + folder-changed refetch (CL-P01/CL-P02).
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P2-RECONCILE-FE |
-| Статус | approved |
+| Статус | verification |
 | Риск | medium |
 | Ответственный | frontend-executor |
 | SpecKit | T017, T018, T019, T020 |
@@ -102,4 +102,21 @@ frontend-executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+```
+TASK: TASK-2026-FAV-P2-RECONCILE-FE
+STATUS: verification
+CHANGED:
+  - specs/001-safe-favorites-lifecycle/quickstart.md (T017 KEEP)
+  - src/features/favorites/lib/favoritesReconcile.ts (+test) T018
+  - src/features/gallery/model/pipeline/galleryPipelineEvents.ts T019
+  - src/pages/gallery/GalleryPage.tsx T020
+INVARIANTS: сохранены (stale session ignore preserved; FE refetch only)
+TESTS:
+  - npm run typecheck → PASS
+  - npm test -- src/features/favorites/lib/favoritesReconcile.test.ts → PASS (433)
+GATES: preflight FAIL (ожидаемый dirty quickstart T017 KEEP); auth OK; strict → после commit
+DIFF: в scope
+SMOKE: N/A (debounce unit tests); folder-switch stars — optional manual
+RISKS: medium — GalleryPage + pipeline folder-changed
+NEXT: guardian
+```

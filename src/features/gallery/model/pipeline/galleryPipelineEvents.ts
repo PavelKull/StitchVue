@@ -64,6 +64,8 @@ export type GalleryPipelineListenRefs = {
   failedRef: MutableRefObject<Map<string, string>>;
   viewRef: MutableRefObject<DirectoryView>;
   refreshRef: MutableRefObject<(path: string) => void>;
+  /** Optional star refetch on folder-changed when session + open folder match (CL-P02). */
+  favoritesRefetchRef?: MutableRefObject<(path: string) => void>;
   /** Progress events only compare `id`; callers may store extra fields (e.g. action). */
   fileOperationRef: { readonly current: { id: string } | null };
   thumbSeen: MutableRefObject<boolean>;
@@ -190,6 +192,7 @@ export function useGalleryPipelineEvents(
       }
       if (refs.viewRef.current.path && pathKey(event.payload.folder) === pathKey(refs.viewRef.current.path)) {
         refs.refreshRef.current(event.payload.folder);
+        refs.favoritesRefetchRef?.current(event.payload.folder);
       }
     });
 

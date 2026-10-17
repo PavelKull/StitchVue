@@ -82,3 +82,15 @@ P1 still requires a **separate** owner-delegated seal scope (not covered by P0 a
 ## Sealed tasks
 
 Each implementation phase → `docs/refactoring/tasks/TASK-*.md` per `TASK_HANDOFF.md` (risk **high** for FS/SQLite/IPC).
+
+## P2 reconcile triggers (T017 architecture)
+
+**No new IPC command** for scoped reconcile on album open — FE reuses `favorite_origin_paths`.
+
+| Trigger | Where | Role |
+|---------|--------|------|
+| Post-op BE | `pipeline` after `CopyToLocalFavorites` (`finish_op`) | Metadata-only `reconcile_favorites_scope` (CL-P01.2) |
+| Album open | FE `favoritesReconcile` debounce → `favorite_origin_paths` | Light star refetch; closes remove-gap when BE post-op not hooked |
+| `folder-changed` | `galleryPipelineEvents` (session match) → refresh + favorites callback | Listing refresh + same star refetch (CL-P02) |
+
+Remove/unfavorite completion is not BE post-op-hooked in P2; album-open + folder-changed refetch close that gap without a thin `commands/mod.rs` entry.
