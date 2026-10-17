@@ -1,10 +1,11 @@
 ---
 task_id: TASK-2026-FAV-P0-GATES-DOC
 title: "P0 Safe Favorites — gates doc & baseline (T007)"
-status: draft
+status: approved
 risk: low
 responsible_agent: frontend-executor
-base_commit: ""
+base_commit: "8ca8deb4880d066cf4d81972ca95cd35c5de2269"
+approval_hash: 4f05aef0c8e463f569f79f2a7f853de9e24cda11ccd34b80422bd4d1555d900c
 allowed_paths:
   - specs/001-safe-favorites-lifecycle/quickstart.md
   - docs/refactoring/tasks/TASK-2026-FAV-P0-GATES-DOC.md
@@ -27,7 +28,7 @@ tests:
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-GATES-DOC |
-| Статус | draft |
+| Статус | approved |
 | Риск | low |
 | Ответственный | любой executor (docs) или владелец |
 | SpecKit | T007 |
