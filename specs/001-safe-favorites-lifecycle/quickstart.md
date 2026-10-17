@@ -36,6 +36,49 @@ npm test -- src/features/favorites/lib/favoriteOptimisticOverlay.test.ts
 7. Place new file at old origin path → «return to source» must not overwrite (CL-00).
 8. Rapid folder switch during add → no wrong-directory stars.
 
+## Phase 0 gates (VERIFY)
+
+Sealed tasks (worktree branch `feat/safe-favorites-lifecycle`):
+
+| SpecKit | Sealed task | Filter / entry |
+|---------|-------------|----------------|
+| T001–T004 | [`TASK-2026-FAV-P0-RUST-VERIFY`](../../docs/refactoring/tasks/TASK-2026-FAV-P0-RUST-VERIFY.md) | `cargo test p0_safe_favorites --` |
+| T005–T006 | [`TASK-2026-FAV-P0-FE-VERIFY`](../../docs/refactoring/tasks/TASK-2026-FAV-P0-FE-VERIFY.md) | `mapRemovalToUiRoute.test.ts`, `removeFavoritesBatch.test.ts` |
+| T007 | [`TASK-2026-FAV-P0-GATES-DOC`](../../docs/refactoring/tasks/TASK-2026-FAV-P0-GATES-DOC.md) | this section + baseline below |
+
+### Recovery baseline (must stay GREEN)
+
+```text
+cd src-tauri
+cargo test favorites_copy_recovery --
+cargo test favorites_trash_lifecycle_final --
+```
+
+### T001 lifecycle (red until T030)
+
+- **P0–P3:** `p0_safe_favorites_t001_unknown_origin_confirmed_must_not_relocate` **FAIL** is expected — reproduces `dispatch_removal_plan` auto-relocate on `unknown_origin` + `confirmed` without FR-11 resolution.
+- Do **not** `#[ignore]` or weaken the assert to green CI.
+- **After T030 (P4):** the same test **must PASS**.
+
+Recorded P0 results (temp/fixture only):
+
+| ID | Result |
+|----|--------|
+| T001 | RED (expected) |
+| T002–T004 | PASS |
+| T005–T006 | PASS |
+| Baseline recovery suites | PASS |
+
+### Gate to P1
+
+Start P1 sealed tasks only when:
+
+1. Recovery baseline above is GREEN.
+2. T002–T006 match the §7 reports in the P0 Rust/FE tasks (T001 may remain RED).
+3. This Phase 0 gates section is present and accurate.
+
+P1 still requires a **separate** owner-delegated seal scope (not covered by P0 approval).
+
 ## Sealed tasks
 
 Each implementation phase → `docs/refactoring/tasks/TASK-*.md` per `TASK_HANDOFF.md` (risk **high** for FS/SQLite/IPC).

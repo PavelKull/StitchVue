@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P0-GATES-DOC
 title: "P0 Safe Favorites — gates doc & baseline (T007)"
-status: approved
+status: verification
 risk: low
 responsible_agent: frontend-executor
 base_commit: "8ca8deb4880d066cf4d81972ca95cd35c5de2269"
@@ -28,7 +28,7 @@ tests:
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-GATES-DOC |
-| Статус | approved |
+| Статус | verification |
 | Риск | low |
 | Ответственный | любой executor (docs) или владелец |
 | SpecKit | T007 |
@@ -103,4 +103,18 @@ Restore quickstart + task file from `base_commit`.
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**Worktree:** `C:\Users\Pavel\Desktop\ImageGrid-fav-lifecycle` / `feat/safe-favorites-lifecycle`  
+**Исполнение:** orchestrator (docs) после delegated seal; baseline re-run 2026-10-17.
+
+| Check | Result |
+|-------|--------|
+| `cargo test favorites_copy_recovery --` | **PASS** 10/10 |
+| `cargo test favorites_trash_lifecycle_final --` | **PASS** 14/14 |
+| Phase 0 gates section in `quickstart.md` | added |
+
+**Cross-links to VERIFY results:**
+
+- Rust §7: T001 **RED** (expected until T030); T002–T004 PASS — `TASK-2026-FAV-P0-RUST-VERIFY`
+- FE §7: T005–T006 PASS — `TASK-2026-FAV-P0-FE-VERIFY`
+
+**P1 gate:** baseline green + T002–T006 per VERIFY §7 + this doc. Separate owner seal required for P1 scope. No push/merge to main.
