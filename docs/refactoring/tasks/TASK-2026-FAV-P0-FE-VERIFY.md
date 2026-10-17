@@ -1,10 +1,11 @@
 ---
 task_id: TASK-2026-FAV-P0-FE-VERIFY
 title: "P0 Safe Favorites — Frontend VERIFY (T005–T006)"
-status: draft
+status: approved
 risk: medium
 responsible_agent: frontend-executor
-base_commit: ""
+base_commit: "6db721cf99c737ffccc410795153ce2a7c59a383"
+approval_hash: cee47d2ce408338fef87ca5bbb8eef6d6057c335c44c52f3c6e458d50a0987e6
 allowed_paths:
   - src/features/favorites/lib/mapRemovalToUiRoute.ts
   - src/features/favorites/lib/mapRemovalToUiRoute.test.ts
@@ -31,7 +32,7 @@ SpecKit T005–T006. **TDD:** сначала тесты (и минимальны
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-FE-VERIFY |
-| Статус | draft |
+| Статус | approved |
 | Риск | medium — новый routing lib + batch test expectations |
 | Ответственный | frontend-executor |
 | SpecKit | T005, T006 |
