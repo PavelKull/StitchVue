@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P1-IDENTITY
 title: "P1 Safe Favorites — identity gate & relocate safety (T008–T014b)"
-status: approved
+status: completed
 risk: high
 responsible_agent: backend-executor
 base_commit: "3e6dcc603e23fc4a27e5e960c10467055bbdf16d"
@@ -34,7 +34,7 @@ SpecKit Phase 1. **HIGH** FS/SQLite. Только fixture/temp. Production origi
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P1-IDENTITY |
-| Статус | approved |
+| Статус | completed |
 | Риск | high |
 | Ответственный | backend-executor |
 | SpecKit | T008, T009, T010, T011, T012, T013, T014, T014a, T014b |
@@ -143,4 +143,50 @@ SpecKit Phase 1. **HIGH** FS/SQLite. Только fixture/temp. Production origi
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** completed  
+**Commit (code):** `2d9a3a9` — `feat(favorites): P1 identity gate and relocate safety`  
+**Worktree:** `ImageGrid-fav-lifecycle` @ `feat/safe-favorites-lifecycle`
+
+### Изменения
+
+| Файл | Суть |
+|------|------|
+| `p1_identity_gate.rs` | `OriginAvailability` + IO map (NotFound→Missing; access/not-ready/offline→Unavailable); identity gate T0–T3 (size pre-filter; content_sha256 / bytes required for occupied) |
+| `favorites.rs` | Wire availability into `origin_diagnostics` (Unavailable→Ambiguous, no purge); `prepare_relocate_parent` **без** `create_dir_all`; revalidate+identity before FS in `execute_relocate` / `relocate_distributed`; `relocate_file` never `remove_file` source |
+| `mod.rs` | `mod p1_identity_gate` |
+
+**Не трогали:** T030 dispatch; `restore_recorded_file` body; commands/pipeline/FE/schema.
+
+### VERIFY (`cargo test …` из `src-tauri/`)
+
+| ID | Результат |
+|----|-----------|
+| T012 name collision no overwrite | **PASS** |
+| T013 cross-volume/fail keeps source | **PASS** |
+| T014 permission/inaccessible target keeps copy | **PASS** |
+| T014a missing parent → error, no mkdir | **PASS** |
+| T014b `\\?\` + Unicode + non-dir parent reject | **PASS** |
+| `p1_identity` filter | **8/8 PASS** |
+
+### Frontmatter
+
+| Suite | Результат |
+|-------|-----------|
+| `favorites_copy_recovery` | **10/10 PASS** |
+| `favorites_trash_lifecycle_final` | **14/14 PASS** |
+| `p0_safe_favorites` | T001 **FAIL (RED expected)**; T002–T004 **PASS** |
+| `p1_identity` | **PASS** |
+
+### Инварианты
+
+CL-00 / CL-P04 / EC-01 / EC-03 / EC-07 / EC-13 / EC-14 / EC-19 — покрыты тестами на temp. Production FS/БД не использовались.
+
+### GATES
+
+- preflight+auth: OK (seal `e9cc279`)
+- `--strict` после code-first commit: FAIL ожидаемо (нет dirty `allowed_paths`; правка task-файла запрещена mid-strict; `cargo` из корня без `src-tauri`). Тесты прогнаны вручную из `src-tauri/`.
+- T001 остаётся RED (P4 T030)
+
+### NEXT
+
+regression-guardian + ручной smoke (HANDOFF §4–5 на fixture).
