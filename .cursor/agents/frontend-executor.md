@@ -37,7 +37,14 @@ FAIL гейта — стоп. Смена `allowed_paths` ломает hash — �
 6. Запрещено: расширение scope, попутный рефакторинг, формат всего файла, commit/reset/clean/checkout с потерей чужих изменений.
 7. Две неудачные попытки одной ошибки — стоп.
 
-Правила: `.cursor/rules/safe-refactoring.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
+Правила: `.cursor/rules/safe-refactoring.mdc`, `fsd-decomposition.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
+
+# Размещение новых модулей (FSD 2.0)
+- FSD 2.0 — только frontend. Rust — `.cursor/rules/rust-backend-architecture.mdc`; не переносить FSD-сегменты в Rust и не менять backend-архитектуру в рамках frontend-задач.
+- Создавай новые модули сразу в согласованных подпапках и сегментах из задачи/плана.
+- Не размещай новые файлы в корне feature/page, если для них предусмотрен подходящий сегмент или предметная подпапка.
+- Не создавай лишнюю вложенность и не переноси существующие файлы вне утверждённого `allowed_paths`.
+
 Комментарии — по `code-comments.mdc` (явно подключать/проверять загрузку правила в задаче). Не дублировать правило здесь; не расширять scope ради документации.
 Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 

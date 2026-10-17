@@ -10,8 +10,8 @@ use serde::Serialize;
 use super::content_hash::sha256_file;
 use super::recycle::{authorize_favorite_copy, recycle_path, RecycleStatus};
 use super::{
-    active_favorites_folder, is_reparse, path_string_for_app, read_service_role, same_path,
-    try_lock_paths, ServiceFolderLocation, ServiceRole,
+    active_favorites_folder, is_reparse, path_string_for_app, read_service_role,
+    restore_recorded_file, same_path, try_lock_paths, ServiceFolderLocation, ServiceRole,
 };
 use crate::database::{self, FavoriteSnapshot};
 
@@ -60,6 +60,7 @@ pub enum ConfirmKind {
     OriginChanged,
     CopyChanged,
     AmbiguousOrigin,
+    OriginInLocalTrash,
 }
 
 impl ConfirmKind {
@@ -69,6 +70,7 @@ impl ConfirmKind {
             Self::OriginChanged => "origin_changed",
             Self::CopyChanged => "copy_changed",
             Self::AmbiguousOrigin => "ambiguous_origin",
+            Self::OriginInLocalTrash => "origin_in_local_trash",
         }
     }
 }
@@ -95,15 +97,15 @@ pub struct RemoveFavoriteCopyResult {
     pub restored_path: Option<String>,
     pub notice_code: Option<String>,
     pub confirm_kind: Option<String>,
+    /// Trash file path when `confirm_kind` is `origin_in_local_trash`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trash_path: Option<String>,
     /// `removed` | `not_empty` | `already_gone` | `failed` after a successful file op.
     pub cleanup_status: Option<String>,
 }
 
 impl RemoveFavoriteCopyResult {
-    fn recycled(
-        removed: Option<ServiceFolderLocation>,
-        cleanup_status: Option<String>,
-    ) -> Self {
+    fn recycled(removed: Option<ServiceFolderLocation>, cleanup_status: Option<String>) -> Self {
         Self {
             status: "recycled".to_string(),
             undo_id: String::new(),
@@ -111,6 +113,7 @@ impl RemoveFavoriteCopyResult {
             restored_path: None,
             notice_code: None,
             confirm_kind: None,
+            trash_path: None,
             cleanup_status,
         }
     }
@@ -128,11 +131,12 @@ impl RemoveFavoriteCopyResult {
             restored_path: Some(path_string_for_app(&path)),
             notice_code: Some(notice.to_string()),
             confirm_kind: None,
+            trash_path: None,
             cleanup_status,
         }
     }
 
-    fn needs_confirm(kind: ConfirmKind) -> Self {
+    fn needs_confirm(kind: ConfirmKind, trash_path: Option<String>) -> Self {
         Self {
             status: "needs_confirm".to_string(),
             undo_id: String::new(),
@@ -140,6 +144,7 @@ impl RemoveFavoriteCopyResult {
             restored_path: None,
             notice_code: None,
             confirm_kind: Some(kind.as_str().to_string()),
+            trash_path,
             cleanup_status: None,
         }
     }
@@ -152,6 +157,20 @@ impl RemoveFavoriteCopyResult {
             restored_path: None,
             notice_code: None,
             confirm_kind: None,
+            trash_path: None,
+            cleanup_status: None,
+        }
+    }
+
+    fn skipped(notice_code: &str) -> Self {
+        Self {
+            status: "skipped".to_string(),
+            undo_id: String::new(),
+            removed_service_folder: None,
+            restored_path: None,
+            notice_code: Some(notice_code.to_string()),
+            confirm_kind: None,
+            trash_path: None,
             cleanup_status: None,
         }
     }
@@ -176,16 +195,25 @@ pub(crate) enum Plan {
         parent: PathBuf,
         snapshot: Option<FavoriteSnapshot>,
     },
+    OriginInTrash {
+        copy: PathBuf,
+        snapshot: FavoriteSnapshot,
+        trash_path: PathBuf,
+    },
 }
 
 #[derive(Debug, Clone)]
 pub struct RemovalContext {
     pub in_favorites: bool,
     pub snapshot: Option<FavoriteSnapshot>,
+    pub origin_trash_path: Option<String>,
 }
 
 /// Phase A: read SQLite only.
-pub fn load_removal_context(db: &rusqlite::Connection, path: &str) -> Result<RemovalContext, String> {
+pub fn load_removal_context(
+    db: &rusqlite::Connection,
+    path: &str,
+) -> Result<RemovalContext, String> {
     let requested = PathBuf::from(path);
     let parent_role = requested.parent().and_then(read_service_role);
     let in_favorites = parent_role == Some(ServiceRole::Favorites);
@@ -194,9 +222,14 @@ pub fn load_removal_context(db: &rusqlite::Connection, path: &str) -> Result<Rem
     } else {
         database::favorite_snapshot_for_origin(db, path)?
     };
+    let origin_trash_path = snapshot
+        .as_ref()
+        .and_then(|row| database::trash_path_for_origin(db, &row.origin_path).ok())
+        .flatten();
     Ok(RemovalContext {
         in_favorites,
         snapshot,
+        origin_trash_path,
     })
 }
 
@@ -211,7 +244,7 @@ pub fn plan_removal_with_scan(
     ctx: &RemovalContext,
     scan_caches: Option<&mut BatchRemovalScanCaches>,
 ) -> Result<Plan, String> {
-    classify(path, ctx.in_favorites, ctx.snapshot.clone(), scan_caches)
+    classify(path, ctx, scan_caches)
 }
 
 /// Per-batch index for `scan_parent_for_identical` (not a global cache).
@@ -268,14 +301,21 @@ impl BatchRemovalScanCaches {
                 }
                 by_size.entry(meta.len()).or_default().push(path);
             }
-            self.parents.insert(key.clone(), ParentDirectoryIndex { by_size });
+            self.parents
+                .insert(key.clone(), ParentDirectoryIndex { by_size });
         }
         let index = self
             .parents
             .get(&key)
             .ok_or_else(|| "parent index missing".to_string())?;
-        let copy_size = fs::metadata(copy).map_err(|err| format!("copy meta: {err}"))?.len();
-        let candidates = index.by_size.get(&copy_size).map(Vec::as_slice).unwrap_or(&[]);
+        let copy_size = fs::metadata(copy)
+            .map_err(|err| format!("copy meta: {err}"))?
+            .len();
+        let candidates = index
+            .by_size
+            .get(&copy_size)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
         for path in candidates {
             if same_path(path, copy) || same_path(path, registered_origin) {
                 continue;
@@ -290,9 +330,13 @@ impl BatchRemovalScanCaches {
 
 pub fn preview_plan(plan: &Plan) -> RemoveFavoriteCopyResult {
     match plan {
-        Plan::NeedsConfirm { kind, .. } => RemoveFavoriteCopyResult::needs_confirm(*kind),
+        Plan::NeedsConfirm { kind, .. } => RemoveFavoriteCopyResult::needs_confirm(*kind, None),
+        Plan::OriginInTrash { trash_path, .. } => RemoveFavoriteCopyResult::needs_confirm(
+            ConfirmKind::OriginInLocalTrash,
+            Some(path_string_for_app(trash_path)),
+        ),
         Plan::Relocate { snapshot: None, .. } => {
-            RemoveFavoriteCopyResult::needs_confirm(ConfirmKind::UnknownOrigin)
+            RemoveFavoriteCopyResult::needs_confirm(ConfirmKind::UnknownOrigin, None)
         }
         Plan::Recycle { .. } | Plan::Relocate { .. } => RemoveFavoriteCopyResult::ready(),
     }
@@ -313,14 +357,16 @@ pub fn remove_favorite_copy_distributed(
     db_mutex: &Mutex<rusqlite::Connection>,
     path: &str,
     confirmed: bool,
+    resolution: Option<&str>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
-    remove_favorite_copy_distributed_with_scan(db_mutex, path, confirmed, None)
+    remove_favorite_copy_distributed_with_scan(db_mutex, path, confirmed, resolution, None)
 }
 
 pub(crate) fn remove_favorite_copy_distributed_with_scan(
     db_mutex: &Mutex<rusqlite::Connection>,
     path: &str,
     confirmed: bool,
+    resolution: Option<&str>,
     scan_caches: Option<&mut BatchRemovalScanCaches>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
     let ctx = with_db(db_mutex, |db| load_removal_context(db, path))?;
@@ -328,7 +374,7 @@ pub(crate) fn remove_favorite_copy_distributed_with_scan(
         Some(caches) => plan_removal_with_scan(path, &ctx, Some(caches))?,
         None => plan_removal(path, &ctx)?,
     };
-    dispatch_removal_plan(db_mutex, plan, confirmed)
+    dispatch_removal_plan(db_mutex, plan, confirmed, resolution)
 }
 
 /// Monolithic path (single `Connection` held for FS). Production uses `remove_favorite_copy_distributed`.
@@ -338,10 +384,11 @@ pub fn remove_favorite_copy(
     db: &rusqlite::Connection,
     path: &str,
     confirmed: bool,
+    resolution: Option<&str>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
     let ctx = load_removal_context(db, path)?;
     let plan = plan_removal(path, &ctx)?;
-    dispatch_removal_plan_on_conn(db, plan, confirmed)
+    dispatch_removal_plan_on_conn(db, plan, confirmed, resolution)
 }
 
 fn with_db<R>(
@@ -358,6 +405,7 @@ fn dispatch_removal_plan(
     db_mutex: &Mutex<rusqlite::Connection>,
     plan: Plan,
     confirmed: bool,
+    resolution: Option<&str>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
     match plan {
         Plan::NeedsConfirm {
@@ -367,23 +415,46 @@ fn dispatch_removal_plan(
             snapshot,
         } => {
             if !confirmed {
-                return Ok(RemoveFavoriteCopyResult::needs_confirm(kind));
+                return Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None));
             }
-            relocate_distributed(db_mutex, &copy, &parent, snapshot.as_ref(), notice_for(kind))
+            if resolution.is_some() {
+                return Ok(RemoveFavoriteCopyResult::skipped("needs_confirm"));
+            }
+            relocate_distributed(
+                db_mutex,
+                &copy,
+                &parent,
+                snapshot.as_ref(),
+                notice_for(kind),
+            )
         }
+        Plan::OriginInTrash { copy, .. } => dispatch_origin_in_trash(
+            db_mutex,
+            copy.to_str().unwrap_or(""),
+            confirmed,
+            resolution,
+        ),
         Plan::Recycle {
             copy,
             origin,
             snapshot,
-        } => recycle_distributed(db_mutex, &copy, &origin, &snapshot),
+        } => {
+            if resolution == Some("restore_origin") {
+                return Ok(RemoveFavoriteCopyResult::skipped("origin_already_available"));
+            }
+            recycle_distributed(db_mutex, &copy, &origin, &snapshot)
+        }
         Plan::Relocate {
             copy,
             parent,
             snapshot,
             notice,
         } => {
-            if !confirmed && snapshot.is_none() {
-                return Ok(RemoveFavoriteCopyResult::needs_confirm(ConfirmKind::UnknownOrigin));
+            if !confirmed {
+                return Ok(RemoveFavoriteCopyResult::needs_confirm(
+                    ConfirmKind::UnknownOrigin,
+                    None,
+                ));
             }
             relocate_distributed(db_mutex, &copy, &parent, snapshot.as_ref(), notice)
         }
@@ -394,6 +465,7 @@ fn dispatch_removal_plan_on_conn(
     db: &rusqlite::Connection,
     plan: Plan,
     confirmed: bool,
+    resolution: Option<&str>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
     match plan {
         Plan::NeedsConfirm {
@@ -403,10 +475,16 @@ fn dispatch_removal_plan_on_conn(
             snapshot,
         } => {
             if !confirmed {
-                return Ok(RemoveFavoriteCopyResult::needs_confirm(kind));
+                return Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None));
             }
             execute_relocate(db, &copy, &parent, snapshot.as_ref(), notice_for(kind))
         }
+        Plan::OriginInTrash { copy, .. } => dispatch_origin_in_trash_on_conn(
+            db,
+            copy.to_str().unwrap_or(""),
+            confirmed,
+            resolution,
+        ),
         Plan::Recycle {
             copy,
             origin,
@@ -418,12 +496,176 @@ fn dispatch_removal_plan_on_conn(
             snapshot,
             notice,
         } => {
-            if !confirmed && snapshot.is_none() {
-                return Ok(RemoveFavoriteCopyResult::needs_confirm(ConfirmKind::UnknownOrigin));
+            if !confirmed {
+                return Ok(RemoveFavoriteCopyResult::needs_confirm(
+                    ConfirmKind::UnknownOrigin,
+                    None,
+                ));
             }
             execute_relocate(db, &copy, &parent, snapshot.as_ref(), notice)
         }
     }
+}
+
+fn dispatch_origin_in_trash(
+    db_mutex: &Mutex<rusqlite::Connection>,
+    copy_path: &str,
+    confirmed: bool,
+    resolution: Option<&str>,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    with_db(db_mutex, |db| dispatch_origin_in_trash_on_conn(db, copy_path, confirmed, resolution))
+}
+
+fn dispatch_origin_in_trash_on_conn(
+    db: &rusqlite::Connection,
+    copy_path: &str,
+    confirmed: bool,
+    resolution: Option<&str>,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    let ctx = load_removal_context(db, copy_path)?;
+    let plan = plan_removal(copy_path, &ctx)?;
+    match (resolution, &plan) {
+        (None, Plan::OriginInTrash { trash_path, .. }) if !confirmed => {
+            Ok(RemoveFavoriteCopyResult::needs_confirm(
+                ConfirmKind::OriginInLocalTrash,
+                Some(path_string_for_app(trash_path)),
+            ))
+        }
+        (Some("recycle_copy"), Plan::OriginInTrash { copy, snapshot, .. }) => {
+            recycle_copy_only_on_conn(db, &copy, &snapshot)
+        }
+        (Some("restore_origin"), Plan::OriginInTrash { copy, snapshot, trash_path }) => {
+            restore_origin_keep_favorite_on_conn(db, &copy, &snapshot, &trash_path)
+        }
+        (Some("restore_origin"), Plan::Recycle { .. }) => {
+            Ok(RemoveFavoriteCopyResult::skipped("origin_already_available"))
+        }
+        (Some("recycle_copy"), Plan::Recycle { copy, origin, snapshot }) => {
+            recycle_distributed_standalone(db, &copy, &origin, &snapshot)
+        }
+        (Some(_), Plan::NeedsConfirm { .. }) | (Some(_), Plan::Relocate { .. }) => {
+            Ok(RemoveFavoriteCopyResult::skipped("needs_confirm"))
+        }
+        (Some(_), Plan::OriginInTrash { .. }) => {
+            Err("План исключения устарел. Повторите операцию.".to_string())
+        }
+        (Some(_), Plan::Recycle { .. }) => {
+            Ok(RemoveFavoriteCopyResult::skipped("plan_changed"))
+        }
+        (None, Plan::OriginInTrash { .. }) | (Some(_), _) if confirmed => {
+            Err("Выберите действие для копии в избранном.".to_string())
+        }
+        (None, _) => Err("Выберите действие для копии в избранном.".to_string()),
+    }
+}
+
+fn recycle_distributed_standalone(
+    db: &rusqlite::Connection,
+    copy: &Path,
+    origin: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    revalidate_recycle_plan(copy, origin, snapshot)?;
+    authorize_favorite_copy(copy, origin).map_err(|err| err.message)?;
+    let _lock = try_lock_paths([copy, origin])?;
+    let op_id = begin_recycle_op(db, copy, origin, snapshot)?;
+    let recycle_result = recycle_path(copy);
+    finish_recycle_op(db, &op_id, copy, snapshot, recycle_result)
+}
+
+fn recycle_copy_only_on_conn(
+    db: &rusqlite::Connection,
+    copy: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    assert_snapshot_unchanged(db, snapshot)?;
+    let origin = PathBuf::from(&snapshot.origin_path);
+    let _lock = try_lock_paths([copy])?;
+    let op_id = begin_recycle_op(db, copy, &origin, snapshot)?;
+    let recycle_result = recycle_path(copy);
+    finish_recycle_op(db, &op_id, copy, snapshot, recycle_result)
+}
+
+fn recycle_copy_only_distributed(
+    db_mutex: &Mutex<rusqlite::Connection>,
+    copy: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    with_db(db_mutex, |db| recycle_copy_only_on_conn(db, copy, snapshot))
+}
+
+fn begin_restore_origin_keep_favorite_op(
+    db: &rusqlite::Connection,
+    trash_path: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<String, String> {
+    assert_snapshot_unchanged(db, snapshot)?;
+    let op_id = new_op_id("restore-fav");
+    let (size, modified, name) = path_stamp(trash_path);
+    database::insert_pending_op(
+        db,
+        &database::FileOpLog {
+            id: op_id.clone(),
+            op_type: database::OP_RESTORE_FROM_LOCAL_TRASH.to_string(),
+            source_path: path_string_for_app(trash_path),
+            destination_path: Some(snapshot.origin_path.clone()),
+            origin_path: Some(snapshot.origin_path.clone()),
+            source_name: name,
+            source_size: Some(size),
+            source_modified_at: Some(modified),
+            status: database::ST_PENDING.to_string(),
+            error_code: None,
+            error_message: None,
+        },
+    )?;
+    Ok(op_id)
+}
+
+fn restore_origin_keep_favorite_on_conn(
+    db: &rusqlite::Connection,
+    copy: &Path,
+    snapshot: &FavoriteSnapshot,
+    trash_path: &Path,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    assert_snapshot_unchanged(db, snapshot)?;
+    let origin = PathBuf::from(&snapshot.origin_path);
+    let _lock = try_lock_paths([copy, trash_path, &origin])?;
+    let op_id = begin_restore_origin_keep_favorite_op(db, trash_path, snapshot)?;
+    let restored = match restore_recorded_file(trash_path, &origin, false) {
+        Ok(path) => path,
+        Err(err) => {
+            let _ = database::finish_op(
+                db,
+                &op_id,
+                database::ST_FAILED,
+                None,
+                Some("restore_failed"),
+                Some(&err),
+            );
+            return Err(err);
+        }
+    };
+    database::delete_trash(db, &path_string_for_app(trash_path))?;
+    let _ = database::finish_op(db, &op_id, database::ST_COMPLETED, None, None, None);
+    Ok(RemoveFavoriteCopyResult {
+        status: "restored_origin".to_string(),
+        undo_id: String::new(),
+        removed_service_folder: None,
+        restored_path: Some(path_string_for_app(&restored)),
+        notice_code: Some("origin_restored_keep_favorite".to_string()),
+        confirm_kind: None,
+        trash_path: None,
+        cleanup_status: None,
+    })
+}
+
+fn restore_origin_keep_favorite_distributed(
+    db_mutex: &Mutex<rusqlite::Connection>,
+    copy: &Path,
+    snapshot: &FavoriteSnapshot,
+    trash_path: &Path,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    with_db(db_mutex, |db| restore_origin_keep_favorite_on_conn(db, copy, snapshot, trash_path))
 }
 
 fn recycle_distributed(
@@ -465,9 +707,11 @@ fn relocate_distributed(
     let target = claim_relocate_target(parent, copy)?;
     let _lock = try_lock_paths([copy, parent, target.as_path()])?;
     if let Some(row) = snapshot {
-        revalidate_recycle_plan(copy, Path::new(&row.origin_path), row)?;
+        revalidate_relocate_plan(copy, Path::new(&row.origin_path), row)?;
     }
-    let op_id = with_db(db_mutex, |db| begin_relocate_op(db, copy, &target, snapshot))?;
+    let op_id = with_db(db_mutex, |db| {
+        begin_relocate_op(db, copy, &target, snapshot)
+    })?;
     let relocate_result = relocate_file(copy, &target);
     with_db(db_mutex, |db| {
         finish_relocate_op(
@@ -495,13 +739,54 @@ fn revalidate_recycle_plan(
     let parent = favorites_dir
         .parent()
         .ok_or_else(|| "Нет родительской папки для «Избранное».".to_string())?;
-    match classify_with_link(copy.to_path_buf(), parent.to_path_buf(), snapshot.clone(), None)? {
+    match classify_with_link(
+        copy.to_path_buf(),
+        parent.to_path_buf(),
+        snapshot.clone(),
+        None,
+        None,
+    )? {
         Plan::Recycle { .. } => Ok(()),
         Plan::NeedsConfirm { kind, .. } => Err(format!(
             "Требуется подтверждение ({}). Повторите операцию.",
             kind.as_str()
         )),
-        Plan::Relocate { .. } => Err("План исключения устарел. Повторите операцию.".to_string()),
+        Plan::Relocate { .. } | Plan::OriginInTrash { .. } => {
+            Err("План исключения устарел. Повторите операцию.".to_string())
+        }
+    }
+}
+
+fn revalidate_relocate_plan(
+    copy: &Path,
+    _origin: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<(), String> {
+    let favorites_dir = copy
+        .parent()
+        .ok_or_else(|| "Нет папки «Избранное».".to_string())?;
+    let parent = favorites_dir
+        .parent()
+        .ok_or_else(|| "Нет родительской папки для «Избранное».".to_string())?;
+    match classify_with_link(
+        copy.to_path_buf(),
+        parent.to_path_buf(),
+        snapshot.clone(),
+        None,
+        None,
+    )? {
+        Plan::Relocate { .. }
+        | Plan::NeedsConfirm {
+            kind: ConfirmKind::UnknownOrigin,
+            ..
+        } => Ok(()),
+        Plan::NeedsConfirm { kind, .. } => Err(format!(
+            "Требуется подтверждение ({}). Повторите операцию.",
+            kind.as_str()
+        )),
+        Plan::Recycle { .. } | Plan::OriginInTrash { .. } => {
+            Err("План исключения устарел. Повторите операцию.".to_string())
+        }
     }
 }
 
@@ -572,7 +857,9 @@ fn finish_recycle_op(
                 Some("ambiguous"),
                 Some("Результат корзины Windows неоднозначен"),
             );
-            return Err("Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string());
+            return Err(
+                "Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string(),
+            );
         }
         Err(err) => {
             let _ = database::finish_op(
@@ -681,15 +968,34 @@ fn notice_for(kind: ConfirmKind) -> &'static str {
         ConfirmKind::OriginChanged | ConfirmKind::CopyChanged | ConfirmKind::AmbiguousOrigin => {
             "changed_saved"
         }
+        ConfirmKind::OriginInLocalTrash => "origin_in_local_trash",
     }
+}
+
+fn trash_file_matches_origin(trash_path: &str, snapshot: &FavoriteSnapshot) -> bool {
+    let trash = Path::new(trash_path);
+    if !trash.is_file() {
+        return false;
+    }
+    let meta = fs::metadata(trash).ok();
+    let size = meta.as_ref().map(|item| item.len()).unwrap_or(0);
+    if size != snapshot.origin_size {
+        return false;
+    }
+    if let Some(expected) = snapshot.content_sha256.as_deref() {
+        return crate::file_ops::sha256_file(trash).ok().as_deref() == Some(expected);
+    }
+    true
 }
 
 fn classify(
     path: &str,
-    in_favorites: bool,
-    snapshot: Option<FavoriteSnapshot>,
+    ctx: &RemovalContext,
     scan_caches: Option<&mut BatchRemovalScanCaches>,
 ) -> Result<Plan, String> {
+    let in_favorites = ctx.in_favorites;
+    let snapshot = ctx.snapshot.clone();
+    let origin_trash_path = ctx.origin_trash_path.clone();
     let requested = PathBuf::from(path);
     if in_favorites {
         let favorites_dir = requested
@@ -709,7 +1015,7 @@ fn classify(
             });
         };
         let copy = resolve_existing_path(&snapshot.copy_path, &requested)?;
-        return classify_with_link(copy, parent, snapshot, scan_caches);
+        return classify_with_link(copy, parent, snapshot, scan_caches, origin_trash_path);
     }
 
     let Some(snapshot) = snapshot else {
@@ -727,7 +1033,7 @@ fn classify(
         .parent()
         .ok_or_else(|| "Нет родительской папки для «Избранное».".to_string())?
         .to_path_buf();
-    classify_with_link(copy, parent, snapshot, scan_caches)
+    classify_with_link(copy, parent, snapshot, scan_caches, origin_trash_path)
 }
 
 fn classify_with_link(
@@ -735,6 +1041,7 @@ fn classify_with_link(
     parent: PathBuf,
     snapshot: FavoriteSnapshot,
     scan_caches: Option<&mut BatchRemovalScanCaches>,
+    origin_trash_path: Option<String>,
 ) -> Result<Plan, String> {
     let copy_state = inspect_copy(&copy, &snapshot)?;
     if copy_state == FileState::Changed {
@@ -760,12 +1067,21 @@ fn classify_with_link(
             origin,
             snapshot,
         }),
-        OriginState::Missing => Ok(Plan::Relocate {
-            copy,
-            parent,
-            snapshot: Some(snapshot),
-            notice: "origin_missing_saved",
-        }),
+        OriginState::Missing => {
+            if let Some(trash_path) = origin_trash_path.filter(|path| trash_file_matches_origin(path, &snapshot)) {
+                return Ok(Plan::OriginInTrash {
+                    copy,
+                    snapshot,
+                    trash_path: PathBuf::from(trash_path),
+                });
+            }
+            Ok(Plan::NeedsConfirm {
+                kind: ConfirmKind::UnknownOrigin,
+                copy,
+                parent,
+                snapshot: Some(snapshot),
+            })
+        }
         OriginState::Changed => Ok(Plan::NeedsConfirm {
             kind: ConfirmKind::OriginChanged,
             copy,
@@ -796,7 +1112,10 @@ enum OriginState {
     Ambiguous,
 }
 
-fn copy_diagnostics(copy: &Path, snapshot: &FavoriteSnapshot) -> Result<(FileState, &'static str), String> {
+fn copy_diagnostics(
+    copy: &Path,
+    snapshot: &FavoriteSnapshot,
+) -> Result<(FileState, &'static str), String> {
     let meta = match fs::symlink_metadata(copy) {
         Ok(meta) => meta,
         Err(_) => return Ok((FileState::Missing, "missing")),
@@ -849,7 +1168,9 @@ fn origin_diagnostics(
         Err(_) => {
             return match scan_parent_for_identical(copy, origin, scan_caches)? {
                 ParentScan::None => Ok((OriginState::Missing, "missing_no_parent_match")),
-                ParentScan::ContentMatch => Ok((OriginState::Ambiguous, "missing_parent_byte_match")),
+                ParentScan::ContentMatch => {
+                    Ok((OriginState::Ambiguous, "missing_parent_byte_match"))
+                }
             };
         }
     };
@@ -910,6 +1231,12 @@ pub(crate) fn removal_classify_debug(
                 explain_needs_confirm(*kind, &copy, ctx.snapshot.as_ref())?;
             (Some(kind_str), reason, copy_chk, origin_chk)
         }
+        Plan::OriginInTrash { .. } => (
+            Some(ConfirmKind::OriginInLocalTrash.as_str().to_string()),
+            "origin_in_local_trash".to_string(),
+            "unchanged".to_string(),
+            "in_local_trash".to_string(),
+        ),
         _ => (
             None,
             "not_needs_confirm".to_string(),
@@ -953,7 +1280,11 @@ fn explain_needs_confirm(
                 FileState::Changed => "copy_changed",
                 FileState::Unchanged => "copy_changed_unexpected",
             };
-            Ok((reason.to_string(), copy_chk.to_string(), "not_evaluated".to_string()))
+            Ok((
+                reason.to_string(),
+                copy_chk.to_string(),
+                "not_evaluated".to_string(),
+            ))
         }
         ConfirmKind::OriginChanged => {
             let Some(snapshot) = snapshot else {
@@ -1003,6 +1334,11 @@ fn explain_needs_confirm(
                 origin_chk.to_string(),
             ))
         }
+        ConfirmKind::OriginInLocalTrash => Ok((
+            "origin_in_local_trash".to_string(),
+            "not_evaluated".to_string(),
+            "in_local_trash".to_string(),
+        )),
     }
 }
 
@@ -1102,7 +1438,9 @@ fn execute_recycle(
                 Some("ambiguous"),
                 Some("Результат корзины Windows неоднозначен"),
             );
-            return Err("Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string());
+            return Err(
+                "Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string(),
+            );
         }
         Err(err) => {
             let _ = database::finish_op(
@@ -1242,10 +1580,7 @@ fn relocate_file(from: &Path, to: &Path) -> Result<(), String> {
         Err(_) => {}
     }
     // Cross-volume: copy to temp, verify, publish, then recycle source (never remove_file).
-    let temp = to.with_file_name(format!(
-        ".stitchvue-relocate-{}.tmp",
-        std::process::id()
-    ));
+    let temp = to.with_file_name(format!(".stitchvue-relocate-{}.tmp", std::process::id()));
     if temp.exists() {
         return Err("Временный файл перемещения уже существует.".to_string());
     }
@@ -1323,7 +1658,8 @@ fn files_bytes_identical(left: &Path, right: &Path) -> Result<bool, String> {
 }
 
 fn open_regular(path: &Path) -> Result<File, String> {
-    let meta = fs::symlink_metadata(path).map_err(|err| format!("open {}: {err}", path.display()))?;
+    let meta =
+        fs::symlink_metadata(path).map_err(|err| format!("open {}: {err}", path.display()))?;
     if is_reparse(&meta) {
         return Err(format!("Файл является ссылкой: {}", path.display()));
     }
@@ -1362,9 +1698,7 @@ fn resolve_existing_path(stored: &str, requested: &Path) -> Result<PathBuf, Stri
 
 /// Returns `(location for navigation when folder is gone, cleanup_status)`.
 /// `location` is set for both `removed` (app deleted) and `already_gone` (path missing).
-fn cleanup_favorites_after_copy(
-    copy: &Path,
-) -> (Option<ServiceFolderLocation>, Option<String>) {
+fn cleanup_favorites_after_copy(copy: &Path) -> (Option<ServiceFolderLocation>, Option<String>) {
     let Some(favorites_dir) = copy.parent() else {
         return (None, Some("failed".to_string()));
     };
@@ -1399,10 +1733,7 @@ fn mtime_close(left: i64, right: i64) -> bool {
 fn path_stamp(path: &Path) -> (u64, i64, Option<String>) {
     let meta = fs::metadata(path).ok();
     let size = meta.as_ref().map(|item| item.len()).unwrap_or(0);
-    let modified = meta
-        .as_ref()
-        .map(modified_ms)
-        .unwrap_or(0);
+    let modified = meta.as_ref().map(modified_ms).unwrap_or(0);
     let name = path
         .file_name()
         .map(|value| value.to_string_lossy().into_owned());
@@ -1543,12 +1874,11 @@ mod regression_tests {
         let conn = memory_db();
         let (_origin, copy, _) = link_v2(&conn, &root, b"stable");
         let db = Mutex::new(conn);
-        let preview = preview_remove_favorite_copy(&db.lock().unwrap(), copy.to_str().unwrap())
-            .unwrap();
+        let preview =
+            preview_remove_favorite_copy(&db.lock().unwrap(), copy.to_str().unwrap()).unwrap();
         assert_eq!(preview.status, "ready");
         write_bytes(&copy, b"mutated-body");
-        let removal =
-            remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false).unwrap();
+        let removal = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false, None).unwrap();
         assert_eq!(removal.status, "needs_confirm");
         assert_eq!(removal.confirm_kind.as_deref(), Some("copy_changed"));
         assert!(copy.exists());
@@ -1578,18 +1908,14 @@ mod regression_tests {
             (r"C:\other\photo.jpg", snapshot.copy_path.as_str()),
         )
         .unwrap();
-        let err = finish_recycle_op(
-            &conn,
-            &op_id,
-            &copy,
-            &snapshot,
-            Ok(RecycleStatus::Recycled),
-        )
-        .unwrap_err();
+        let err = finish_recycle_op(&conn, &op_id, &copy, &snapshot, Ok(RecycleStatus::Recycled))
+            .unwrap_err();
         assert!(err.contains("изменилась") || err.contains("удалена"));
-        assert!(database::favorite_snapshot_for_copy(&conn, copy.to_str().unwrap())
-            .unwrap()
-            .is_some());
+        assert!(
+            database::favorite_snapshot_for_copy(&conn, copy.to_str().unwrap())
+                .unwrap()
+                .is_some()
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -1625,7 +1951,8 @@ mod regression_tests {
         let guard = try_lock_paths([&copy, &origin]).unwrap();
         let db = Arc::new(Mutex::new(conn));
         let copy_path = copy.to_str().unwrap().to_string();
-        let handle = thread::spawn(move || remove_favorite_copy_distributed(&db, &copy_path, false));
+        let handle =
+            thread::spawn(move || remove_favorite_copy_distributed(&db, &copy_path, false, None));
         let err = handle.join().unwrap().unwrap_err();
         assert!(err.contains("Конфликтующая") || err.contains("блокиров"));
         drop(guard);
@@ -1662,15 +1989,11 @@ mod regression_tests {
             c1.to_string_lossy().into_owned(),
             copy2.to_string_lossy().into_owned(),
         ];
-        let batch = crate::file_ops::favorites_batch::preview_remove_favorite_copies(
-            &db,
-            &paths,
-        )
-        .unwrap();
+        let batch =
+            crate::file_ops::favorites_batch::preview_remove_favorite_copies(&db, &paths).unwrap();
         assert_eq!(batch.len(), 2);
         for entry in &batch {
-            let single =
-                preview_remove_favorite_copy(&db.lock().unwrap(), &entry.path).unwrap();
+            let single = preview_remove_favorite_copy(&db.lock().unwrap(), &entry.path).unwrap();
             assert_eq!(single.status, entry.result.status);
         }
         let _ = fs::remove_dir_all(&root);
@@ -1753,12 +2076,9 @@ mod regression_tests {
         let mut batch_caches = BatchRemovalScanCaches::new();
         for copy in &copy_paths {
             let ctx = load_removal_context(&conn, copy.to_str().unwrap()).unwrap();
-            let plan = plan_removal_with_scan(
-                copy.to_str().unwrap(),
-                &ctx,
-                Some(&mut batch_caches),
-            )
-            .unwrap();
+            let plan =
+                plan_removal_with_scan(copy.to_str().unwrap(), &ctx, Some(&mut batch_caches))
+                    .unwrap();
             assert!(matches!(
                 plan,
                 Plan::NeedsConfirm {
@@ -1827,9 +2147,11 @@ mod regression_tests {
         let conn = memory_db();
         let (_origin, copy, _) = link_v2(&conn, &root, b"retry-one");
         let db = Mutex::new(conn);
-        let first = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false).unwrap();
-        assert!(first.status == "recycled" || first.status == "relocated" || first.status == "ready");
-        let second = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false);
+        let first = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false, None).unwrap();
+        assert!(
+            first.status == "recycled" || first.status == "relocated" || first.status == "ready"
+        );
+        let second = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false, None);
         assert!(second.is_err() || second.unwrap().status == "failed");
         let _ = fs::remove_dir_all(&root);
     }
@@ -1841,7 +2163,7 @@ mod regression_tests {
         let conn = memory_db();
         let (_origin, copy, _) = link_v2(&conn, &root, b"win-recycle-integration");
         let db = Mutex::new(conn);
-        let result = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false).unwrap();
+        let result = remove_favorite_copy_distributed(&db, copy.to_str().unwrap(), false, None).unwrap();
         assert!(
             result.status == "recycled" || !copy.exists(),
             "expected recycle outcome, got {:?}",
@@ -1866,6 +2188,7 @@ mod regression_tests {
                     &[crate::file_ops::FavoriteBatchRemoveItem {
                         path: copy_path,
                         confirmed: false,
+                        resolution: None,
                     }],
                 )
             }
@@ -1873,7 +2196,7 @@ mod regression_tests {
         let single = thread::spawn({
             let db = Arc::clone(&db);
             let copy_path = copy_path.clone();
-            move || remove_favorite_copy_distributed(&db, &copy_path, false)
+            move || remove_favorite_copy_distributed(&db, &copy_path, false, None)
         });
         let batch_out = batch.join().unwrap();
         let single_out = single.join().unwrap();
@@ -1894,7 +2217,11 @@ mod regression_tests {
             .iter()
             .filter(|status| *status == "recycled" || *status == "relocated")
             .count();
-        assert!(successes <= 1, "only one concurrent unfavorite may succeed: {:?}", outcomes);
+        assert!(
+            successes <= 1,
+            "only one concurrent unfavorite may succeed: {:?}",
+            outcomes
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -1914,7 +2241,10 @@ mod regression_tests {
         )
         .unwrap();
         assert_eq!(previews[0].result.status, "needs_confirm");
-        assert_eq!(previews[0].result.confirm_kind.as_deref(), Some("unknown_origin"));
+        assert_eq!(
+            previews[0].result.confirm_kind.as_deref(),
+            Some("unknown_origin")
+        );
         let debug = previews[0].classify_debug.as_ref().expect("debug");
         assert_eq!(debug.basename, "orphan.jpg");
         assert!(!debug.snapshot_present);
@@ -2109,7 +2439,102 @@ mod classify_scenario_tests {
         ));
         let debug = removal_classify_debug(copy.to_str().unwrap(), &ctx, &plan).unwrap();
         assert_eq!(debug.copy_check, "mtime_drift");
-        assert_eq!(sha256_file(&copy).unwrap(), snapshot.content_sha256.unwrap());
+        assert_eq!(
+            sha256_file(&copy).unwrap(),
+            snapshot.content_sha256.unwrap()
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    fn link_origin_in_trash_for_dispatch_test(
+        conn: &Connection,
+        root: &Path,
+    ) -> (PathBuf, PathBuf, PathBuf, FavoriteSnapshot) {
+        use crate::file_ops::LOCAL_TRASH;
+        let favorites = root.join(LOCAL_FAVORITES);
+        let trash = root.join(LOCAL_TRASH);
+        fs::create_dir_all(&favorites).unwrap();
+        fs::create_dir_all(&trash).unwrap();
+        write_service_role(&favorites, ServiceRole::Favorites).unwrap();
+        write_service_role(&trash, ServiceRole::Trash).unwrap();
+        let origin = root.join("restore-dispatch.jpg");
+        let copy = favorites.join("restore-dispatch.jpg");
+        write_bytes(&origin, b"restore-body");
+        write_bytes(&copy, b"restore-body");
+        let om = fs::metadata(&origin).unwrap();
+        let cm = fs::metadata(&copy).unwrap();
+        let hash = sha256_file(&origin).unwrap();
+        database::record_favorite_copy(
+            conn,
+            origin.to_str().unwrap(),
+            om.len(),
+            modified_ms(&om),
+            copy.to_str().unwrap(),
+            cm.len(),
+            modified_ms(&cm),
+            Some(&hash),
+        )
+        .unwrap();
+        let trash_file = trash.join("restore-dispatch.jpg");
+        fs::rename(&origin, &trash_file).unwrap();
+        database::record_trash(
+            conn,
+            trash_file.to_str().unwrap(),
+            origin.to_str().unwrap(),
+            om.len(),
+        )
+        .unwrap();
+        let snapshot = database::favorite_snapshot_for_copy(conn, copy.to_str().unwrap())
+            .unwrap()
+            .expect("snapshot");
+        (origin, copy, trash_file, snapshot)
+    }
+
+    #[test]
+    fn f4_dispatch_recycle_interrupt_before_finish_reconcile_completes() {
+        use crate::file_ops::reconcile::reconcile_on_boot;
+        use crate::file_ops::recycle::{recycle_path, RecycleStatus};
+        let root = sandbox();
+        let conn = memory_db();
+        let (origin, copy, snapshot) = link_v2(&root, &conn, b"f4-recycle");
+        let op_id = begin_recycle_op(&conn, &copy, &origin, &snapshot).unwrap();
+        match recycle_path(&copy) {
+            Ok(RecycleStatus::Recycled) | Ok(RecycleStatus::Ambiguous) => {}
+            Err(_) => {
+                fs::remove_file(&copy).unwrap();
+            }
+        }
+        reconcile_on_boot(&conn);
+        assert!(
+            database::favorite_snapshot_for_copy(&conn, copy.to_str().unwrap())
+                .unwrap()
+                .is_none()
+        );
+        assert!(origin.is_file());
+        assert!(database::unfinished_ops(&conn).unwrap().is_empty());
+        let _ = op_id;
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn f4_dispatch_restore_interrupt_before_finish_reconcile_completes() {
+        use crate::file_ops::reconcile::reconcile_on_boot;
+        let root = sandbox();
+        let conn = memory_db();
+        let (origin, copy, trash_file, snapshot) =
+            link_origin_in_trash_for_dispatch_test(&conn, &root);
+        let op_id = begin_restore_origin_keep_favorite_op(&conn, &trash_file, &snapshot).unwrap();
+        fs::rename(&trash_file, &origin).unwrap();
+        reconcile_on_boot(&conn);
+        assert!(origin.is_file());
+        assert!(
+            database::favorite_snapshot_for_copy(&conn, copy.to_str().unwrap())
+                .unwrap()
+                .is_some()
+        );
+        assert!(database::trash_origin(&conn, trash_file.to_str().unwrap()).unwrap().is_none());
+        assert!(database::unfinished_ops(&conn).unwrap().is_empty());
+        let _ = op_id;
         let _ = fs::remove_dir_all(&root);
     }
 }

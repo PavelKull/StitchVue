@@ -10,7 +10,7 @@ use super::recycle::authorize_favorite_copy;
 use super::{
     active_favorites_folder, execute, is_active_favorites_folder, is_favorites_folder_name,
     read_role_marker, read_service_role, rename_child_folder, same_path, Action, IoGate,
-    OperationRequest, LOCAL_FAVORITES, LOCAL_FAVORITES_ALT, ServiceRole,
+    OperationRequest, ServiceRole, LOCAL_FAVORITES, LOCAL_FAVORITES_ALT,
 };
 use crate::database;
 use crate::scanner::list_directory;
@@ -99,6 +99,7 @@ fn add_photos(root: &Path, db: &Connection, count: usize) -> Vec<(PathBuf, PathB
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
     )
     .unwrap();
     assert_eq!(result.state, "completed");
@@ -121,7 +122,10 @@ fn row_count(db: &Connection) -> i64 {
 }
 
 fn hashes(paths: impl IntoIterator<Item = PathBuf>) -> Vec<String> {
-    paths.into_iter().map(|path| sha256_file(&path).unwrap()).collect()
+    paths
+        .into_iter()
+        .map(|path| sha256_file(&path).unwrap())
+        .collect()
 }
 
 fn finish_collection(root: &Path, db: &Connection, new_name: &str) -> PathBuf {
@@ -226,6 +230,7 @@ fn add_after_rename_creates_new_active_favorites() {
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
     )
     .unwrap();
     assert_eq!(result.outcomes[0].status, "copied");
@@ -368,6 +373,7 @@ fn stale_copy_key_after_rename_does_not_light_stars() {
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
     )
     .unwrap();
     let new_copy = PathBuf::from(result.outcomes[0].destination_path.as_ref().unwrap());
@@ -453,8 +459,13 @@ fn rename_to_other_canonical_name_keeps_activity() {
         LOCAL_FAVORITES_ALT,
     )
     .unwrap();
-    database::relocate_folder_path(&db, &favorites.display().to_string(), &new_path, LOCAL_FAVORITES_ALT)
-        .unwrap();
+    database::relocate_folder_path(
+        &db,
+        &favorites.display().to_string(),
+        &new_path,
+        LOCAL_FAVORITES_ALT,
+    )
+    .unwrap();
     let renamed = PathBuf::from(&new_path);
     assert!(is_favorites_folder_name(LOCAL_FAVORITES_ALT));
     assert!(is_active_favorites_folder(&renamed));

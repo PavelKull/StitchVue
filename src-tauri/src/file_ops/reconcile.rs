@@ -37,6 +37,80 @@ fn recover_legacy_undo(db: &Connection) {
     }
 }
 
+fn favorite_bytes_match(origin: &Path, copy: &Path) -> bool {
+    let origin_meta = fs::metadata(origin).ok();
+    let copy_meta = fs::metadata(copy).ok();
+    match (origin_meta, copy_meta) {
+        (Some(left), Some(right)) if left.len() == right.len() => {
+            match (
+                crate::file_ops::sha256_file(origin),
+                crate::file_ops::sha256_file(copy),
+            ) {
+                (Ok(left_hash), Ok(right_hash)) => left_hash == right_hash,
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
+fn reconcile_add_to_favorites(
+    db: &Connection,
+    row: &FileOpLog,
+    source: &Path,
+    dest: Option<&Path>,
+    source_here: bool,
+    dest_here: bool,
+) -> Result<&'static str, String> {
+    if dest_here {
+        let destination = dest.expect("dest_here implies destination path");
+        if let Some(snapshot) =
+            database::favorite_snapshot_for_copy(db, &destination.display().to_string())?
+        {
+            if snapshot.origin_path == row.source_path {
+                return Ok(ST_COMPLETED);
+            }
+            return Ok(ST_NEEDS_RECONCILIATION);
+        }
+        if !source_here || !favorite_bytes_match(source, destination) {
+            return Ok(ST_NEEDS_RECONCILIATION);
+        }
+        let meta = fs::metadata(destination).map_err(|err| err.to_string())?;
+        let size = meta.len();
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis() as i64)
+            .unwrap_or(0);
+        let origin_meta = fs::metadata(source).map_err(|err| err.to_string())?;
+        let origin_size = origin_meta.len();
+        let origin_modified = origin_meta
+            .modified()
+            .ok()
+            .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|duration| duration.as_millis() as i64)
+            .unwrap_or(modified);
+        let hash = crate::file_ops::sha256_file(destination).ok();
+        database::record_favorite_copy(
+            db,
+            &row.source_path,
+            origin_size,
+            origin_modified,
+            &destination.display().to_string(),
+            size,
+            modified,
+            hash.as_deref(),
+        )?;
+        return Ok(ST_COMPLETED);
+    }
+    if source_here {
+        Ok(ST_NEEDS_RECONCILIATION)
+    } else {
+        Ok(ST_NEEDS_RECONCILIATION)
+    }
+}
+
 pub fn reconcile_one(db: &Connection, row: &FileOpLog) -> Result<String, String> {
     let source = Path::new(&row.source_path);
     let dest = row.destination_path.as_deref().map(Path::new);
@@ -48,7 +122,9 @@ pub fn reconcile_one(db: &Connection, row: &FileOpLog) -> Result<String, String>
             if !source_here && dest_here {
                 if let Some(destination) = row.destination_path.as_deref() {
                     let size = row.source_size.unwrap_or_else(|| {
-                        fs::metadata(destination).map(|meta| meta.len()).unwrap_or(0)
+                        fs::metadata(destination)
+                            .map(|meta| meta.len())
+                            .unwrap_or(0)
                     });
                     database::record_trash(db, destination, &row.source_path, size)?;
                 }
@@ -70,40 +146,7 @@ pub fn reconcile_one(db: &Connection, row: &FileOpLog) -> Result<String, String>
             }
         }
         database::OP_ADD_TO_FAVORITES => {
-            if dest_here {
-                if let Some(destination) = row.destination_path.as_deref() {
-                    let meta = fs::metadata(destination).ok();
-                    let size = meta.as_ref().map(|item| item.len()).unwrap_or(0);
-                    let modified = meta
-                        .and_then(|item| item.modified().ok())
-                        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|duration| duration.as_millis() as i64)
-                        .unwrap_or(0);
-                    let origin_meta = fs::metadata(&row.source_path).ok();
-                    let origin_size = origin_meta.as_ref().map(|item| item.len()).unwrap_or(size);
-                    let origin_modified = origin_meta
-                        .and_then(|item| item.modified().ok())
-                        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
-                        .map(|duration| duration.as_millis() as i64)
-                        .unwrap_or(modified);
-                    let hash = crate::file_ops::sha256_file(Path::new(destination)).ok();
-                    database::record_favorite_copy(
-                        db,
-                        &row.source_path,
-                        origin_size,
-                        origin_modified,
-                        destination,
-                        size,
-                        modified,
-                        hash.as_deref(),
-                    )?;
-                }
-                ST_COMPLETED
-            } else if source_here {
-                ST_FAILED
-            } else {
-                ST_NEEDS_RECONCILIATION
-            }
+            reconcile_add_to_favorites(db, row, source, dest, source_here, dest_here)?
         }
         database::OP_REMOVE_FROM_FAVORITES | database::OP_MOVE_TO_WINDOWS_RECYCLE => {
             if source_here {
@@ -194,7 +237,9 @@ mod tests {
         let status = reconcile_one(&conn, &row).unwrap();
         assert_eq!(status, ST_COMPLETED);
         assert_eq!(
-            database::trash_origin(&conn, dest.to_str().unwrap()).unwrap().as_deref(),
+            database::trash_origin(&conn, dest.to_str().unwrap())
+                .unwrap()
+                .as_deref(),
             source.to_str()
         );
         let _ = fs::remove_dir_all(&root);
@@ -218,9 +263,11 @@ mod tests {
         database::insert_pending_op(&conn, &row).unwrap();
         let status = reconcile_one(&conn, &row).unwrap();
         assert_eq!(status, ST_COMPLETED);
-        assert!(database::favorite_snapshot_for_copy(&conn, dest.to_str().unwrap())
-            .unwrap()
-            .is_some());
+        assert!(
+            database::favorite_snapshot_for_copy(&conn, dest.to_str().unwrap())
+                .unwrap()
+                .is_some()
+        );
         let _ = fs::remove_dir_all(&root);
     }
 

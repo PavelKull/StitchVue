@@ -104,7 +104,7 @@ describe("i18n catalog (stage 1)", () => {
     assert.equal(common.errorToast, "Ошибка: {{message}}");
     assert.equal(t(common.errorToast, { message: "access_denied" }), "Ошибка: access_denied");
     assert.equal(t(selection.selectedCount, { count: 3 }), "Выделено: 3");
-    assert.equal(gallery.emptyFolder, "Папка пуста");
+    assert.equal(gallery.emptyFolder.title, "Папка пуста");
   });
 
   it("ru.json parses and matches the texts facade", () => {

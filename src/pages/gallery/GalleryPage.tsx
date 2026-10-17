@@ -138,7 +138,10 @@ import {
 import {
     batchUnfavoriteConfirmLines,
     batchUnfavoritePromptCopy,
+    bucketUnfavoritePreviewTargets,
+    massTrashUnfavoriteCounts as computeMassTrashBatchCounts,
     type BatchUnfavoriteConfirmLine,
+    type MassTrashUnfavoriteCounts,
     cleanupOutcomeFromStatus,
     historyWithoutRemovedFolder,
     interpretRemovalOutcome,
@@ -149,6 +152,7 @@ import {
     pickCleanupFromResults,
     prepareFavoriteRemovalTargets,
     summarizeUnfavoriteBatch,
+    summarizeUnfavoriteBatchDetailed,
     type UnfavoriteBatchItemResult,
     type UnfavoriteCleanupOutcome,
 } from '../../features/selection/lib/removeFavoritesBatch';
@@ -203,6 +207,7 @@ import {
     OperationNoticeView,
     SelectionActions,
 } from '../../widgets/selection-actions/SelectionActions';
+import { FavoriteTrashUnfavoriteDialog } from '../../widgets/favorites-trash-unfavorite-dialog/ui/FavoriteTrashUnfavoriteDialog';
 import selectionActionsStyles from '../../widgets/selection-actions/SelectionActions.module.scss';
 import { FolderSidebar } from '../../widgets/folder-sidebar/FolderSidebar';
 import { orderFoldersForDisplay } from '../../features/folder/lib/folderOrder';
@@ -255,6 +260,10 @@ import {
     createEmptyView,
     withLocalizedDirectory,
 } from '../../features/gallery/lib/directory/galleryDirectoryView';
+import {
+    galleryEmptyI18nKeys,
+    resolveGalleryEmptyKind,
+} from '../../features/gallery/lib/listing/galleryEmptyState';
 import { clearThumbnailCache } from '../../features/gallery/api/galleryCacheApi';
 import {
     setGeometryRange,
@@ -419,6 +428,12 @@ export function GalleryPage() {
     const [unfavoriteBusy, setUnfavoriteBusy] = useState(false);
     const [fileNotice, setFileNotice] = useState<OperationNotice | null>(null);
     const [confirmMove, setConfirmMove] = useState<ImageFile[] | null>(null);
+    const [favoriteTrashUnfavorite, setFavoriteTrashUnfavorite] =
+        useState<ImageFile | null>(null);
+    const [massTrashUnfavoriteOpen, setMassTrashUnfavoriteOpen] =
+        useState(false);
+    const [massTrashBatchCounts, setMassTrashBatchCounts] =
+        useState<MassTrashUnfavoriteCounts | null>(null);
     const [unfavoritePrompt, setUnfavoritePrompt] = useState<
         | { mode: 'single'; file: ImageFile; kind: RemoveFavoriteConfirmKind }
         | {
@@ -441,6 +456,7 @@ export function GalleryPage() {
     const requestId = useRef(0);
     const {
         folderThumbsLoading,
+        folderThumbLoaderRef,
         beginFolderThumbProgress,
         seedFolderThumbProgress,
         syncFolderThumbnailsPending,
@@ -518,6 +534,7 @@ export function GalleryPage() {
         sessionPath: string;
         parentDirectory: string | null;
         readyFiles: ImageFile[];
+        trashFiles: ImageFile[];
         confirmFiles: ImageFile[];
         priorResults: UnfavoriteBatchItemResult[];
     } | null>(null);
@@ -563,6 +580,8 @@ export function GalleryPage() {
                 setOptimisticHiddenFolderKeys(new Set());
             }
         }
+        setMassTrashUnfavoriteOpen(false);
+        setMassTrashBatchCounts(null);
         setUnfavoriteGate(endUnfavorite());
         unfavoriteBatchRef.current = null;
     }
@@ -1304,6 +1323,28 @@ export function GalleryPage() {
             ),
         [status, orderedImages, metaVersion, failedVersion],
     );
+    const galleryEmptyKind = useMemo(
+        () =>
+            resolveGalleryEmptyKind({
+                status,
+                folderListingBusy,
+                geometryPending,
+                serviceRole: view.serviceRole,
+                imageCount: view.images.length,
+                folderCount: view.folders.length,
+                unsupportedFileCount: view.unsupportedFileCount ?? 0,
+            }),
+        [
+            status,
+            folderListingBusy,
+            geometryPending,
+            view.serviceRole,
+            view.images.length,
+            view.folders.length,
+            view.unsupportedFileCount,
+        ],
+    );
+    const galleryEmptyCopy = galleryEmptyI18nKeys(galleryEmptyKind);
 
     const bottomOverlayReserve =
         useGalleryBottomOverlayReserve(bottomBarDockRef);
@@ -2676,6 +2717,13 @@ export function GalleryPage() {
         setOptimisticHiddenFolderKeys(new Set([pathKey(folderPath)]));
     }
 
+    function cancelPendingFolderExitAnimation() {
+        window.clearTimeout(folderCollapseTimerRef.current);
+        folderCollapseTimerRef.current = 0;
+        setFolderExitingKey(null);
+        setFolderHeaderMorph(false);
+    }
+
     function clearOptimisticFavoritesFolderHide(sessionId: string) {
         const hide = optimisticFavoritesFolderHideRef.current;
         if (!hide || hide.operationId !== sessionId) {
@@ -2683,7 +2731,20 @@ export function GalleryPage() {
         }
         optimisticFavoritesFolderHideRef.current = null;
         setOptimisticHiddenFolderKeys(new Set());
+        cancelPendingFolderExitAnimation();
         scheduleFolderRefreshRef.current(hide.parentDirectory);
+    }
+
+    function relistParentAfterFavoritesMassUnfavorite(
+        sessionId: string,
+        parentDirectory: string | null,
+    ) {
+        cancelPendingFolderExitAnimation();
+        clearOptimisticFavoritesFolderHide(sessionId);
+        if (parentDirectory) {
+            scheduleFolderRefreshRef.current(parentDirectory);
+            void fetchFavoriteOriginPaths(parentDirectory);
+        }
     }
 
     function rollbackMassUnfavoriteCopyOrigin(copyPath: string) {
@@ -2878,6 +2939,10 @@ export function GalleryPage() {
                     return;
                 }
                 const kind = removal.confirmKind ?? 'unknown_origin';
+                if (kind === 'origin_in_local_trash') {
+                    setFavoriteTrashUnfavorite(file);
+                    return;
+                }
                 setUnfavoritePrompt({ mode: 'single', file, kind });
                 return;
             }
@@ -2939,7 +3004,6 @@ export function GalleryPage() {
                 sessionPath,
                 parentDirectory,
             );
-            beginFolderExitAnimation(pathKey(sessionPath));
         }
         const landingKey = massUnfavoriteStartLandingKey({
             currentPath: sessionPath,
@@ -2956,44 +3020,24 @@ export function GalleryPage() {
         }
 
         void (async () => {
-            const readyFiles: ImageFile[] = [];
-            const confirmFiles: ImageFile[] = [];
-            const previewFailed: UnfavoriteBatchItemResult[] = [];
             let confirmLines: BatchUnfavoriteConfirmLine[] = [];
+            let buckets;
             try {
                 const previews = await invoke<FavoriteBatchPathResult[]>(
                     'preview_remove_favorite_copies',
                     { paths: targets.map((file) => file.path) },
                 );
                 logUnfavoriteBatchClassifyDebug(previews);
-                const byPath = new Map(
-                    previews.map((entry) => [pathKey(entry.path), entry.result]),
+                buckets = bucketUnfavoritePreviewTargets(targets, previews);
+                confirmLines = batchUnfavoriteConfirmLines(
+                    buckets.otherConfirm,
+                    previews,
                 );
-                confirmLines = batchUnfavoriteConfirmLines(targets, previews);
-                for (const file of targets) {
-                    const preview = byPath.get(pathKey(file.path));
-                    if (!preview) {
-                        rollbackMassUnfavoriteCopyOrigin(file.path);
-                        previewFailed.push({
-                            path: file.path,
-                            status: 'failed',
-                            message: 'Не удалось подготовить исключение',
-                        });
-                        continue;
-                    }
-                    if (preview.status === 'needs_confirm') {
-                        rollbackMassUnfavoriteCopyOrigin(file.path);
-                        confirmFiles.push(file);
-                    } else if (preview.status === 'ready') {
-                        readyFiles.push(file);
-                    } else {
-                        rollbackMassUnfavoriteCopyOrigin(file.path);
-                        previewFailed.push({
-                            path: file.path,
-                            status: 'failed',
-                            message: 'Не удалось подготовить исключение',
-                        });
-                    }
+                for (const file of [
+                    ...buckets.otherConfirm,
+                    ...buckets.originInTrash,
+                ]) {
+                    rollbackMassUnfavoriteCopyOrigin(file.path);
                 }
             } catch (error: unknown) {
                 rollbackAllMassUnfavoriteOrigins(sessionId);
@@ -3008,22 +3052,46 @@ export function GalleryPage() {
                 return;
             }
 
-            if (confirmFiles.length > 0) {
+            if (buckets.originInTrash.length > 0) {
                 clearOptimisticFavoritesFolderHide(sessionId);
                 unfavoriteBatchRef.current = {
                     sessionId,
                     sessionPath,
                     parentDirectory,
-                    readyFiles,
-                    confirmFiles,
-                    priorResults: previewFailed,
+                    readyFiles: buckets.ready,
+                    trashFiles: buckets.originInTrash,
+                    confirmFiles: buckets.otherConfirm,
+                    priorResults: buckets.previewFailed,
+                };
+                setMassTrashBatchCounts(
+                    computeMassTrashBatchCounts(targets.length, buckets),
+                );
+                setMassTrashUnfavoriteOpen(true);
+                setUnfavoriteGate({
+                    busy: true,
+                    sessionId,
+                    confirmPending: true,
+                });
+                return;
+            }
+
+            if (buckets.otherConfirm.length > 0) {
+                clearOptimisticFavoritesFolderHide(sessionId);
+                unfavoriteBatchRef.current = {
+                    sessionId,
+                    sessionPath,
+                    parentDirectory,
+                    readyFiles: buckets.ready,
+                    trashFiles: [],
+                    confirmFiles: buckets.otherConfirm,
+                    priorResults: buckets.previewFailed,
                 };
                 setUnfavoriteGate(
                     markUnfavoriteConfirmPending(unfavoriteGateRef.current),
                 );
                 setUnfavoritePrompt({
                     mode: 'batch',
-                    files: confirmFiles,
+                    files: buckets.otherConfirm,
                     confirmLines,
                     sessionPath,
                     parentDirectory,
@@ -3035,10 +3103,108 @@ export function GalleryPage() {
                 sessionId,
                 sessionPath,
                 parentDirectory,
-                work: readyFiles.map((file) => ({ file, confirmed: false })),
-                priorResults: previewFailed,
+                work: buckets.ready.map((file) => ({ file, confirmed: false })),
+                priorResults: buckets.previewFailed,
             });
         })();
+    }
+
+    function cancelMassTrashUnfavorite() {
+        const pending = unfavoriteBatchRef.current;
+        setMassTrashUnfavoriteOpen(false);
+        setMassTrashBatchCounts(null);
+        if (!pending) {
+            releaseUnfavoriteGate();
+            return;
+        }
+        for (const file of pending.trashFiles) {
+            rollbackMassUnfavoriteCopyOrigin(file.path);
+        }
+        unfavoriteBatchRef.current = null;
+        releaseUnfavoriteGate();
+    }
+
+    function confirmMassTrashUnfavorite(
+        resolution: 'recycle_copy' | 'restore_origin',
+    ) {
+        const pending = unfavoriteBatchRef.current;
+        setMassTrashUnfavoriteOpen(false);
+        setMassTrashBatchCounts(null);
+        if (!pending) {
+            return;
+        }
+        const gate = unfavoriteGateRef.current;
+        let nextGate = beginUnfavoriteConfirmPass(gate, pending.sessionId);
+        if (
+            !nextGate &&
+            gate.busy &&
+            gate.sessionId === pending.sessionId
+        ) {
+            nextGate = {
+                busy: true,
+                sessionId: pending.sessionId,
+                confirmPending: false,
+            };
+        }
+        if (!nextGate) {
+            setFileNotice({
+                tone: 'failed',
+                text: 'Не удалось продолжить снятие избранного. Повторите операцию.',
+                details: [],
+            });
+            releaseUnfavoriteGate();
+            return;
+        }
+        setUnfavoriteGate(nextGate);
+        const skippedUnresolved: UnfavoriteBatchItemResult[] =
+            pending.confirmFiles.map((file) => ({
+                path: file.path,
+                status: 'skipped',
+                reason: 'needs_confirm',
+            }));
+        const work: {
+            file: ImageFile;
+            confirmed: boolean;
+            resolution?: 'recycle_copy' | 'restore_origin';
+        }[] = [];
+        if (resolution === 'recycle_copy') {
+            work.push(
+                ...pending.readyFiles.map((file) => ({
+                    file,
+                    confirmed: false,
+                })),
+                ...pending.trashFiles.map((file) => ({
+                    file,
+                    confirmed: true,
+                    resolution: 'recycle_copy' as const,
+                })),
+            );
+        } else {
+            for (const file of pending.readyFiles) {
+                rollbackMassUnfavoriteCopyOrigin(file.path);
+            }
+            work.push(
+                ...pending.trashFiles.map((file) => ({
+                    file,
+                    confirmed: true,
+                    resolution: 'restore_origin' as const,
+                })),
+            );
+        }
+        const sessionPath = pending.sessionPath;
+        const parentDirectory = pending.parentDirectory;
+        const priorResults = [
+            ...pending.priorResults,
+            ...skippedUnresolved,
+        ];
+        unfavoriteBatchRef.current = null;
+        void startBackgroundMassUnfavorite({
+            sessionId: pending.sessionId,
+            sessionPath,
+            parentDirectory,
+            work,
+            priorResults,
+        });
     }
 
     async function confirmBatchUnfavorite(files: ImageFile[]) {
@@ -3115,10 +3281,15 @@ export function GalleryPage() {
         sessionId: string;
         sessionPath: string;
         parentDirectory: string | null;
-        work: { file: ImageFile; confirmed: boolean }[];
+        work: {
+            file: ImageFile;
+            confirmed: boolean;
+            resolution?: 'recycle_copy' | 'restore_origin';
+        }[];
         priorResults: UnfavoriteBatchItemResult[];
     }) {
         if (backgroundUnfavoriteRef.current) {
+            releaseUnfavoriteGate();
             return;
         }
         const workFiles = options.work.map((item) => item.file);
@@ -3175,6 +3346,7 @@ export function GalleryPage() {
                         items: options.work.map((item) => ({
                             path: item.file.path,
                             confirmed: item.confirmed,
+                            resolution: item.resolution ?? null,
                         })),
                     },
                 );
@@ -3242,6 +3414,9 @@ export function GalleryPage() {
             (item) =>
                 item.status === 'skipped' || item.status === 'needs_confirm',
         );
+        const restored = options.results.filter(
+            (item) => item.status === 'restored_origin',
+        );
         const session = massUnfavoriteOriginRef.current;
         let favoritePathsConfirmedMutation = false;
         if (session && session.sessionId === options.sessionId) {
@@ -3267,6 +3442,24 @@ export function GalleryPage() {
                     if (originKey && generation !== undefined) {
                         rollbackFavoriteStarOverlay(originKey, generation);
                         session.originGenerations.delete(originKey);
+                    }
+                    const copyKey = pathKey(item.path);
+                    const copyGeneration =
+                        session.copyGenerations.get(copyKey);
+                    if (copyGeneration !== undefined) {
+                        rollbackFavoriteStarOverlay(copyKey, copyGeneration);
+                        session.copyGenerations.delete(copyKey);
+                    }
+                } else if (item.status === 'restored_origin') {
+                    favoritePathsConfirmedMutation = true;
+                    const restored = item.result.restoredPath;
+                    if (restored) {
+                        const originKey = pathKey(restored);
+                        setFavoritePaths((current) => {
+                            const next = new Set(current);
+                            next.add(originKey);
+                            return next;
+                        });
                     }
                     const copyKey = pathKey(item.path);
                     const copyGeneration =
@@ -3308,19 +3501,27 @@ export function GalleryPage() {
             applyRemovedServiceFolder(cleanup.navigateLocation);
         }
 
-        const hideOverlay = optimisticFavoritesFolderHideRef.current;
-        if (hideOverlay && hideOverlay.operationId === options.sessionId) {
+        const folderActuallyRemoved =
+            cleanup.navigateLocation != null ||
+            cleanup.status === 'removed' ||
+            cleanup.status === 'already_gone';
+        const restoreKeptFavoriteCopies = restored.length > 0;
+        if (restoreKeptFavoriteCopies || !folderActuallyRemoved) {
+            relistParentAfterFavoritesMassUnfavorite(
+                options.sessionId,
+                options.parentDirectory,
+            );
+        } else if (
+            optimisticFavoritesFolderHideRef.current?.operationId ===
+            options.sessionId
+        ) {
             if (
                 cleanup.status === 'not_empty' ||
                 cleanup.status === 'failed' ||
                 failed.length > 0
             ) {
                 clearOptimisticFavoritesFolderHide(options.sessionId);
-            } else if (
-                cleanup.navigateLocation ||
-                cleanup.status === 'removed' ||
-                cleanup.status === 'already_gone'
-            ) {
+            } else {
                 optimisticFavoritesFolderHideRef.current = null;
                 setOptimisticHiddenFolderKeys(new Set());
             }
@@ -3355,18 +3556,61 @@ export function GalleryPage() {
             scheduleFolderRefreshRef.current(options.parentDirectory);
         }
 
-        const notice = summarizeUnfavoriteBatch({
-            total: options.results.length,
-            succeeded: succeeded.length,
-            failed: failed.length,
-            skipped: skipped.length,
-            cleanup,
-            errors: failed.map((item) =>
-                item.status === 'failed' ? item.message : '',
-            ),
-        });
+        const notice =
+            restored.length > 0
+                ? summarizeUnfavoriteBatchDetailed({
+                      processed: options.results.length,
+                      succeeded: succeeded.length,
+                      skipped: skipped.length,
+                      failed: failed.length,
+                      restored: restored.length,
+                      needsReconciliation: 0,
+                  })
+                : summarizeUnfavoriteBatch({
+                      total: options.results.length,
+                      succeeded: succeeded.length,
+                      failed: failed.length,
+                      skipped: skipped.length,
+                      cleanup,
+                      errors: failed.map((item) =>
+                          item.status === 'failed' ? item.message : '',
+                      ),
+                  });
         if (notice.tone !== 'ok') {
             setFileNotice(notice);
+        }
+    }
+
+    async function resolveTrashUnfavorite(
+        file: ImageFile,
+        resolution: 'recycle_copy' | 'restore_origin',
+    ) {
+        setFavoriteTrashUnfavorite(null);
+        const key = pathKey(file.path);
+        const overlayGeneration = startFavoriteStarOverlay(key, false, operationId());
+        lockedUnfavoritePathsRef.current.add(key);
+        markBusy([key], true);
+        try {
+            const removal = await invoke<RemoveFavoriteCopyResult>(
+                'remove_favorite_copy',
+                {
+                    path: file.path,
+                    confirmed: true,
+                    resolution,
+                },
+            );
+            applyUnfavoriteResult(file, removal);
+            rollbackFavoriteStarOverlay(key, overlayGeneration);
+        } catch (error: unknown) {
+            rollbackFavoriteStarOverlay(key, overlayGeneration);
+            setFileNotice({
+                tone: 'failed',
+                text: formatInvokeError(error),
+                details: [],
+            });
+        } finally {
+            lockedUnfavoritePathsRef.current.delete(key);
+            markBusy([key], false);
         }
     }
 
@@ -3374,6 +3618,32 @@ export function GalleryPage() {
         file: ImageFile,
         removal: RemoveFavoriteCopyResult,
     ) {
+        if (removal.status === 'restored_origin') {
+            noteFavoritePathsConfirmedLocalMutation();
+            if (removal.restoredPath) {
+                const originKey = pathKey(removal.restoredPath);
+                setFavoritePaths((current) => {
+                    const next = new Set(current);
+                    next.add(originKey);
+                    return next;
+                });
+                const normalized = removal.restoredPath
+                    .replace(/\//g, '\\')
+                    .replace(/\\+$/, '');
+                const sep = normalized.lastIndexOf('\\');
+                if (sep > 0) {
+                    void fetchFavoriteOriginPaths(normalized.slice(0, sep));
+                }
+            }
+            if (viewRef.current.path && viewRef.current.serviceRole !== 'favorites') {
+                scheduleFolderRefreshRef.current(viewRef.current.path);
+            }
+            const parent = viewRef.current.parent;
+            if (parent) {
+                scheduleFolderRefreshRef.current(parent);
+            }
+            return;
+        }
         const key = pathKey(file.path);
         setFavoriteOverlay((current) => clearFavoriteOverlayKey(current, key));
         const cleanup = cleanupOutcomeFromStatus(
@@ -3871,12 +4141,24 @@ export function GalleryPage() {
                 geometryPending ? (
                     <p className={styles.message}>{t('common.opening')}</p>
                 ) : null}
-                {status === 'ready' &&
-                    view.folders.length === 0 &&
-                    view.images.length === 0 &&
-                    !serviceRole && (
-                        <p className={styles.message}>{t('gallery.emptyFolder')}</p>
-                    )}
+                {galleryEmptyCopy ? (
+                    <div
+                        className={styles.emptyGallery}
+                        role="status"
+                    >
+                        <StitchVueIcon
+                            name="file-image"
+                            className={styles.emptyGalleryIcon}
+                            aria-hidden
+                        />
+                        <p className={styles.emptyGalleryTitle}>
+                            {t(galleryEmptyCopy.titleKey)}
+                        </p>
+                        <p className={styles.emptyGalleryDescription}>
+                            {t(galleryEmptyCopy.descriptionKey)}
+                        </p>
+                    </div>
+                ) : null}
                 {status === 'ready' &&
                     view.images.length === 0 &&
                     serviceRole === 'favorites' && (
@@ -4007,11 +4289,13 @@ export function GalleryPage() {
                                 setSelection(next.selection);
                             }}
                         />
-                        {folderThumbsLoading ||
-                        (photoGalleryActive && scrollJump.canScroll) ? (
+                        {folderThumbsLoading || photoGalleryActive ? (
                             <GalleryScrollJumpButton
                                 pointUp={scrollJump.pointUp}
                                 loading={folderThumbsLoading}
+                                canScroll={scrollJump.canScroll}
+                                sessionKey={directoryKey ?? ''}
+                                progressRef={folderThumbLoaderRef}
                                 onJump={jumpGalleryScroll}
                             />
                         ) : null}
@@ -4214,6 +4498,37 @@ export function GalleryPage() {
                     setConfirmMove(null);
                     runFileAction('move_to_local_trash', files, true);
                 }}
+            />
+            <FavoriteTrashUnfavoriteDialog
+                open={favoriteTrashUnfavorite !== null}
+                variant="single"
+                busy={
+                    favoriteTrashUnfavorite !== null &&
+                    busyPaths.has(pathKey(favoriteTrashUnfavorite.path))
+                }
+                onCancel={() => setFavoriteTrashUnfavorite(null)}
+                onRemoveCopy={() => {
+                    const file = favoriteTrashUnfavorite;
+                    if (file) {
+                        void resolveTrashUnfavorite(file, 'recycle_copy');
+                    }
+                }}
+                onRestoreOrigin={() => {
+                    const file = favoriteTrashUnfavorite;
+                    if (file) {
+                        void resolveTrashUnfavorite(file, 'restore_origin');
+                    }
+                }}
+            />
+            <FavoriteTrashUnfavoriteDialog
+                open={massTrashUnfavoriteOpen}
+                variant="batch"
+                batchCounts={massTrashBatchCounts}
+                onCancel={cancelMassTrashUnfavorite}
+                onRemoveCopy={() => confirmMassTrashUnfavorite('recycle_copy')}
+                onRestoreOrigin={() =>
+                    confirmMassTrashUnfavorite('restore_origin')
+                }
             />
             <ConfirmMoveDialog
                 open={unfavoritePrompt !== null}

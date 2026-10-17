@@ -41,7 +41,12 @@ pub fn png_rgba(image: &RgbaImage, icc: Option<Vec<u8>>) -> Vec<u8> {
         encoder.set_icc_profile(icc).unwrap();
     }
     encoder
-        .write_image(image.as_raw(), image.width(), image.height(), image::ExtendedColorType::Rgba8)
+        .write_image(
+            image.as_raw(),
+            image.width(),
+            image.height(),
+            image::ExtendedColorType::Rgba8,
+        )
         .unwrap();
     bytes
 }

@@ -5,8 +5,7 @@ use std::time::Duration;
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
 pub fn set_enabled_from_env() {
-    let on = std::env::var_os("STITCHVUE_FAV_METRICS")
-        .is_some_and(|v| v != "0" && v != "false");
+    let on = std::env::var_os("STITCHVUE_FAV_METRICS").is_some_and(|v| v != "0" && v != "false");
     ENABLED.store(on, Ordering::Relaxed);
 }
 

@@ -22,7 +22,9 @@ impl Drop for PathLockGuard {
     }
 }
 
-pub fn try_lock_paths(paths: impl IntoIterator<Item = impl AsRef<Path>>) -> Result<PathLockGuard, String> {
+pub fn try_lock_paths(
+    paths: impl IntoIterator<Item = impl AsRef<Path>>,
+) -> Result<PathLockGuard, String> {
     let mut keys: Vec<String> = paths
         .into_iter()
         .map(|path| normalize_key(path.as_ref()).to_ascii_lowercase())

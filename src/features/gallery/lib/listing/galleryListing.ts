@@ -88,6 +88,7 @@ function asView(images: ImageFile[], folder: string): DirectoryView {
     parent: null,
     folders: [],
     images,
+    unsupportedFileCount: 0,
     serviceRole: null,
   };
 }

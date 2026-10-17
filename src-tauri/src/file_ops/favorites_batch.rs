@@ -31,6 +31,7 @@ pub struct FavoriteBatchPathResult {
 pub struct FavoriteBatchRemoveItem {
     pub path: String,
     pub confirmed: bool,
+    pub resolution: Option<String>,
 }
 
 /// Functionally equivalent to sequential `preview_remove_favorite_copy` per path (single IPC).
@@ -70,8 +71,25 @@ pub fn remove_favorite_copies_batch(
     let mut out = Vec::with_capacity(items.len());
     let mut scan_caches = BatchRemovalScanCaches::new();
     for item in items {
-        let result =
-            remove_favorite_copy_distributed_with_scan(db_mutex, &item.path, item.confirmed, Some(&mut scan_caches))?;
+        let result = match remove_favorite_copy_distributed_with_scan(
+            db_mutex,
+            &item.path,
+            item.confirmed,
+            item.resolution.as_deref(),
+            Some(&mut scan_caches),
+        ) {
+            Ok(result) => result,
+            Err(message) => RemoveFavoriteCopyResult {
+                status: "failed".to_string(),
+                undo_id: String::new(),
+                removed_service_folder: None,
+                restored_path: None,
+                notice_code: Some(message),
+                confirm_kind: None,
+                trash_path: None,
+                cleanup_status: None,
+            },
+        };
         out.push(FavoriteBatchPathResult {
             path: item.path.clone(),
             result,
@@ -109,14 +127,18 @@ mod tests {
             FavoriteBatchRemoveItem {
                 path: r"C:\Album\Избранное\missing.jpg".to_string(),
                 confirmed: false,
+                resolution: None,
             },
             FavoriteBatchRemoveItem {
                 path: r"C:\Album\Избранное\other.jpg".to_string(),
                 confirmed: false,
+                resolution: None,
             },
         ];
-        let results = remove_favorite_copies_batch(&db, &items);
-        assert!(results.is_err() || results.unwrap().len() == 2);
+        let out = remove_favorite_copies_batch(&db, &items).unwrap();
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].result.status, "failed");
+        assert_eq!(out[1].result.status, "failed");
     }
 }
 

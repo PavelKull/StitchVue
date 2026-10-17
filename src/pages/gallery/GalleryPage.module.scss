@@ -171,6 +171,52 @@
     pointer-events: none;
 }
 
+.emptyGallery {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: z.$photo-hover;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: min(360px, calc(100% - 32px));
+    margin: 0;
+    padding: 0 16px;
+    text-align: center;
+    opacity: 0.62;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.emptyGalleryIcon {
+    width: 40px;
+    height: 40px;
+    color: var(--pg-text-muted);
+    opacity: 0.85;
+
+    svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+}
+
+.emptyGalleryTitle {
+    margin: 0;
+    color: var(--pg-text);
+    font-size: 15px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.emptyGalleryDescription {
+    margin: 0;
+    color: var(--pg-text-muted);
+    font-size: 14px;
+    line-height: 1.4;
+}
+
 .contentSplit {
     display: flex;
     flex: 1;

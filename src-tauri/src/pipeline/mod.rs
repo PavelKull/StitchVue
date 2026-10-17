@@ -351,7 +351,9 @@ impl Pipeline {
     pub fn start(app: AppHandle, db: Connection) -> Self {
         let _ = stamp_service_markers(&db);
         crate::file_ops::reconcile::reconcile_on_boot(&db);
-        let stored = crate::database::setting(&db, "storage_profile").ok().flatten();
+        let stored = crate::database::setting(&db, "storage_profile")
+            .ok()
+            .flatten();
         let profile_override = match stored.as_deref() {
             Some("hdd") => Some(StorageProfile::Hdd),
             Some("ssd") => Some(StorageProfile::Ssd),
@@ -449,7 +451,11 @@ impl Pipeline {
 
     pub fn begin_session(&self, session: u64, folder: Option<String>) {
         {
-            let board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if session <= board.session {
                 return;
             }
@@ -457,7 +463,11 @@ impl Pipeline {
         hover::cancel(&self.inner);
         viewer::cancel_hover(&self.inner);
         {
-            let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let mut board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if session <= board.session {
                 return;
             }
@@ -498,14 +508,26 @@ impl Pipeline {
             board.background_yields = 0;
             board.read_slots = read_slots_for(&board.folder, board.profile_override);
         }
-        self.inner.held.lock().unwrap_or_else(|err| err.into_inner()).clear();
+        self.inner
+            .held
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .clear();
         match folder {
             Some(path) if !path.is_empty() => {
                 self.watch_folder(&path, session);
-                let _ = self.inner.app.asset_protocol_scope().allow_directory(&path, false);
+                let _ = self
+                    .inner
+                    .app
+                    .asset_protocol_scope()
+                    .allow_directory(&path, false);
             }
             _ => {
-                *self.inner.watcher.lock().unwrap_or_else(|err| err.into_inner()) = None;
+                *self
+                    .inner
+                    .watcher
+                    .lock()
+                    .unwrap_or_else(|err| err.into_inner()) = None;
             }
         }
         self.nudge();
@@ -513,7 +535,11 @@ impl Pipeline {
 
     pub fn index(&self, folder: String, files: Vec<SourceFile>, session: u64) {
         {
-            let board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if session < board.session {
                 return;
             }
@@ -527,7 +553,11 @@ impl Pipeline {
             .unwrap_or_else(|err| err.into_inner())
             .profile_override;
         let (generation, geometry_end) = {
-            let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let mut board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if session < board.session {
                 return;
             }
@@ -545,7 +575,11 @@ impl Pipeline {
             board.focus_end = board.items.len().min(8);
             board.background_index = board.visible_end;
             board.background_inflight = 0;
-            board.pass = if board.items.is_empty() { Pass::Idle } else { Pass::Running };
+            board.pass = if board.items.is_empty() {
+                Pass::Idle
+            } else {
+                Pass::Running
+            };
             board.cache_capped = false;
             board.viewer_gen = board.viewer_gen.wrapping_add(1);
             board.viewer_fast = false;
@@ -572,17 +606,29 @@ impl Pipeline {
             board.background_yields = 0;
             (board.generation, board.geometry_end)
         };
-        self.inner.held.lock().unwrap_or_else(|err| err.into_inner()).clear();
+        self.inner
+            .held
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .clear();
         prime_cache(&self.inner, generation, 0, geometry_end);
         {
-            let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let mut board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if board.generation == generation {
                 board.priming = false;
             }
         }
         self.nudge();
         self.watch_folder(&folder, session);
-        let _ = self.inner.app.asset_protocol_scope().allow_directory(&folder, false);
+        let _ = self
+            .inner
+            .app
+            .asset_protocol_scope()
+            .allow_directory(&folder, false);
         let inner = Arc::clone(&self.inner);
         thread::spawn(move || metadata_pass(inner, generation));
     }
@@ -595,7 +641,11 @@ impl Pipeline {
         focus_end: usize,
         tier: u32,
     ) {
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         let len = board.items.len();
         let next_start = start.min(len);
         let next_end = end.min(len).max(next_start);
@@ -636,7 +686,11 @@ impl Pipeline {
     }
 
     pub fn set_geometry(&self, start: usize, end: usize) {
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         let (next_start, next_end) = clamp_index_range(start, end, board.items.len());
         if next_start == board.geometry_start && next_end == board.geometry_end {
             return;
@@ -651,7 +705,11 @@ impl Pipeline {
 
     pub fn set_scrolling(&self, mode: &str, ahead: i32) {
         let load_mode = LoadMode::parse(mode);
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.load_mode = load_mode;
         board.scrolling = load_mode != LoadMode::Idle;
         board.scroll_ahead = if board.scrolling {
@@ -666,7 +724,11 @@ impl Pipeline {
     /// Keeps decode state and retargets the queue when the gallery sort changes.
     pub fn order(&self, files: Vec<SourceFile>) {
         let (generation, restart_meta, geometry_end) = {
-            let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+            let mut board = self
+                .inner
+                .board
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
             if board.items.len() == files.len()
                 && board
                     .items
@@ -676,9 +738,9 @@ impl Pipeline {
             {
                 return;
             }
-            let viewer_path = board.viewer_index.and_then(|index| {
-                board.items.get(index).map(|item| item.path.clone())
-            });
+            let viewer_path = board
+                .viewer_index
+                .and_then(|index| board.items.get(index).map(|item| item.path.clone()));
             let old = std::mem::take(&mut board.items)
                 .into_iter()
                 .map(|item| (item.path.clone(), item))
@@ -719,9 +781,8 @@ impl Pipeline {
                     None => new_item(file.path, file.size, file.modified_at),
                 })
                 .collect();
-            board.viewer_index = viewer_path.and_then(|path| {
-                board.items.iter().position(|item| item.path == path)
-            });
+            board.viewer_index =
+                viewer_path.and_then(|path| board.items.iter().position(|item| item.path == path));
             board.visible_start = 0;
             board.visible_end = board.items.len().min(32);
             board.focus_start = 0;
@@ -731,7 +792,11 @@ impl Pipeline {
             board.geometry_start = 0;
             board.geometry_end = board.items.len().min(GEOMETRY_FALLBACK);
             board.cache_capped = false;
-            board.pass = if board.items.iter().any(|item| !item.failed && !item.ready[0] && !item.cache_blocked) {
+            board.pass = if board
+                .items
+                .iter()
+                .any(|item| !item.failed && !item.ready[0] && !item.cache_blocked)
+            {
                 Pass::Running
             } else {
                 Pass::Completed
@@ -742,7 +807,11 @@ impl Pipeline {
             board.meta_done = !restart_meta;
             (board.generation, restart_meta, board.geometry_end)
         };
-        self.inner.held.lock().unwrap_or_else(|err| err.into_inner()).clear();
+        self.inner
+            .held
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .clear();
         prime_cache(&self.inner, generation, 0, geometry_end);
         self.nudge();
         if restart_meta {
@@ -752,9 +821,14 @@ impl Pipeline {
     }
 
     pub fn set_viewer(&self, path: Option<String>, ahead: u32, fast: bool, direction: i32) {
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.viewer_ahead = ahead.clamp(1, 15);
-        let next_index = path.and_then(|path| board.items.iter().position(|item| item.path == path));
+        let next_index =
+            path.and_then(|path| board.items.iter().position(|item| item.path == path));
         if next_index != board.viewer_index {
             board.viewer_gen = board.viewer_gen.wrapping_add(1);
         }
@@ -772,7 +846,11 @@ impl Pipeline {
     }
 
     pub fn stats(&self) -> PipelineStats {
-        let board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         let ready = board.items.iter().filter(|item| item.ready[0]).count() as u32;
         let failed = board.items.iter().filter(|item| item.failed).count() as u32;
         let pending = board
@@ -839,7 +917,13 @@ impl Pipeline {
         hover::cancel(&self.inner);
     }
 
-    pub fn prefetch_photo(&self, path: &str, size: u64, modified_at: i64, long_edge: u32) -> viewer::ViewerOffer {
+    pub fn prefetch_photo(
+        &self,
+        path: &str,
+        size: u64,
+        modified_at: i64,
+        long_edge: u32,
+    ) -> viewer::ViewerOffer {
         viewer::prefetch(&self.inner, path, size, modified_at, long_edge)
     }
 
@@ -850,7 +934,11 @@ impl Pipeline {
     pub fn record_operation_links(&self, result: &mut crate::file_ops::FileOperationResult) {
         let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
         for outcome in &mut result.outcomes {
-            let log_id = format!("{}:{}", result.operation_id, crate::file_ops::normalize_key(Path::new(&outcome.source_path)));
+            let log_id = format!(
+                "{}:{}",
+                result.operation_id,
+                crate::file_ops::normalize_key(Path::new(&outcome.source_path))
+            );
             let dest = outcome.destination_path.clone();
             let dest_ref = dest.as_deref();
             match outcome.status.as_str() {
@@ -876,12 +964,11 @@ impl Pipeline {
                                 let _ = crate::database::finish_op(
                                     &db,
                                     &log_id,
-                                    crate::database::ST_FAILED,
+                                    crate::database::ST_NEEDS_RECONCILIATION,
                                     dest_ref,
                                     Some("favorite_link"),
                                     Some(&err),
                                 );
-                                outcome.status = "failed".to_string();
                                 outcome.error_code = Some("favorite_link".to_string());
                                 outcome.error_message = Some(err);
                             }
@@ -899,8 +986,15 @@ impl Pipeline {
                 }
                 "moved" => {
                     if let Some(destination) = dest_ref {
-                        let size = std::fs::metadata(destination).map(|item| item.len()).unwrap_or(0);
-                        let _ = crate::database::record_trash(&db, destination, &outcome.source_path, size);
+                        let size = std::fs::metadata(destination)
+                            .map(|item| item.len())
+                            .unwrap_or(0);
+                        let _ = crate::database::record_trash(
+                            &db,
+                            destination,
+                            &outcome.source_path,
+                            size,
+                        );
                     }
                     let _ = crate::database::finish_op(
                         &db,
@@ -954,7 +1048,11 @@ impl Pipeline {
             for path in &request.paths {
                 let (size, modified, name) = path_stamp(Path::new(path));
                 let row = crate::database::FileOpLog {
-                    id: format!("{}:{}", request.operation_id, crate::file_ops::normalize_key(Path::new(path))),
+                    id: format!(
+                        "{}:{}",
+                        request.operation_id,
+                        crate::file_ops::normalize_key(Path::new(path))
+                    ),
                     op_type: match request.action {
                         crate::file_ops::Action::MoveToLocalTrash => {
                             crate::database::OP_MOVE_TO_LOCAL_TRASH.to_string()
@@ -976,7 +1074,23 @@ impl Pipeline {
                 crate::database::insert_pending_op(&db, &row)?;
             }
         }
-        let mut executed = crate::file_ops::execute(gate, request, copy_slots, cancel, on_progress);
+        let mut executed = if request.action == crate::file_ops::Action::CopyToLocalFavorites {
+            let inner = Arc::clone(&self.inner);
+            let favorites_journal = move |log_id: &str, destination: &str| {
+                let db = inner.db.lock().unwrap_or_else(|err| err.into_inner());
+                let _ = crate::database::update_pending_destination(&db, log_id, destination);
+            };
+            crate::file_ops::execute(
+                gate,
+                request,
+                copy_slots,
+                cancel,
+                on_progress,
+                Some(&favorites_journal),
+            )
+        } else {
+            crate::file_ops::execute(gate, request, copy_slots, cancel, on_progress, None)
+        };
         match &mut executed {
             Ok(result) => self.record_operation_links(result),
             Err(message) => {
@@ -1017,7 +1131,11 @@ impl Pipeline {
             let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
             let _ = crate::database::set_setting(&db, "storage_profile", mode);
         }
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.profile_override = override_profile;
         board.read_slots = read_slots_for(&board.folder, override_profile);
         let profile = storage::profile_for(Path::new(&board.folder), override_profile);
@@ -1031,7 +1149,11 @@ impl Pipeline {
             let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
             cache::clear(&db)?;
         }
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.generation = board.generation.wrapping_add(1);
         board.cache_hits = 0;
         board.cache_misses = 0;
@@ -1095,7 +1217,8 @@ impl Pipeline {
         new_name: &str,
     ) -> Result<String, String> {
         let old_path = folder_path;
-        let new_path = crate::file_ops::rename_child_folder(parent_directory, folder_path, new_name)?;
+        let new_path =
+            crate::file_ops::rename_child_folder(parent_directory, folder_path, new_name)?;
         let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
         // Filesystem already moved. Do not rename back if SQLite rewrite fails;
         // activity is derived from the live folder, and the next read reconciles.
@@ -1160,8 +1283,14 @@ impl Pipeline {
         &self,
         path: &str,
         confirmed: bool,
+        resolution: Option<&str>,
     ) -> Result<crate::file_ops::RemoveFavoriteCopyResult, String> {
-        crate::file_ops::favorites::remove_favorite_copy_distributed(&self.inner.db, path, confirmed)
+        crate::file_ops::favorites::remove_favorite_copy_distributed(
+            &self.inner.db,
+            path,
+            confirmed,
+            resolution,
+        )
     }
 
     pub fn preview_remove_favorite_copy(
@@ -1251,7 +1380,11 @@ impl Pipeline {
                 },
             )?;
         }
-        let restored = match crate::file_ops::restore_recorded_file(Path::new(path), &target_origin, renamed) {
+        let restored = match crate::file_ops::restore_recorded_file(
+            Path::new(path),
+            &target_origin,
+            renamed,
+        ) {
             Ok(path) => path,
             Err(err) => {
                 let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
@@ -1277,12 +1410,12 @@ impl Pipeline {
             None,
         );
         drop(db);
-        let removed_service_folder = trash_parent
-            .as_deref()
-            .and_then(|parent| match crate::file_ops::remove_service_folder_if_empty(parent) {
+        let removed_service_folder = trash_parent.as_deref().and_then(|parent| {
+            match crate::file_ops::remove_service_folder_if_empty(parent) {
                 Ok(value) => value,
                 Err(_) => None,
-            });
+            }
+        });
         if let Some(location) = &removed_service_folder {
             let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
             let _ = crate::database::purge_paths_under(&db, &location.folder_path);
@@ -1293,7 +1426,10 @@ impl Pipeline {
         })
     }
 
-    pub fn recycle_trash_file(&self, path: &str) -> Result<crate::file_ops::RecycleItemResult, String> {
+    pub fn recycle_trash_file(
+        &self,
+        path: &str,
+    ) -> Result<crate::file_ops::RecycleItemResult, String> {
         let authorized = crate::file_ops::recycle::authorize_trash_file(Path::new(path))
             .map_err(|err| err.message)?;
         let _lock = crate::file_ops::try_lock_paths([&authorized])?;
@@ -1330,7 +1466,9 @@ impl Pipeline {
                     Some("ambiguous"),
                     Some("Результат корзины Windows неоднозначен"),
                 );
-                return Err("Результат корзины Windows неоднозначен. Файл оставлен на месте.".to_string());
+                return Err(
+                    "Результат корзины Windows неоднозначен. Файл оставлен на месте.".to_string(),
+                );
             }
             Err(err) => {
                 let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
@@ -1422,7 +1560,9 @@ impl Pipeline {
                     Some("ambiguous"),
                     Some("Результат корзины Windows неоднозначен"),
                 );
-                return Err("Результат корзины Windows неоднозначен. Папка оставлена на месте.".to_string());
+                return Err(
+                    "Результат корзины Windows неоднозначен. Папка оставлена на месте.".to_string(),
+                );
             }
             Err(err) => {
                 let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
@@ -1452,10 +1592,13 @@ impl Pipeline {
         if let Some(parent) = authorized.parent() {
             crate::scanner::drop_listing_cache(parent);
         }
-        let removed_service_folder = authorized.parent().map(|parent| crate::file_ops::ServiceFolderLocation {
-            parent_directory: crate::file_ops::path_string_for_app(parent),
-            folder_path: crate::file_ops::path_string_for_app(&authorized),
-        });
+        let removed_service_folder =
+            authorized
+                .parent()
+                .map(|parent| crate::file_ops::ServiceFolderLocation {
+                    parent_directory: crate::file_ops::path_string_for_app(parent),
+                    folder_path: crate::file_ops::path_string_for_app(&authorized),
+                });
         Ok(crate::file_ops::RecycleItemResult {
             path: crate::file_ops::path_string_for_app(&authorized),
             status: "recycled".to_string(),
@@ -1473,7 +1616,10 @@ impl Pipeline {
         crate::library::rotate_clockwise(&db, path)
     }
 
-    pub fn list_display_rotations(&self, paths: &[String]) -> Result<Vec<crate::library::DisplayRotation>, String> {
+    pub fn list_display_rotations(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<crate::library::DisplayRotation>, String> {
         let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
         crate::library::list_display_rotations(&db, paths)
     }
@@ -1507,7 +1653,13 @@ impl Pipeline {
         })
     }
 
-    pub fn viewer_frame(&self, path: &str, size: u64, modified_at: i64, long_edge: u32) -> viewer::ViewerOffer {
+    pub fn viewer_frame(
+        &self,
+        path: &str,
+        size: u64,
+        modified_at: i64,
+        long_edge: u32,
+    ) -> viewer::ViewerOffer {
         viewer::offer(&self.inner, path, size, modified_at, long_edge)
     }
 
@@ -1529,7 +1681,11 @@ impl Pipeline {
         {
             return;
         }
-        *self.inner.watcher.lock().unwrap_or_else(|err| err.into_inner()) = Some(watcher);
+        *self
+            .inner
+            .watcher
+            .lock()
+            .unwrap_or_else(|err| err.into_inner()) = Some(watcher);
         let app = self.inner.app.clone();
         let inner = Arc::clone(&self.inner);
         let watched_folder = folder.to_string();
@@ -1539,7 +1695,10 @@ impl Pipeline {
                 while rx.try_recv().is_ok() {}
                 let (live_session, still_open) = {
                     let board = inner.board.lock().unwrap_or_else(|err| err.into_inner());
-                    (board.session, open_folder_matches(&board.folder, &watched_folder))
+                    (
+                        board.session,
+                        open_folder_matches(&board.folder, &watched_folder),
+                    )
                 };
                 if !still_open {
                     continue;
@@ -1560,7 +1719,11 @@ fn open_folder_matches(board_folder: &str, watched_folder: &str) -> bool {
     if board_folder.is_empty() || watched_folder.is_empty() {
         return false;
     }
-    let norm = |text: &str| text.replace('/', "\\").trim_end_matches('\\').to_lowercase();
+    let norm = |text: &str| {
+        text.replace('/', "\\")
+            .trim_end_matches('\\')
+            .to_lowercase()
+    };
     norm(board_folder) == norm(watched_folder)
 }
 
@@ -1589,7 +1752,11 @@ impl crate::file_ops::IoGate for DiskGate {
     fn wait_visible(&self, cancel: &AtomicBool) -> bool {
         while !cancel.load(Ordering::Relaxed) {
             let pending = {
-                let board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+                let board = self
+                    .inner
+                    .board
+                    .lock()
+                    .unwrap_or_else(|err| err.into_inner());
                 board.scrolling || visible_missing_preview(&board)
             };
             if !pending {
@@ -1750,7 +1917,10 @@ fn header_plan(inner: &Inner, generation: u64) -> HeaderPlan {
 
 fn visible_missing_preview(board: &Board) -> bool {
     (board.visible_start..board.visible_end).any(|index| {
-        board.items.get(index).is_some_and(|item| !item.failed && !item.ready[0])
+        board
+            .items
+            .get(index)
+            .is_some_and(|item| !item.failed && !item.ready[0])
     })
 }
 
@@ -1767,7 +1937,11 @@ fn disk_upgrade_pending_now(inner: &Inner, generation: u64) -> bool {
 fn disk_upgrade_pending(board: &Board) -> bool {
     (board.visible_start..board.visible_end).any(|index| {
         board.items.get(index).is_some_and(|item| {
-            item.cache_checked && item.ready[0] && !item.ready[1] && !item.bitmap_held && !item.failed
+            item.cache_checked
+                && item.ready[0]
+                && !item.ready[1]
+                && !item.bitmap_held
+                && !item.failed
         })
     })
 }
@@ -1812,7 +1986,10 @@ fn prime_cache(inner: &Inner, generation: u64, start: usize, end: usize) {
     drop(db);
     let mut thumb_map: HashMap<&str, Vec<&cache::WindowThumb>> = HashMap::new();
     for thumb in &thumbs {
-        thumb_map.entry(thumb.source_path.as_str()).or_default().push(thumb);
+        thumb_map
+            .entry(thumb.source_path.as_str())
+            .or_default()
+            .push(thumb);
     }
     let meta_map: HashMap<&str, (u32, u32)> = metas
         .iter()
@@ -1825,7 +2002,11 @@ fn prime_cache(inner: &Inner, generation: u64, start: usize, end: usize) {
     for (index, path, _, _) in &pending {
         if let Some(kind) = fail_map.get(path.as_str()) {
             mark_failed(inner, generation, *index);
-            emit_fail(inner, generation, fail_event(path.clone(), (*kind).to_string()));
+            emit_fail(
+                inner,
+                generation,
+                fail_event(path.clone(), (*kind).to_string()),
+            );
         }
         if let Some((width, height)) = meta_map.get(path.as_str()) {
             publish_header_sizes(inner, generation, *index, path.clone(), *width, *height);
@@ -1928,7 +2109,14 @@ fn publish_header(inner: &Inner, generation: u64, job: &HeaderJob) {
         return;
     }
     let meta = read_meta(inner, job);
-    publish_header_sizes(inner, generation, job.index, job.path.clone(), meta.width, meta.height);
+    publish_header_sizes(
+        inner,
+        generation,
+        job.index,
+        job.path.clone(),
+        meta.width,
+        meta.height,
+    );
 }
 
 fn read_meta(inner: &Inner, job: &HeaderJob) -> HeaderMeta {
@@ -1991,7 +2179,12 @@ fn read_meta(inner: &Inner, job: &HeaderJob) -> HeaderMeta {
 fn header_needs_limit(path: &Path) -> bool {
     matches!(
         formats::from_path(path),
-        Some(formats::Format::Heic | formats::Format::Heif | formats::Format::Raw | formats::Format::Avif)
+        Some(
+            formats::Format::Heic
+                | formats::Format::Heif
+                | formats::Format::Raw
+                | formats::Format::Avif
+        )
     )
 }
 
@@ -2006,8 +2199,9 @@ fn read_header_limited(path: &Path) -> Result<HeaderMeta, String> {
     let spawned = thread::Builder::new()
         .name("header-read".into())
         .spawn(move || {
-            let result = std::panic::catch_unwind(AssertUnwindSafe(|| metadata::read_header(&job_path)))
-                .unwrap_or_else(|_| Err("metadata reader panicked".to_string()));
+            let result =
+                std::panic::catch_unwind(AssertUnwindSafe(|| metadata::read_header(&job_path)))
+                    .unwrap_or_else(|_| Err("metadata reader panicked".to_string()));
             let _ = tx.send(result);
         });
     if spawned.is_err() {
@@ -2022,7 +2216,9 @@ fn read_header_limited(path: &Path) -> Result<HeaderMeta, String> {
 
 fn cached_geometry(inner: &Inner, path: &str, size: u64, modified_at: i64) -> Option<(u32, u32)> {
     let db = inner.db.lock().unwrap_or_else(|err| err.into_inner());
-    cache::cached_meta(&db, path, size, modified_at).ok().flatten()
+    cache::cached_meta(&db, path, size, modified_at)
+        .ok()
+        .flatten()
 }
 
 fn claim_item_header(item: &mut Item) -> bool {
@@ -2038,20 +2234,31 @@ fn claim_header(inner: &Inner, generation: u64, index: usize) -> bool {
     if board.generation != generation {
         return false;
     }
-    board
-        .items
-        .get_mut(index)
-        .is_some_and(claim_item_header)
+    board.items.get_mut(index).is_some_and(claim_item_header)
 }
 
-fn publish_header_sizes(inner: &Inner, generation: u64, index: usize, path: String, width: u32, height: u32) {
+fn publish_header_sizes(
+    inner: &Inner,
+    generation: u64,
+    index: usize,
+    path: String,
+    width: u32,
+    height: u32,
+) {
     if claim_header(inner, generation, index) {
         emit_meta(inner, generation, vec![meta_event(path, width, height)]);
     }
 }
 
 fn publish_fallback_geometry(inner: &Inner, generation: u64, index: usize, path: String) {
-    publish_header_sizes(inner, generation, index, path, FALLBACK_WIDTH, FALLBACK_HEIGHT);
+    publish_header_sizes(
+        inner,
+        generation,
+        index,
+        path,
+        FALLBACK_WIDTH,
+        FALLBACK_HEIGHT,
+    );
 }
 
 fn produce(inner: &Inner, job: &Job) -> Result<(), DecodeError> {
@@ -2078,13 +2285,22 @@ fn produce(inner: &Inner, job: &Job) -> Result<(), DecodeError> {
                         .map(|meta| u64::from(meta.width).saturating_mul(u64::from(meta.height)))
                         .unwrap_or(16_000_000)
                 };
-                let _budget = thumbnail::HeavyHold::reserve(thumbnail::bitmap_estimate(pixels)).ok_or_else(|| {
-                    DecodeError::new(FailureKind::NeedsDevelop, "RAW develop skipped, memory budget")
-                })?;
-                let _heavy = HeavySlot::acquire_while(inner, || allow_heavy(inner, job.generation, job.index))
+                let _budget = thumbnail::HeavyHold::reserve(thumbnail::bitmap_estimate(pixels))
                     .ok_or_else(|| {
-                        DecodeError::new(FailureKind::NeedsDevelop, "RAW develop skipped, viewport moved")
+                        DecodeError::new(
+                            FailureKind::NeedsDevelop,
+                            "RAW develop skipped, memory budget",
+                        )
                     })?;
+                let _heavy = HeavySlot::acquire_while(inner, || {
+                    allow_heavy(inner, job.generation, job.index)
+                })
+                .ok_or_else(|| {
+                    DecodeError::new(
+                        FailureKind::NeedsDevelop,
+                        "RAW develop skipped, viewport moved",
+                    )
+                })?;
                 if !allow_heavy(inner, job.generation, job.index) {
                     return Err(DecodeError::new(
                         FailureKind::NeedsDevelop,
@@ -2106,7 +2322,16 @@ fn produce(inner: &Inner, job: &Job) -> Result<(), DecodeError> {
         if let Some(held) = take_held(inner, job) {
             if tier == 512 || held.rgb.width().max(held.rgb.height()) >= tier {
                 let bytes = thumbnail::encode_bitmap(&held.rgb, tier)?;
-                emit_encoded(inner, job, tier, &bytes, held.width, held.height, held.orientation, false);
+                emit_encoded(
+                    inner,
+                    job,
+                    tier,
+                    &bytes,
+                    held.width,
+                    held.height,
+                    held.orientation,
+                    false,
+                );
                 return Ok(());
             }
         }
@@ -2162,7 +2387,16 @@ fn produce_jpeg(inner: &Inner, job: &Job, path: &Path, tier: u32) -> Result<(), 
             None => (width, height),
         };
         let bytes = thumbnail::encode_bitmap(&rgb, tier)?;
-        emit_encoded(inner, job, tier, &bytes, meta_w, meta_h, orientation, header.is_some());
+        emit_encoded(
+            inner,
+            job,
+            tier,
+            &bytes,
+            meta_w,
+            meta_h,
+            orientation,
+            header.is_some(),
+        );
         if tier <= 256 {
             set_hold_flags(inner, job, true, false);
         }
@@ -2200,7 +2434,14 @@ fn produce_jpeg(inner: &Inner, job: &Job, path: &Path, tier: u32) -> Result<(), 
     publish_tiers(inner, job, source)
 }
 
-fn store_held(inner: &Inner, job: &Job, rgb: image::RgbImage, width: u32, height: u32, orientation: u8) {
+fn store_held(
+    inner: &Inner,
+    job: &Job,
+    rgb: image::RgbImage,
+    width: u32,
+    height: u32,
+    orientation: u8,
+) {
     inner
         .held
         .lock()
@@ -2299,59 +2540,65 @@ fn emit_encoded(
 
 fn publish_tiers(inner: &Inner, job: &Job, source: thumbnail::Source) -> Result<(), DecodeError> {
     let mut meta_sent = false;
-    thumbnail::render_each(source, &job.tiers, |tier, bytes, pixel_w, pixel_h, orientation| {
-        if tier > 256 && !generation_current(inner, job) {
-            return;
-        }
-        let dest = thumbnail::thumb_path(&job.path, job.size, job.modified_at, tier);
-        let thumb = {
-            let _write = inner.write.lock().unwrap_or_else(|err| err.into_inner());
-            if thumbnail::write_atomic(&dest, &bytes).is_err() {
+    thumbnail::render_each(
+        source,
+        &job.tiers,
+        |tier, bytes, pixel_w, pixel_h, orientation| {
+            if tier > 256 && !generation_current(inner, job) {
                 return;
             }
-            dest.to_string_lossy().into_owned()
-        };
-        {
-            let db = inner.db.lock().unwrap_or_else(|err| err.into_inner());
-            if cache::publish_thumbnail(
-                &db,
-                &job.path,
-                job.size,
-                job.modified_at,
-                pixel_w,
-                pixel_h,
-                orientation,
-                tier,
-                &thumb,
-                bytes.len() as i64,
-                false,
-            )
-            .is_err()
+            let dest = thumbnail::thumb_path(&job.path, job.size, job.modified_at, tier);
+            let thumb = {
+                let _write = inner.write.lock().unwrap_or_else(|err| err.into_inner());
+                if thumbnail::write_atomic(&dest, &bytes).is_err() {
+                    return;
+                }
+                dest.to_string_lossy().into_owned()
+            };
             {
-                cache::discard_thumbnail_file(&thumb);
-                return;
+                let db = inner.db.lock().unwrap_or_else(|err| err.into_inner());
+                if cache::publish_thumbnail(
+                    &db,
+                    &job.path,
+                    job.size,
+                    job.modified_at,
+                    pixel_w,
+                    pixel_h,
+                    orientation,
+                    tier,
+                    &thumb,
+                    bytes.len() as i64,
+                    false,
+                )
+                .is_err()
+                {
+                    cache::discard_thumbnail_file(&thumb);
+                    return;
+                }
             }
-        }
-        if !meta_sent {
-            meta_sent = true;
-            if let Some((width, height)) = cached_geometry(inner, &job.path, job.size, job.modified_at) {
-                publish_header_sizes(
-                    inner,
-                    job.generation,
-                    job.index,
-                    job.path.clone(),
-                    width,
-                    height,
-                );
+            if !meta_sent {
+                meta_sent = true;
+                if let Some((width, height)) =
+                    cached_geometry(inner, &job.path, job.size, job.modified_at)
+                {
+                    publish_header_sizes(
+                        inner,
+                        job.generation,
+                        job.index,
+                        job.path.clone(),
+                        width,
+                        height,
+                    );
+                }
             }
-        }
-        mark_ready(inner, job.generation, job.index, tier);
-        emit_thumb(
-            inner,
-            job.generation,
-            thumb_event(job.path.clone(), tier, thumb),
-        );
-    })
+            mark_ready(inner, job.generation, job.index, tier);
+            emit_thumb(
+                inner,
+                job.generation,
+                thumb_event(job.path.clone(), tier, thumb),
+            );
+        },
+    )
     .map(|_| ())
 }
 
@@ -2395,14 +2642,22 @@ fn worker(inner: Arc<Inner>) {
                 inner.wake.notify_all();
                 continue;
             }
-            eprintln!("thumbnail {}: {} ({})", job.path, err.message, err.kind.as_str());
+            eprintln!(
+                "thumbnail {}: {} ({})",
+                job.path,
+                err.message,
+                err.kind.as_str()
+            );
             if err.kind == FailureKind::NeedsDevelop && err.message.contains("skipped") {
                 defer_heavy(&inner, job.generation, job.index);
                 inner.wake.notify_all();
                 continue;
             }
             {
-                let db = inner.db.lock().unwrap_or_else(|inner_err| inner_err.into_inner());
+                let db = inner
+                    .db
+                    .lock()
+                    .unwrap_or_else(|inner_err| inner_err.into_inner());
                 let _ = cache::save_fail(
                     &db,
                     &job.path,
@@ -2554,18 +2809,62 @@ fn next_job(inner: &Inner) -> Job {
                 if let Some(tier) = tier {
                     if priority >= 5 && cache_is_full(inner) {
                         note_cache_capped(inner, generation, index);
-                        return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                        return finished_job(
+                            generation,
+                            viewport_gen,
+                            viewer_gen,
+                            index,
+                            path,
+                            size,
+                            modified_at,
+                            Vec::new(),
+                            true,
+                            priority,
+                        );
                     }
-                    let job = finished_job(generation, viewport_gen, viewer_gen, index, path.clone(), size, modified_at, vec![tier], false, priority);
+                    let job = finished_job(
+                        generation,
+                        viewport_gen,
+                        viewer_gen,
+                        index,
+                        path.clone(),
+                        size,
+                        modified_at,
+                        vec![tier],
+                        false,
+                        priority,
+                    );
                     if !still_wanted(inner, &job) {
                         clear_busy(inner, generation, index);
-                        return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                        return finished_job(
+                            generation,
+                            viewport_gen,
+                            viewer_gen,
+                            index,
+                            path,
+                            size,
+                            modified_at,
+                            Vec::new(),
+                            true,
+                            priority,
+                        );
                     }
                     note_cache_miss(inner, generation);
                     return job;
                 }
                 clear_busy(inner, generation, index);
-                return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                return finished_job(
+                    generation,
+                    viewport_gen,
+                    viewer_gen,
+                    index,
+                    path,
+                    size,
+                    modified_at,
+                    Vec::new(),
+                    true,
+                    priority,
+                );
             }
             let mut tiers = Vec::new();
             let mut cached = Vec::new();
@@ -2576,15 +2875,30 @@ fn next_job(inner: &Inner) -> Job {
                     mark_failed(inner, generation, index);
                     emit_fail(inner, generation, fail_event(path.clone(), kind));
                     publish_fallback_geometry(inner, generation, index, path.clone());
-                    return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                    return finished_job(
+                        generation,
+                        viewport_gen,
+                        viewer_gen,
+                        index,
+                        path,
+                        size,
+                        modified_at,
+                        Vec::new(),
+                        true,
+                        priority,
+                    );
                 }
-                let known = cache::cached_meta(&db, &path, size, modified_at).ok().flatten();
+                let known = cache::cached_meta(&db, &path, size, modified_at)
+                    .ok()
+                    .flatten();
                 let mut ready = [false; 3];
                 for tier in [256u32, 512, 1024] {
                     if tier == 1024 && !want_1024 {
                         continue;
                     }
-                    if let Ok(Some(thumb)) = cache::cached_thumb(&db, &path, size, modified_at, tier) {
+                    if let Ok(Some(thumb)) =
+                        cache::cached_thumb(&db, &path, size, modified_at, tier)
+                    {
                         if let Some(slot) = tier_slot(tier) {
                             ready[slot] = true;
                         }
@@ -2614,30 +2928,62 @@ fn next_job(inner: &Inner) -> Job {
             }
             for (tier, thumb) in cached {
                 mark_ready(inner, generation, index, tier);
-                emit_thumb(
-                    inner,
-                    generation,
-                    thumb_event(path.clone(), tier, thumb),
-                );
+                emit_thumb(inner, generation, thumb_event(path.clone(), tier, thumb));
             }
             tiers.sort_unstable();
             tiers.dedup();
             if let Some(first) = tiers.first().copied() {
                 tiers = vec![first];
             }
-            let job = finished_job(generation, viewport_gen, viewer_gen, index, path.clone(), size, modified_at, tiers.clone(), tiers.is_empty(), priority);
+            let job = finished_job(
+                generation,
+                viewport_gen,
+                viewer_gen,
+                index,
+                path.clone(),
+                size,
+                modified_at,
+                tiers.clone(),
+                tiers.is_empty(),
+                priority,
+            );
             if tiers.is_empty() || !still_wanted(inner, &job) {
                 clear_busy(inner, generation, index);
-                return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                return finished_job(
+                    generation,
+                    viewport_gen,
+                    viewer_gen,
+                    index,
+                    path,
+                    size,
+                    modified_at,
+                    Vec::new(),
+                    true,
+                    priority,
+                );
             }
             if priority >= 5 && cache_is_full(inner) {
                 note_cache_capped(inner, generation, index);
-                return finished_job(generation, viewport_gen, viewer_gen, index, path, size, modified_at, Vec::new(), true, priority);
+                return finished_job(
+                    generation,
+                    viewport_gen,
+                    viewer_gen,
+                    index,
+                    path,
+                    size,
+                    modified_at,
+                    Vec::new(),
+                    true,
+                    priority,
+                );
             }
             return job;
         }
         refresh_pass(&mut board);
-        board = inner.wake.wait(board).unwrap_or_else(|err| err.into_inner());
+        board = inner
+            .wake
+            .wait(board)
+            .unwrap_or_else(|err| err.into_inner());
     }
 }
 
@@ -2721,9 +3067,10 @@ fn viewport_base_ready(board: &Board) -> bool {
         return true;
     }
     (range.start..range.end).all(|index| {
-        board.items.get(index).is_some_and(|item| {
-            item.failed || item.cache_blocked || best_tier(item) >= 256
-        })
+        board
+            .items
+            .get(index)
+            .is_some_and(|item| item.failed || item.cache_blocked || best_tier(item) >= 256)
     })
 }
 
@@ -2734,9 +3081,10 @@ fn viewport_quality_ready(board: &Board) -> bool {
     }
     let want = board.requested_tier.max(256);
     (range.start..range.end).all(|index| {
-        board.items.get(index).is_some_and(|item| {
-            item.failed || item.cache_blocked || best_tier(item) >= want
-        })
+        board
+            .items
+            .get(index)
+            .is_some_and(|item| item.failed || item.cache_blocked || best_tier(item) >= want)
     })
 }
 
@@ -2867,7 +3215,11 @@ fn viewer_steps(board: &Board, forward: bool, depth: usize, upgrade: bool) -> Op
     if depth == 0 {
         return None;
     }
-    let step: isize = if forward == (board.viewer_dir >= 0) { 1 } else { -1 };
+    let step: isize = if forward == (board.viewer_dir >= 0) {
+        1
+    } else {
+        -1
+    };
     let mut cursor = origin as isize;
     let len = board.items.len() as isize;
     for _ in 0..depth {
@@ -2929,9 +3281,10 @@ fn pick_background(board: &Board) -> Option<usize> {
 }
 
 fn cache_pending(board: &Board, index: usize) -> bool {
-    board.items.get(index).is_some_and(|item| {
-        !item.busy && !item.failed && !item.cache_checked
-    })
+    board
+        .items
+        .get(index)
+        .is_some_and(|item| !item.busy && !item.failed && !item.cache_checked)
 }
 
 fn tier_for(priority: u8, ready: [bool; 3], want_1024: bool) -> Option<u32> {
@@ -3008,14 +3361,19 @@ fn needs_base(board: &Board, index: usize) -> bool {
 }
 
 fn needs_neighbor_upgrade(board: &Board, index: usize) -> bool {
-    eligible(board, index) && board.items.get(index).is_some_and(|item| {
-        let best = best_tier(item);
-        best > 0 && best < 512
-    })
+    eligible(board, index)
+        && board.items.get(index).is_some_and(|item| {
+            let best = best_tier(item);
+            best > 0 && best < 512
+        })
 }
 
 fn needs_256(board: &Board, index: usize) -> bool {
-    eligible(board, index) && board.items.get(index).is_some_and(|item| best_tier(item) == 0)
+    eligible(board, index)
+        && board
+            .items
+            .get(index)
+            .is_some_and(|item| best_tier(item) == 0)
 }
 
 fn needs_upgrade(board: &Board, index: usize) -> bool {
@@ -3059,19 +3417,19 @@ fn mark_ready(inner: &Inner, generation: u64, index: usize, tier: u32) {
     if board.generation != generation {
         return;
     }
-        let became_base = if let Some(item) = board.items.get_mut(index) {
-            let was_base = item.ready[0];
-            if let Some(slot) = tier_slot(tier) {
-                item.ready[slot] = true;
-            }
-            item.ready[0] && !was_base
-        } else {
-            false
-        };
-        if became_base {
-            note_base_progress(&mut board);
-            advance_background_cursor(&mut board);
+    let became_base = if let Some(item) = board.items.get_mut(index) {
+        let was_base = item.ready[0];
+        if let Some(slot) = tier_slot(tier) {
+            item.ready[slot] = true;
         }
+        item.ready[0] && !was_base
+    } else {
+        false
+    };
+    if became_base {
+        note_base_progress(&mut board);
+        advance_background_cursor(&mut board);
+    }
 }
 
 fn note_base_progress(board: &mut Board) {
@@ -3271,9 +3629,15 @@ fn acquire_read<'a>(inner: &'a Inner, job: &Job) -> Result<ReadSlot<'a>, DecodeE
         }
         if board.reads_in_use < board.read_slots.max(1) {
             board.reads_in_use += 1;
-            return Ok(ReadSlot { inner, for_viewer: false });
+            return Ok(ReadSlot {
+                inner,
+                for_viewer: false,
+            });
         }
-        board = inner.read_wake.wait(board).unwrap_or_else(|err| err.into_inner());
+        board = inner
+            .read_wake
+            .wait(board)
+            .unwrap_or_else(|err| err.into_inner());
     }
 }
 
@@ -3380,7 +3744,11 @@ impl<'a> ReadSlot<'a> {
 
 impl Drop for ReadSlot<'_> {
     fn drop(&mut self) {
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.reads_in_use = board.reads_in_use.saturating_sub(1);
         if self.for_viewer {
             board.viewer_wants_read = false;
@@ -3419,7 +3787,11 @@ impl<'a> HeavySlot<'a> {
 
 impl Drop for HeavySlot<'_> {
     fn drop(&mut self) {
-        let mut board = self.inner.board.lock().unwrap_or_else(|err| err.into_inner());
+        let mut board = self
+            .inner
+            .board
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
         board.heavy_in_use = board.heavy_in_use.saturating_sub(1);
         self.inner.heavy_wake.notify_one();
     }
@@ -3428,11 +3800,12 @@ impl Drop for HeavySlot<'_> {
 #[cfg(test)]
 mod pick_tests {
     use super::{
-        cache_pending, claim_item_header, collect_header_jobs, finished_job, geometry_headers_pending,
-        geometry_window, grid_blocks_hover_board, new_item, pick_background, pick_index, pick_upgrade,
-        pick_visible_missing, read_slots_for, refresh_pass, session_if_current, should_yield,
-        viewport_base_ready, viewport_quality_ready, Board, Item, LoadMode, Pass, FAIR_SHARE_EVERY,
-        HEADER_ATTEMPTS, HEADER_BATCH,
+        cache_pending, claim_item_header, collect_header_jobs, finished_job,
+        geometry_headers_pending, geometry_window, grid_blocks_hover_board, new_item,
+        pick_background, pick_index, pick_upgrade, pick_visible_missing, read_slots_for,
+        refresh_pass, session_if_current, should_yield, viewport_base_ready,
+        viewport_quality_ready, Board, Item, LoadMode, Pass, FAIR_SHARE_EVERY, HEADER_ATTEMPTS,
+        HEADER_BATCH,
     };
     use crate::storage::StorageProfile;
     use std::time::Instant;

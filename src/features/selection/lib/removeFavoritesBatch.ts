@@ -26,9 +26,83 @@ export type FolderHistoryState = {
 
 export type UnfavoriteBatchItemResult =
   | { path: string; status: "recycled" | "relocated"; result: RemoveFavoriteCopyResult }
+  | { path: string; status: "restored_origin"; result: RemoveFavoriteCopyResult }
   | { path: string; status: "needs_confirm"; confirmKind: RemoveFavoriteConfirmKind }
   | { path: string; status: "failed"; message: string }
-  | { path: string; status: "skipped" };
+  | { path: string; status: "skipped"; reason?: string | null };
+
+export type UnfavoritePreviewBuckets = {
+  ready: ImageFile[];
+  originInTrash: ImageFile[];
+  otherConfirm: ImageFile[];
+  previewFailed: UnfavoriteBatchItemResult[];
+};
+
+export type MassTrashUnfavoriteCounts = {
+  total: number;
+  inTrash: number;
+  ready: number;
+  unresolved: number;
+};
+
+/** Classify batch preview using backend confirmKind (no path guessing). */
+export function bucketUnfavoritePreviewTargets(
+  targets: readonly ImageFile[],
+  previews: readonly FavoriteBatchPathResult[],
+): UnfavoritePreviewBuckets {
+  const byPath = new Map(
+    previews.map((entry) => [pathKey(entry.path), entry] as const),
+  );
+  const ready: ImageFile[] = [];
+  const originInTrash: ImageFile[] = [];
+  const otherConfirm: ImageFile[] = [];
+  const previewFailed: UnfavoriteBatchItemResult[] = [];
+  for (const file of targets) {
+    const entry = byPath.get(pathKey(file.path));
+    if (!entry) {
+      previewFailed.push({
+        path: file.path,
+        status: "failed",
+        message: i18n.t("selection.unfavoriteUnexpectedPreview"),
+      });
+      continue;
+    }
+    const preview = entry.result;
+    if (preview.status === "ready") {
+      ready.push(file);
+      continue;
+    }
+    if (preview.status === "needs_confirm") {
+      const kind = (preview.confirmKind ??
+        entry.classifyDebug?.confirmKind ??
+        "unknown_origin") as RemoveFavoriteConfirmKind;
+      if (kind === "origin_in_local_trash") {
+        originInTrash.push(file);
+      } else {
+        otherConfirm.push(file);
+      }
+      continue;
+    }
+    previewFailed.push({
+      path: file.path,
+      status: "failed",
+      message: i18n.t("selection.unfavoriteUnexpectedPreview"),
+    });
+  }
+  return { ready, originInTrash, otherConfirm, previewFailed };
+}
+
+export function massTrashUnfavoriteCounts(
+  total: number,
+  buckets: Pick<UnfavoritePreviewBuckets, "ready" | "originInTrash" | "otherConfirm">,
+): MassTrashUnfavoriteCounts {
+  return {
+    total,
+    inTrash: buckets.originInTrash.length,
+    ready: buckets.ready.length,
+    unresolved: buckets.otherConfirm.length,
+  };
+}
 
 /** Deduplicate by pathKey and keep only files that live in the open favorites folder. */
 export function prepareFavoriteRemovalTargets(
@@ -120,6 +194,8 @@ export function unfavoriteConfirmKindLabel(kind: RemoveFavoriteConfirmKind): str
       return i18n.t("selection.favoriteConfirmOriginChanged");
     case "ambiguous_origin":
       return i18n.t("selection.favoriteConfirmAmbiguousOrigin");
+    case "origin_in_local_trash":
+      return i18n.t("selection.favoriteConfirmOriginInTrash");
     default:
       return i18n.t("selection.favoriteConfirmUnknownOrigin");
   }
@@ -299,13 +375,59 @@ export function interpretRemovalOutcome(
       confirmKind: result.confirmKind ?? "unknown_origin",
     };
   }
+  if (result.status === "skipped") {
+    return { path, status: "skipped", reason: result.noticeCode ?? null };
+  }
+  if (result.status === "failed") {
+    return {
+      path,
+      status: "failed",
+      message: result.noticeCode ?? i18n.t("selection.unfavoriteUnexpectedResponse"),
+    };
+  }
   if (result.status === "ready") {
     return { path, status: "failed", message: i18n.t("selection.unfavoriteUnexpectedPreview") };
+  }
+  if (result.status === "restored_origin") {
+    return { path, status: "restored_origin", result };
   }
   if (result.status === "recycled" || result.status === "relocated") {
     return { path, status: result.status, result };
   }
   return { path, status: "failed", message: i18n.t("selection.unfavoriteUnexpectedResponse") };
+}
+
+export function summarizeUnfavoriteBatchDetailed(options: {
+  processed: number;
+  succeeded: number;
+  skipped: number;
+  failed: number;
+  restored: number;
+  needsReconciliation: number;
+}): OperationNotice {
+  const parts = [
+    i18n.t("selection.unfavoriteBatchSummaryProcessed", { count: options.processed }),
+    i18n.t("selection.unfavoriteBatchSummarySkipped", { count: options.skipped }),
+    i18n.t("selection.unfavoriteBatchSummaryFailed", { count: options.failed }),
+  ];
+  if (options.restored > 0) {
+    parts.push(i18n.t("selection.unfavoriteBatchSummaryRestored", { count: options.restored }));
+  }
+  if (options.needsReconciliation > 0) {
+    parts.push(
+      i18n.t("selection.unfavoriteBatchSummaryReconcile", {
+        count: options.needsReconciliation,
+      }),
+    );
+  }
+  const text = parts.join(" ");
+  if (options.failed > 0 || options.needsReconciliation > 0) {
+    return { tone: "partial", text, details: [] };
+  }
+  if (options.succeeded === 0 && options.restored === 0) {
+    return { tone: "cancelled", text, details: [] };
+  }
+  return { tone: "ok", text, details: [] };
 }
 
 /** Drop deleted service-folder entries from back/forward history and point at the parent. */

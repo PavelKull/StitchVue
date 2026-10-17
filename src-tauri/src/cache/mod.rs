@@ -116,9 +116,8 @@ pub fn fails_for_sources(
         if chunk.is_empty() {
             continue;
         }
-        let mut sql = String::from(
-            "SELECT source_path, kind FROM decode_fail WHERE decoder = ?1 AND (",
-        );
+        let mut sql =
+            String::from("SELECT source_path, kind FROM decode_fail WHERE decoder = ?1 AND (");
         let mut values = vec![Value::Text(DECODER.to_string())];
         for (index, (path, size, modified)) in chunk.iter().enumerate() {
             if index > 0 {
@@ -140,7 +139,9 @@ pub fn fails_for_sources(
             .prepare(&sql)
             .map_err(|err| format!("prepare fail window: {err}"))?;
         let rows = stmt
-            .query_map(params_from_iter(values), |row| Ok((row.get(0)?, row.get(1)?)))
+            .query_map(params_from_iter(values), |row| {
+                Ok((row.get(0)?, row.get(1)?))
+            })
             .map_err(|err| format!("query fail window: {err}"))?;
         for row in rows {
             found.push(row.map_err(|err| format!("read fail window: {err}"))?);
@@ -201,15 +202,23 @@ pub fn maintain_with(conn: &Connection, active_folder: &str) -> Result<(), Strin
         )?;
     }
     if used > target {
-        evict(conn, used, target, "1 = 1", params![], active_folder, &recent)?;
+        evict(
+            conn,
+            used,
+            target,
+            "1 = 1",
+            params![],
+            active_folder,
+            &recent,
+        )?;
     }
     Ok(())
 }
 
 fn recent_folders(conn: &Connection) -> Vec<String> {
-    let Ok(mut statement) = conn.prepare(
-        "SELECT path FROM recent_folders ORDER BY opened_at DESC LIMIT 5",
-    ) else {
+    let Ok(mut statement) =
+        conn.prepare("SELECT path FROM recent_folders ORDER BY opened_at DESC LIMIT 5")
+    else {
         return Vec::new();
     };
     statement
@@ -284,8 +293,11 @@ pub fn cached_thumb(
         return Ok(None);
     };
     if !std::path::Path::new(&thumb).is_file() {
-        conn.execute("DELETE FROM thumbnail_cache WHERE thumbnail_path = ?1", [&thumb])
-            .map_err(|err| format!("drop missing thumbnail: {err}"))?;
+        conn.execute(
+            "DELETE FROM thumbnail_cache WHERE thumbnail_path = ?1",
+            [&thumb],
+        )
+        .map_err(|err| format!("drop missing thumbnail: {err}"))?;
         return Ok(None);
     }
     conn.execute(
@@ -511,9 +523,7 @@ fn evict(
         "SELECT id, thumbnail_path, thumbnail_size, source_path, tier, last_accessed_at
          FROM thumbnail_cache WHERE {filter}"
     );
-    let mut statement = conn
-        .prepare(&sql)
-        .map_err(|err| format!("evict: {err}"))?;
+    let mut statement = conn.prepare(&sql).map_err(|err| format!("evict: {err}"))?;
     let mut rows = statement
         .query_map(filter_params, |row| {
             Ok((
@@ -585,7 +595,10 @@ fn path_under(path: &str, folder: &str) -> bool {
         return false;
     }
     let path = path.replace('/', "\\").to_lowercase();
-    let mut folder = folder.replace('/', "\\").trim_end_matches('\\').to_lowercase();
+    let mut folder = folder
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase();
     folder.push('\\');
     path.starts_with(&folder)
 }
@@ -651,6 +664,8 @@ mod publish_tests {
             true,
         )
         .unwrap();
-        assert!(cached_thumb(&conn, "C:\\photos\\b.jpg", 1, 1, 256).unwrap().is_none());
+        assert!(cached_thumb(&conn, "C:\\photos\\b.jpg", 1, 1, 256)
+            .unwrap()
+            .is_none());
     }
 }

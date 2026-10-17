@@ -55,7 +55,11 @@ describe("i18n init (stage 5)", () => {
     initI18n();
     assert.equal(i18n.isInitialized, true);
     assert.equal(i18n.t("common.cancel"), "Отмена");
-    assert.equal(i18n.t("gallery.emptyFolder"), "Папка пуста");
+    assert.equal(i18n.t("gallery.emptyFolder.title"), "Папка пуста");
+    assert.equal(
+      i18n.t("gallery.noSupportedFiles.title"),
+      "Нет поддерживаемых файлов",
+    );
   });
 
   it("setAppLocale switches to shipped English and persists", async () => {
@@ -87,8 +91,13 @@ describe("i18n init (stage 5)", () => {
     initI18n();
     await setAppLocale("de");
     assert.equal(i18n.t("common.cancel"), "Abbrechen");
+    assert.equal(
+      i18n.t("gallery.noSupportedFiles.title"),
+      "Keine unterstützten Dateien",
+    );
     await setAppLocale("zh-Hans");
     assert.equal(i18n.t("common.cancel"), "取消");
+    assert.equal(i18n.t("gallery.emptyFolder.title"), "文件夹为空");
     assert.equal(i18n.language, "zh-Hans");
   });
 });

@@ -145,7 +145,9 @@ fn take_fresh(key: &str, modified: i64, folder: &Path) -> Option<DirectoryView> 
     let disk_stamp = content_stamp(folder);
     if disk_stamp != stamp || view_listing_stamp(folder, &view) != stamp {
         let mut cache = CACHE.lock().unwrap_or_else(|err| err.into_inner());
-        cache.entries.retain(|entry| !(entry.key == key && entry.stamp == stamp));
+        cache
+            .entries
+            .retain(|entry| !(entry.key == key && entry.stamp == stamp));
         return None;
     }
     let mut cache = CACHE.lock().unwrap_or_else(|err| err.into_inner());
@@ -218,9 +220,13 @@ fn finish(flight: &Flight, result: Result<DirectoryView, String>) {
 fn wait(flight: &Flight) -> Result<DirectoryView, String> {
     let mut slot = flight.slot.lock().unwrap_or_else(|err| err.into_inner());
     while slot.is_none() {
-        slot = flight.done.wait(slot).unwrap_or_else(|err| err.into_inner());
+        slot = flight
+            .done
+            .wait(slot)
+            .unwrap_or_else(|err| err.into_inner());
     }
-    slot.clone().unwrap_or_else(|| Err("folder listing was dropped".to_string()))
+    slot.clone()
+        .unwrap_or_else(|| Err("folder listing was dropped".to_string()))
 }
 
 fn replay(view: &DirectoryView, on_batch: &mut dyn FnMut(&ImageBatch)) {
@@ -241,7 +247,12 @@ fn replay(view: &DirectoryView, on_batch: &mut dyn FnMut(&ImageBatch)) {
     emit_chunks(&folder, "stats", &view.images, on_batch);
 }
 
-fn emit_chunks(folder: &str, phase: &str, files: &[ImageFile], on_batch: &mut dyn FnMut(&ImageBatch)) {
+fn emit_chunks(
+    folder: &str,
+    phase: &str,
+    files: &[ImageFile],
+    on_batch: &mut dyn FnMut(&ImageBatch),
+) {
     let mut batch = Vec::new();
     let mut sent = 0usize;
     for file in files {
@@ -354,7 +365,11 @@ fn mix(name: &str, len: u64, modified: i64, is_dir: bool) -> u64 {
 }
 
 pub(super) fn cache_key(folder: &Path) -> String {
-    folder.to_string_lossy().replace('/', "\\").trim_end_matches('\\').to_lowercase()
+    folder
+        .to_string_lossy()
+        .replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase()
 }
 
 pub(super) fn drop_listing(folder: &Path) {
@@ -383,7 +398,8 @@ mod tests {
 
     #[test]
     fn a_second_open_reuses_the_listing_until_the_folder_changes() {
-        let root = std::env::temp_dir().join(format!("stitchvue-list-cache-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("stitchvue-list-cache-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("a.jpg"), b"x").unwrap();
@@ -452,7 +468,8 @@ mod tests {
 
     #[test]
     fn a_partial_listing_is_not_served_when_disk_has_more_files() {
-        let root = std::env::temp_dir().join(format!("stitchvue-list-partial-{}", std::process::id()));
+        let root =
+            std::env::temp_dir().join(format!("stitchvue-list-partial-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).unwrap();
         fs::write(root.join("a.jpg"), b"x").unwrap();

@@ -35,17 +35,26 @@ export type RemoveFavoriteConfirmKind =
   | "unknown_origin"
   | "origin_changed"
   | "copy_changed"
-  | "ambiguous_origin";
+  | "ambiguous_origin"
+  | "origin_in_local_trash";
 
 export type FavoritesCleanupStatus = "removed" | "not_empty" | "already_gone" | "failed";
 
 export type RemoveFavoriteCopyResult = {
-  status: "recycled" | "relocated" | "needs_confirm" | "ready";
+  status:
+    | "recycled"
+    | "relocated"
+    | "restored_origin"
+    | "skipped"
+    | "failed"
+    | "needs_confirm"
+    | "ready";
   undoId: string;
   removedServiceFolder?: ServiceFolderLocation | null;
   restoredPath?: string | null;
   noticeCode?: string | null;
   confirmKind?: RemoveFavoriteConfirmKind | null;
+  trashPath?: string | null;
   cleanupStatus?: FavoritesCleanupStatus | null;
 };
 

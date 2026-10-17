@@ -20,8 +20,7 @@ fn config() -> zenavif::DecoderConfig {
 }
 
 pub fn decode(bytes: &[u8]) -> Result<Source, DecodeError> {
-    let mut decoder =
-        zenavif::ManagedAvifDecoder::new(bytes, &config()).map_err(map_new_error)?;
+    let mut decoder = zenavif::ManagedAvifDecoder::new(bytes, &config()).map_err(map_new_error)?;
     let (buffer, info) = decoder
         .decode_full(&zenavif::Unstoppable)
         .map_err(map_new_error)?;
@@ -30,8 +29,12 @@ pub fn decode(bytes: &[u8]) -> Result<Source, DecodeError> {
     if color::is_hdr_transfer(info.transfer_characteristics.0) {
         let bt2020 = info.color_primaries.0 == 9;
         match &mut image {
-            DynamicImage::ImageRgb8(rgb) => color::map_hdr_rgb(rgb, info.transfer_characteristics.0, bt2020),
-            DynamicImage::ImageRgba8(rgba) => color::map_hdr_rgba(rgba, info.transfer_characteristics.0, bt2020),
+            DynamicImage::ImageRgb8(rgb) => {
+                color::map_hdr_rgb(rgb, info.transfer_characteristics.0, bt2020)
+            }
+            DynamicImage::ImageRgba8(rgba) => {
+                color::map_hdr_rgba(rgba, info.transfer_characteristics.0, bt2020)
+            }
             _ => {}
         }
     }
@@ -54,7 +57,8 @@ pub fn read_header(path: &Path) -> Result<HeaderMeta, String> {
 }
 
 fn probe(bytes: &[u8]) -> Result<HeaderMeta, String> {
-    let decoder = zenavif::ManagedAvifDecoder::new(bytes, &config()).map_err(|err| err.to_string())?;
+    let decoder =
+        zenavif::ManagedAvifDecoder::new(bytes, &config()).map_err(|err| err.to_string())?;
     let info = decoder.probe_info().map_err(|err| err.to_string())?;
     let (width, height) = oriented_pixels(info.width, info.height, info.rotation);
     Ok(HeaderMeta {
@@ -66,7 +70,11 @@ fn probe(bytes: &[u8]) -> Result<HeaderMeta, String> {
 
 fn read_capped(path: &Path) -> Result<Vec<u8>, String> {
     let file = std::fs::File::open(path).map_err(|err| err.to_string())?;
-    let len = file.metadata().map(|meta| meta.len()).unwrap_or(0).min(META_LIMIT);
+    let len = file
+        .metadata()
+        .map(|meta| meta.len())
+        .unwrap_or(0)
+        .min(META_LIMIT);
     let mut bytes = Vec::new();
     bytes
         .try_reserve(len as usize)
@@ -130,7 +138,11 @@ fn apply_transforms(mut image: DynamicImage, info: &zenavif::ImageInfo) -> Dynam
     image
 }
 
-fn oriented_pixels(width: u32, height: u32, rotation: Option<zenavif::ImageRotation>) -> (u32, u32) {
+fn oriented_pixels(
+    width: u32,
+    height: u32,
+    rotation: Option<zenavif::ImageRotation>,
+) -> (u32, u32) {
     match rotation.map(|value| value.angle).unwrap_or(0) {
         90 | 270 => (height, width),
         _ => (width, height),

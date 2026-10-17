@@ -72,7 +72,18 @@
     "origin_missing": "The original folder is unavailable"
   },
   "gallery": {
-    "emptyFolder": "This folder is empty",
+    "emptyFolder": {
+      "title": "Folder is empty",
+      "description": "There are no files here yet."
+    },
+    "noSupportedFiles": {
+      "title": "No supported files",
+      "description": "This folder contains no images in supported formats."
+    },
+    "subfoldersOnly": {
+      "title": "No images",
+      "description": "Select a subfolder to view photos."
+    },
     "emptyFavorites": "No photos in Favorites yet",
     "emptyTrash": "The Deleted folder is empty",
     "bootLastFolderUnavailable": "The last opened folder is unavailable",
@@ -368,6 +379,26 @@
     "favoriteReturnFailed": "Could not return the copy",
     "favoriteOriginMissingSaved": "Original not found. The image was saved in the current folder",
     "favoriteUnknownTitle": "Could not find the original",
+    "favoriteTrashUnfavoriteTitle": "Remove from favorites?",
+    "favoriteTrashUnfavoriteBody": "The original photo is in the Deleted folder. Choose what to do.",
+    "favoriteTrashRemoveCopyLabel": "Remove from favorites",
+    "favoriteTrashRestoreOriginLabel": "Restore original",
+    "favoriteConfirmOriginInTrash": "Original in Deleted",
+    "favoriteTrashBatchTitle": "Process favorites",
+    "favoriteTrashBatchBody": "Some selected photos have originals in the Deleted folder. Choose what to do with them.",
+    "favoriteTrashBatchStatsLabel": "Selection breakdown",
+    "favoriteTrashBatchStatTotal": "Selected: {{count}}",
+    "favoriteTrashBatchStatInTrash": "Originals in Deleted: {{count}}",
+    "favoriteTrashBatchStatReadyRecycle": "Will remove from favorites (original available): {{count}}",
+    "favoriteTrashBatchStatSkippedUnresolved": "Skipped (needs separate action): {{count}}",
+    "favoriteTrashBatchRestoreHint": "Restore originals only affects photos whose originals are in Deleted. Other selected photos are not changed.",
+    "favoriteTrashBatchRemoveCopyLabel": "Remove from favorites",
+    "favoriteTrashBatchRestoreOriginLabel": "Restore originals",
+    "unfavoriteBatchSummaryProcessed": "Processed: {{count}}.",
+    "unfavoriteBatchSummarySkipped": "Skipped: {{count}}.",
+    "unfavoriteBatchSummaryFailed": "Errors: {{count}}.",
+    "unfavoriteBatchSummaryRestored": "Restored: {{count}}.",
+    "unfavoriteBatchSummaryReconcile": "Needs reconciliation: {{count}}.",
     "favoriteUnknownBody": "You can save the image from Favorites in the parent folder.",
     "favoriteChangedTitle": "The image has been modified",
     "favoriteChangedBody": "To keep your changes, you can save a separate copy.",

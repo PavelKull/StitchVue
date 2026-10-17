@@ -1,13 +1,13 @@
 #[cfg(test)]
 mod bench;
 mod cache;
-mod library;
 mod commands;
 mod database;
+mod file_ops;
 #[cfg(test)]
 mod fixtures;
-mod file_ops;
 mod formats;
+mod library;
 mod metadata;
 mod pipeline;
 mod scanner;

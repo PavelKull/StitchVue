@@ -25,8 +25,14 @@ readonly: true
 2. Построй компактную карту модулей и потоков данных (особенно thumbnails, gallery sessions, favorites, filesystem, SQLite).
 3. Выдели нарушения границ, циклические зависимости, крупные зоны ответственности и пересечения frontend/backend. Подтверди ссылками на код.
 4. Согласуй изменения контрактов IPC, DTO, ошибок, событий, отмены и совместимости. Не допускай независимых несовместимых изменений сторон.
-5. Составь roadmap с небольшими этапами, минимальными затронутыми файлами, зависимостями, критериями приёмки, тестами и rollback.
+5. Составь roadmap с небольшими этапами, минимальными затронутыми файлами, зависимостями, критериями приёмки, тестами и rollback. Учитывай целевые пути модулей (FSD 2.0 для frontend — `.cursor/rules/fsd-decomposition.mdc`).
 6. Отмечай блокеры и вопросы для frontend-decomposition / backend-decomposition; не запускай их автоматически.
+
+# Структура модулей
+- **Frontend:** FSD 2.0 — `.cursor/rules/fsd-decomposition.mdc`; проверяй подпапки и сегменты в планах этапов; не утверждай необоснованно плоские директории.
+- **Rust:** Modular Monolith + feature-first + pragmatic Hexagonal — `.cursor/rules/rust-backend-architecture.mdc` (при планировании backend явно сверяйся с правилом, даже без открытого `.rs` в контексте).
+- Проверяй границы предметных модулей и направление зависимостей (domain ↔ application ↔ infrastructure ↔ IPC); не требуй обязательных четырёх слоёв в каждом модуле.
+- Учитывай риски ФС, IPC, session/generation и async-процессов (thumbnails, indexing, directory lifecycle).
 
 # Контракт задач
 - Создавай задачи по `docs/refactoring/TASK_TEMPLATE.md` (копия в `docs/refactoring/tasks/`). Маршруты: `TASK_HANDOFF.md` — **не** вызывай decomposition/executor/guardian.

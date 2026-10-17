@@ -72,7 +72,18 @@
     "origin_missing": "原文件夹不可用"
   },
   "gallery": {
-    "emptyFolder": "文件夹为空",
+    "emptyFolder": {
+      "title": "文件夹为空",
+      "description": "此处暂无文件。"
+    },
+    "noSupportedFiles": {
+      "title": "没有受支持的文件",
+      "description": "此文件夹中没有受支持格式的图片。"
+    },
+    "subfoldersOnly": {
+      "title": "没有图片",
+      "description": "请选择子文件夹以查看照片。"
+    },
     "emptyFavorites": "收藏夹中还没有照片",
     "emptyTrash": "“已删除”文件夹为空",
     "bootLastFolderUnavailable": "上次打开的文件夹不可用",
@@ -368,6 +379,26 @@
     "favoriteReturnFailed": "无法放回副本",
     "favoriteOriginMissingSaved": "找不到原文件，图像已保存到当前文件夹",
     "favoriteUnknownTitle": "找不到原文件",
+    "favoriteTrashUnfavoriteTitle": "从收藏中移除？",
+    "favoriteTrashUnfavoriteBody": "此照片的原始文件在“已删除”文件夹中。请选择要执行的操作。",
+    "favoriteTrashRemoveCopyLabel": "从收藏中移除",
+    "favoriteTrashRestoreOriginLabel": "恢复原始文件",
+    "favoriteConfirmOriginInTrash": "原始文件在“已删除”中",
+    "favoriteTrashBatchTitle": "处理收藏",
+    "favoriteTrashBatchBody": "部分所选照片的原始文件在“已删除”文件夹中。请选择如何处理。",
+    "favoriteTrashBatchStatsLabel": "选择概览",
+    "favoriteTrashBatchStatTotal": "已选：{{count}}",
+    "favoriteTrashBatchStatInTrash": "原始文件在“已删除”中：{{count}}",
+    "favoriteTrashBatchStatReadyRecycle": "将移出收藏（原始文件可用）：{{count}}",
+    "favoriteTrashBatchStatSkippedUnresolved": "将跳过（需单独处理）：{{count}}",
+    "favoriteTrashBatchRestoreHint": "“恢复原始文件”仅影响原始文件在“已删除”中的照片，不会更改其他所选照片。",
+    "favoriteTrashBatchRemoveCopyLabel": "从收藏中移除",
+    "favoriteTrashBatchRestoreOriginLabel": "恢复原始文件",
+    "unfavoriteBatchSummaryProcessed": "已处理：{{count}}。",
+    "unfavoriteBatchSummarySkipped": "已跳过：{{count}}。",
+    "unfavoriteBatchSummaryFailed": "错误：{{count}}。",
+    "unfavoriteBatchSummaryRestored": "已恢复：{{count}}。",
+    "unfavoriteBatchSummaryReconcile": "需要核对：{{count}}。",
     "favoriteUnknownBody": "可以将收藏夹中的图像保存到上级文件夹。",
     "favoriteChangedTitle": "图像已被修改",
     "favoriteChangedBody": "为避免丢失修改，可以单独保存一个副本。",

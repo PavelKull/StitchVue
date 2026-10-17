@@ -1,0 +1,55 @@
+import type { ServiceRole } from '../../../../entities/folder/serviceFolder.ts';
+
+export type GalleryEmptyKind =
+    | 'none'
+    | 'emptyFolder'
+    | 'noSupportedFiles';
+
+export type GalleryEmptyStateInput = {
+    status: string;
+    folderListingBusy: boolean;
+    geometryPending: boolean;
+    serviceRole: ServiceRole | null | undefined;
+    imageCount: number;
+    folderCount: number;
+    unsupportedFileCount: number;
+};
+
+export function resolveGalleryEmptyKind(
+    input: GalleryEmptyStateInput,
+): GalleryEmptyKind {
+    if (input.status === 'error') {
+        return 'none';
+    }
+    if (input.status !== 'ready') {
+        return 'none';
+    }
+    if (input.folderListingBusy || input.geometryPending) {
+        return 'none';
+    }
+    if (input.serviceRole) {
+        return 'none';
+    }
+    if (input.imageCount > 0) {
+        return 'none';
+    }
+    if (input.folderCount > 0) {
+        return 'none';
+    }
+    if (input.unsupportedFileCount > 0) {
+        return 'noSupportedFiles';
+    }
+    return 'emptyFolder';
+}
+
+export function galleryEmptyI18nKeys(
+    kind: GalleryEmptyKind,
+): { titleKey: string; descriptionKey: string } | null {
+    if (kind === 'none') {
+        return null;
+    }
+    return {
+        titleKey: `gallery.${kind}.title`,
+        descriptionKey: `gallery.${kind}.description`,
+    };
+}

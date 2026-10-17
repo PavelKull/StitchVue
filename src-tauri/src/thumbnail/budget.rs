@@ -45,7 +45,9 @@ impl Hold {
             let next = used.saturating_add(accounted);
             match USED.compare_exchange_weak(used, next, Ordering::AcqRel, Ordering::Relaxed) {
                 Ok(_) => {
-                    let sum = ESTIMATE_SUM.fetch_add(estimate, Ordering::AcqRel).saturating_add(estimate);
+                    let sum = ESTIMATE_SUM
+                        .fetch_add(estimate, Ordering::AcqRel)
+                        .saturating_add(estimate);
                     let mut peak = PEAK_ESTIMATE.load(Ordering::Relaxed);
                     while sum > peak {
                         match PEAK_ESTIMATE.compare_exchange_weak(
@@ -58,7 +60,10 @@ impl Hold {
                             Err(current) => peak = current,
                         }
                     }
-                    return Some(Self { accounted, estimate });
+                    return Some(Self {
+                        accounted,
+                        estimate,
+                    });
                 }
                 Err(current) => used = current,
             }

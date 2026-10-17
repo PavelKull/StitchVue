@@ -9,8 +9,10 @@ const CHUNK: usize = 1024 * 1024;
 /// Streaming SHA-256 of a regular file. Does not load the whole file into memory.
 pub fn sha256_file(path: &Path) -> Result<String, String> {
     let start = std::time::Instant::now();
-    let mut file = File::open(path).map_err(|err| format!("hash open {}: {err}", path.display()))?;
-    let out = sha256_reader(&mut file).map_err(|err| format!("hash read {}: {err}", path.display()))?;
+    let mut file =
+        File::open(path).map_err(|err| format!("hash open {}: {err}", path.display()))?;
+    let out =
+        sha256_reader(&mut file).map_err(|err| format!("hash read {}: {err}", path.display()))?;
     crate::file_ops::fav_metrics::record_sha256(start.elapsed());
     Ok(out)
 }

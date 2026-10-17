@@ -146,7 +146,7 @@ export function SelectionActions({
 
       )}
 
-      <span className={styles.actionWrap} title={favoriteReason ?? favoriteHint}>
+      <Tooltip text={favoriteReason ?? favoriteHint}>
 
         <button type="button" className={styles.action} disabled={favoriteReason !== null} onClick={onFavorite}>
 
@@ -156,11 +156,11 @@ export function SelectionActions({
 
         </button>
 
-      </span>
+      </Tooltip>
 
       {showDelete ? (
 
-        <span className={styles.actionWrap} title={deleteReason ?? resolvedDeleteHint}>
+        <Tooltip text={deleteReason ?? resolvedDeleteHint}>
 
           <button type="button" className={styles.action} disabled={deleteReason !== null} onClick={onDelete}>
 
@@ -170,13 +170,13 @@ export function SelectionActions({
 
           </button>
 
-        </span>
+        </Tooltip>
 
       ) : null}
 
       {showRestore ? (
 
-        <span className={styles.actionWrap} title={restoreReason ?? t("selection.restoreHint")}>
+        <Tooltip text={restoreReason ?? t("selection.restoreHint")}>
 
           <button type="button" className={styles.action} disabled={restoreReason !== null} onClick={onRestore}>
 
@@ -186,7 +186,7 @@ export function SelectionActions({
 
           </button>
 
-        </span>
+        </Tooltip>
 
       ) : null}
 

@@ -116,7 +116,13 @@ struct Cached {
     full: bool,
 }
 
-pub fn offer(inner: &Inner, path: &str, size: u64, modified_at: i64, long_edge: u32) -> ViewerOffer {
+pub fn offer(
+    inner: &Inner,
+    path: &str,
+    size: u64,
+    modified_at: i64,
+    long_edge: u32,
+) -> ViewerOffer {
     let edge = long_edge.clamp(256, thumbnail::VIEWER_MAX_EDGE);
     let found = cached_offer(inner, path, size, modified_at, edge);
     if found.native || found.missing_format || found.covered {
@@ -150,7 +156,13 @@ pub fn offer(inner: &Inner, path: &str, size: u64, modified_at: i64, long_edge: 
     offer
 }
 
-pub(super) fn prefetch(inner: &Inner, path: &str, size: u64, modified_at: i64, long_edge: u32) -> ViewerOffer {
+pub(super) fn prefetch(
+    inner: &Inner,
+    path: &str,
+    size: u64,
+    modified_at: i64,
+    long_edge: u32,
+) -> ViewerOffer {
     let edge = long_edge.clamp(256, thumbnail::VIEWER_MAX_EDGE);
     let found = cached_offer(inner, path, size, modified_at, edge);
     if found.native || found.missing_format || found.covered {
@@ -231,13 +243,19 @@ fn cached_offer(inner: &Inner, path: &str, size: u64, modified_at: i64, edge: u3
     let preview = preview_thumb(inner, path, size, modified_at);
     let covered = sharp.is_some_and(|frame| frame.edge >= edge || frame.full);
     if covered {
-        inner.viewer_cache_hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        inner
+            .viewer_cache_hits
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
     Found {
         offer: ViewerOffer {
             preview_path: preview.0,
             preview_edge: preview.1,
-            native_path: if native { path.to_string() } else { String::new() },
+            native_path: if native {
+                path.to_string()
+            } else {
+                String::new()
+            },
             sharp_path: sharp
                 .map(|frame| frame.path.to_string_lossy().into_owned())
                 .unwrap_or_default(),
@@ -257,13 +275,23 @@ pub fn run(inner: Arc<Inner>) {
         let job = wait_job(&inner);
         let token = job.token;
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| prepare(&inner, &job)))
-            .unwrap_or_else(|_| Err(DecodeError::new(FailureKind::Failed, "viewer decoder panicked")));
+            .unwrap_or_else(|_| {
+                Err(DecodeError::new(
+                    FailureKind::Failed,
+                    "viewer decoder panicked",
+                ))
+            });
         match outcome {
             Ok(Step::HandedOff) => continue,
             Ok(Step::Again) if live(&inner, &job) => continue,
             Ok(Step::Again) | Ok(Step::Done) => {}
             Err(err) => {
-                eprintln!("viewer {}: {} ({})", job.path, err.message, err.kind.as_str());
+                eprintln!(
+                    "viewer {}: {} ({})",
+                    job.path,
+                    err.message,
+                    err.kind.as_str()
+                );
             }
         }
         let mut slot = inner.viewer.lock().unwrap_or_else(|err| err.into_inner());
@@ -279,7 +307,12 @@ pub fn run(inner: Arc<Inner>) {
 fn wait_job(inner: &Inner) -> Job {
     let mut slot = inner.viewer.lock().unwrap_or_else(|err| err.into_inner());
     loop {
-        if job_is_runnable(slot.developing, slot.token, slot.settled, !slot.path.is_empty()) {
+        if job_is_runnable(
+            slot.developing,
+            slot.token,
+            slot.settled,
+            !slot.path.is_empty(),
+        ) {
             return Job {
                 token: slot.token,
                 path: slot.path.clone(),
@@ -298,9 +331,8 @@ fn prepare(inner: &Inner, job: &Job) -> Result<Step, DecodeError> {
     if !live(inner, job) {
         return Ok(Step::Done);
     }
-    let format = formats::from_path(Path::new(&job.path)).ok_or_else(|| {
-        DecodeError::new(FailureKind::Unsupported, "unknown image extension")
-    })?;
+    let format = formats::from_path(Path::new(&job.path))
+        .ok_or_else(|| DecodeError::new(FailureKind::Unsupported, "unknown image extension"))?;
     if format.webview_native() {
         return Ok(Step::Done);
     }
@@ -349,7 +381,11 @@ fn prepare_decoded(inner: &Inner, job: &Job, edge: u32, heif: bool) -> Result<St
     if !live(inner, job) {
         return Ok(Step::Done);
     }
-    let _budget = match wait_budget(inner, job, decode_estimate(Path::new(&job.path), heif, &bytes)) {
+    let _budget = match wait_budget(
+        inner,
+        job,
+        decode_estimate(Path::new(&job.path), heif, &bytes),
+    ) {
         Some(hold) => hold,
         None => return Ok(Step::Done),
     };
@@ -398,7 +434,8 @@ fn prepare_raw(inner: &Inner, job: &Job, mut edge: u32) -> Result<Step, DecodeEr
                 }
                 return Ok(Step::Done);
             }
-            let fast = thumbnail::encode_viewer(source, preview_edge.min(thumbnail::VIEWER_MAX_EDGE))?;
+            let fast =
+                thumbnail::encode_viewer(source, preview_edge.min(thumbnail::VIEWER_MAX_EDGE))?;
             publish(inner, job, fast, false)?;
         }
         Err(err) if err.kind == FailureKind::NeedsDevelop => {}
@@ -426,7 +463,12 @@ fn prepare_raw(inner: &Inner, job: &Job, mut edge: u32) -> Result<Step, DecodeEr
     }
 }
 
-fn publish(inner: &Inner, job: &Job, image: thumbnail::ViewerImage, full: bool) -> Result<(), DecodeError> {
+fn publish(
+    inner: &Inner,
+    job: &Job,
+    image: thumbnail::ViewerImage,
+    full: bool,
+) -> Result<(), DecodeError> {
     if !live(inner, job) {
         return Ok(());
     }
@@ -625,7 +667,11 @@ fn trim_cache(keep: &Path) {
                 return None;
             }
             let meta = entry.metadata().ok()?;
-            Some((path, meta.len(), meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH)))
+            Some((
+                path,
+                meta.len(),
+                meta.modified().unwrap_or(std::time::SystemTime::UNIX_EPOCH),
+            ))
         })
         .collect();
     files.sort_by_key(|file| file.2);
@@ -720,7 +766,10 @@ fn post_develop(inner: &Inner, job: &Job, grace: bool) -> bool {
         modified_at: job.modified_at,
         grace,
     };
-    let mut mail = inner.develop_mail.lock().unwrap_or_else(|err| err.into_inner());
+    let mut mail = inner
+        .develop_mail
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
     if let Some(previous) = mail.replace(request) {
         if previous.path != job.path {
             super::hover::release_claim(inner, &previous.path);
@@ -738,7 +787,12 @@ fn develop_loop(inner: Arc<Inner>) {
         match outcome {
             Ok(Ok(())) => {}
             Ok(Err(err)) => {
-                eprintln!("viewer develop {}: {} ({})", job.path, err.message, err.kind.as_str());
+                eprintln!(
+                    "viewer develop {}: {} ({})",
+                    job.path,
+                    err.message,
+                    err.kind.as_str()
+                );
             }
             Err(_) => eprintln!("viewer develop panicked: {}", job.path),
         }
@@ -747,7 +801,10 @@ fn develop_loop(inner: Arc<Inner>) {
 }
 
 fn wait_develop(inner: &Inner) -> DevelopRequest {
-    let mut mail = inner.develop_mail.lock().unwrap_or_else(|err| err.into_inner());
+    let mut mail = inner
+        .develop_mail
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
     loop {
         if let Some(job) = mail.take() {
             return job;
@@ -799,9 +856,10 @@ fn run_develop(inner: &Inner, job: &DevelopRequest) -> Result<(), DecodeError> {
     // load the newly opened frame's embedded preview while this develop finishes.
     let started = std::time::Instant::now();
     let source = thumbnail::develop_raw_path(Path::new(&job.path))?;
-    inner
-        .raw_develop_ms
-        .store(started.elapsed().as_millis() as u64, std::sync::atomic::Ordering::Relaxed);
+    inner.raw_develop_ms.store(
+        started.elapsed().as_millis() as u64,
+        std::sync::atomic::Ordering::Relaxed,
+    );
     if !live(inner, &current) {
         return Ok(());
     }
@@ -816,7 +874,9 @@ fn finish_develop(inner: &Inner, job: &DevelopRequest) {
         slot.developing = false;
         slot.settled = job.token;
     } else {
-        inner.stale_tasks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        inner
+            .stale_tasks
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
     drop(slot);
     pump_queued(inner);
@@ -830,8 +890,14 @@ mod tests {
 
     #[test]
     fn frame_names_distinguish_a_scaled_jpeg_from_a_developed_cap() {
-        assert_eq!(parse_frame_name("0123456789abcdef-1800.jpg"), Some((1800, false)));
-        assert_eq!(parse_frame_name("0123456789abcdef-full-6144.png"), Some((6144, true)));
+        assert_eq!(
+            parse_frame_name("0123456789abcdef-1800.jpg"),
+            Some((1800, false))
+        );
+        assert_eq!(
+            parse_frame_name("0123456789abcdef-full-6144.png"),
+            Some((6144, true))
+        );
         assert_eq!(parse_frame_name("nope.jpg"), None);
     }
 

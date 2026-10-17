@@ -5,6 +5,7 @@ import { initI18n } from "../../../shared/i18n/i18n.ts";
 import {
   batchUnfavoriteConfirmLines,
   batchUnfavoritePromptCopy,
+  bucketUnfavoritePreviewTargets,
   unfavoriteConfirmKindLabel,
   cleanupOutcomeFromStatus,
   historyWithoutRemovedFolder,
@@ -75,6 +76,49 @@ test("batch confirm lines map confirmKind to user-facing labels", () => {
   assert.equal(lines.length, 1);
   assert.equal(lines[0].basename, "a.jpg");
   assert.equal(lines[0].label, unfavoriteConfirmKindLabel("ambiguous_origin"));
+});
+
+test("bucketUnfavoritePreviewTargets splits trash vs ready vs other confirm", () => {
+  const readyFile = file("C:\\Album\\Избранное\\ready.jpg");
+  const trashFile = file("C:\\Album\\Избранное\\trash.jpg");
+  const unknownFile = file("C:\\Album\\Избранное\\unknown.jpg");
+  const previews = [
+    {
+      path: readyFile.path,
+      result: { status: "ready" as const, undoId: "" },
+    },
+    {
+      path: trashFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "origin_in_local_trash" as const,
+        undoId: "",
+      },
+    },
+    {
+      path: unknownFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "unknown_origin" as const,
+        undoId: "",
+      },
+    },
+  ];
+  const buckets = bucketUnfavoritePreviewTargets(
+    [readyFile, trashFile, unknownFile],
+    previews,
+  );
+  assert.equal(buckets.ready.length, 1);
+  assert.equal(buckets.originInTrash.length, 1);
+  assert.equal(buckets.otherConfirm.length, 1);
+});
+
+test("origin_in_local_trash confirm kind has a label", () => {
+  assert.equal(
+    unfavoriteConfirmKindLabel("origin_in_local_trash"),
+    unfavoriteConfirmKindLabel("origin_in_local_trash"),
+  );
+  assert.ok(unfavoriteConfirmKindLabel("origin_in_local_trash").length > 0);
 });
 
 test("mass unfavorite finish keeps current folder when user navigated away during background work", () => {
@@ -190,6 +234,29 @@ test("interpretRemovalOutcome maps needs_confirm and success", () => {
     undoId: "",
   } as RemoveFavoriteCopyResult);
   assert.equal(recycled.status, "recycled");
+  const failed = interpretRemovalOutcome("a.jpg", {
+    status: "failed",
+    undoId: "",
+    noticeCode: "disk error",
+  } as RemoveFavoriteCopyResult);
+  assert.equal(failed.status, "failed");
+  if (failed.status === "failed") {
+    assert.equal(failed.message, "disk error");
+  }
+});
+
+test("summarizeUnfavoriteBatch partial outcome for three succeeded and one failed", () => {
+  const notice = summarizeUnfavoriteBatch({
+    total: 4,
+    succeeded: 3,
+    failed: 1,
+    skipped: 0,
+    cleanup: noCleanup,
+    errors: ["файл не найден"],
+  });
+  assert.equal(notice.tone, "partial");
+  assert.equal(notice.text, "Исключено: 3 из 4. Не удалось обработать: 1");
+  assert.deepEqual(notice.details, ["файл не найден"]);
 });
 
 test("summarizeUnfavoriteBatch covers full success, folder deleted, partial, and cleanup failure", () => {

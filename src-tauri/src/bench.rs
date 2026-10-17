@@ -13,7 +13,8 @@ const WORKERS: usize = 4;
 
 fn generate(path: &Path) -> Result<Vec<(u32, Vec<u8>)>, String> {
     let bytes = std::fs::read(path).map_err(|err| err.to_string())?;
-    let source = thumbnail::decode(&bytes, crate::formats::from_path(path)).map_err(|err| err.message)?;
+    let source =
+        thumbnail::decode(&bytes, crate::formats::from_path(path)).map_err(|err| err.message)?;
     drop(bytes);
     let rendered = thumbnail::render(source, &[512, 256]).map_err(|err| err.message)?;
     Ok(rendered.tiers)
@@ -96,7 +97,9 @@ fn corpus_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
         .unwrap()
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| path.is_file() && !path.file_name().unwrap().to_string_lossy().starts_with('.'))
+        .filter(|path| {
+            path.is_file() && !path.file_name().unwrap().to_string_lossy().starts_with('.')
+        })
         .collect();
     files.sort();
     files
@@ -121,11 +124,17 @@ fn parallel<T: Send>(files: &[PathBuf], job: impl Fn(&Path) -> T + Sync) -> (Dur
                 })
             })
             .collect();
-        handles.into_iter().flat_map(|handle| handle.join().unwrap()).collect()
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().unwrap())
+            .collect()
     });
     let elapsed = start.elapsed();
     results.sort_by_key(|(index, _)| *index);
-    (elapsed, results.into_iter().map(|(_, value)| value).collect())
+    (
+        elapsed,
+        results.into_iter().map(|(_, value)| value).collect(),
+    )
 }
 
 fn per_file(total: Duration, count: usize) -> String {
@@ -155,7 +164,11 @@ fn peak_working_set_mb() -> f64 {
     }
     unsafe extern "system" {
         fn GetCurrentProcess() -> *mut core::ffi::c_void;
-        fn K32GetProcessMemoryInfo(process: *mut core::ffi::c_void, counters: *mut Counters, cb: u32) -> i32;
+        fn K32GetProcessMemoryInfo(
+            process: *mut core::ffi::c_void,
+            counters: *mut Counters,
+            cb: u32,
+        ) -> i32;
     }
     let mut counters = Counters {
         cb: std::mem::size_of::<Counters>() as u32,
@@ -180,7 +193,11 @@ fn run_folder(label: &str, dir: &Path) {
 
     let start = Instant::now();
     let view = crate::scanner::browse(Some(&dir.to_string_lossy())).unwrap();
-    eprintln!("discovery      {}  ({} listed)", per_file(start.elapsed(), count), view.images.len());
+    eprintln!(
+        "discovery      {}  ({} listed)",
+        per_file(start.elapsed(), count),
+        view.images.len()
+    );
 
     let start = Instant::now();
     let mut meta_failed = 0;
@@ -189,17 +206,27 @@ fn run_folder(label: &str, dir: &Path) {
             meta_failed += 1;
         }
     }
-    eprintln!("metadata 1x    {}  failed {meta_failed}", per_file(start.elapsed(), count));
+    eprintln!(
+        "metadata 1x    {}  failed {meta_failed}",
+        per_file(start.elapsed(), count)
+    );
 
     let first = files.iter().take(24).cloned().collect::<Vec<_>>();
     let (elapsed, _) = parallel(&first, |path| generate(path).map(|tiers| tiers.len()));
-    eprintln!("first 24 thumbs {:>8.1} ms ({WORKERS} workers)", elapsed.as_secs_f64() * 1000.0);
+    eprintln!(
+        "first 24 thumbs {:>8.1} ms ({WORKERS} workers)",
+        elapsed.as_secs_f64() * 1000.0
+    );
 
-    let thumbs_dir = std::env::temp_dir().join(format!("stitchvue-bench-thumbs-{}", std::process::id()));
+    let thumbs_dir =
+        std::env::temp_dir().join(format!("stitchvue-bench-thumbs-{}", std::process::id()));
     std::fs::create_dir_all(&thumbs_dir).unwrap();
     let (elapsed, results) = parallel(&files, |path| generate(path));
     let failed = results.iter().filter(|result| result.is_err()).count();
-    eprintln!("uncached {WORKERS}x    {}  failed {failed}", per_file(elapsed, count));
+    eprintln!(
+        "uncached {WORKERS}x    {}  failed {failed}",
+        per_file(elapsed, count)
+    );
     eprintln!("peak working set {:.0} MB", peak_working_set_mb());
 
     let conn = rusqlite::Connection::open_in_memory().unwrap();
@@ -212,8 +239,19 @@ fn run_folder(label: &str, dir: &Path) {
         for (tier, bytes) in tiers {
             let dest = thumbs_dir.join(format!("{index}-{tier}.jpg"));
             std::fs::write(&dest, &bytes).unwrap();
-            cache::save_thumb(&conn, &source, 1, 1, 1, 1, 1, tier, &dest.to_string_lossy(), bytes.len() as i64)
-                .unwrap();
+            cache::save_thumb(
+                &conn,
+                &source,
+                1,
+                1,
+                1,
+                1,
+                1,
+                tier,
+                &dest.to_string_lossy(),
+                bytes.len() as i64,
+            )
+            .unwrap();
         }
     }
     let start = Instant::now();
@@ -226,7 +264,10 @@ fn run_folder(label: &str, dir: &Path) {
             }
         }
     }
-    eprintln!("cached lookup  {}  hits {hits}", per_file(start.elapsed(), count));
+    eprintln!(
+        "cached lookup  {}  hits {hits}",
+        per_file(start.elapsed(), count)
+    );
     let _ = std::fs::remove_dir_all(&thumbs_dir);
 }
 

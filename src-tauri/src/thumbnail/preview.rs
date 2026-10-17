@@ -204,6 +204,9 @@ mod tests {
         jpeg.extend_from_slice(&len.to_be_bytes());
         jpeg.extend_from_slice(&app1);
         jpeg.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x02, 0xFF, 0xD9]);
-        assert_eq!(embedded_jpeg_bytes(&jpeg).as_deref(), Some(thumb.as_slice()));
+        assert_eq!(
+            embedded_jpeg_bytes(&jpeg).as_deref(),
+            Some(thumb.as_slice())
+        );
     }
 }

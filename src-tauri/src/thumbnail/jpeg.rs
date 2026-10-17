@@ -23,13 +23,16 @@ pub fn decode_scaled(bytes: &[u8], target_long_edge: u32) -> Result<Source, Deco
     decoder
         .read_info()
         .map_err(|err| DecodeError::new(FailureKind::Corrupted, err.to_string()))?;
-    let info = decoder.info().ok_or_else(|| {
-        DecodeError::new(FailureKind::Corrupted, "jpeg has no frame")
-    })?;
+    let info = decoder
+        .info()
+        .ok_or_else(|| DecodeError::new(FailureKind::Corrupted, "jpeg has no frame"))?;
     let width = u32::from(info.width);
     let height = u32::from(info.height);
     if width == 0 || height == 0 {
-        return Err(DecodeError::new(FailureKind::Corrupted, "jpeg has no frame size"));
+        return Err(DecodeError::new(
+            FailureKind::Corrupted,
+            "jpeg has no frame size",
+        ));
     }
     let divisor = idct_divisor(width, height, target_long_edge);
     let request_w = (width / divisor).max(1).min(u32::from(u16::MAX)) as u16;
@@ -41,9 +44,9 @@ pub fn decode_scaled(bytes: &[u8], target_long_edge: u32) -> Result<Source, Deco
     let pixels = decoder
         .decode()
         .map_err(|err| DecodeError::new(FailureKind::Corrupted, err.to_string()))?;
-    let decoded = decoder.info().ok_or_else(|| {
-        DecodeError::new(FailureKind::Failed, "jpeg decoder dropped image info")
-    })?;
+    let decoded = decoder
+        .info()
+        .ok_or_else(|| DecodeError::new(FailureKind::Failed, "jpeg decoder dropped image info"))?;
     let image = image_from_pixels(decoded.width, decoded.height, decoded.pixel_format, pixels)?;
     Ok(Source {
         image,
@@ -63,7 +66,10 @@ fn image_from_pixels(
     match format {
         jpeg_decoder::PixelFormat::RGB24 => {
             let rgb = RgbImage::from_raw(width, height, pixels).ok_or_else(|| {
-                DecodeError::new(FailureKind::Corrupted, "jpeg rgb buffer does not match the frame")
+                DecodeError::new(
+                    FailureKind::Corrupted,
+                    "jpeg rgb buffer does not match the frame",
+                )
             })?;
             Ok(DynamicImage::ImageRgb8(rgb))
         }
@@ -73,14 +79,19 @@ fn image_from_pixels(
                 rgb.extend_from_slice(&[gray, gray, gray]);
             }
             let rgb = RgbImage::from_raw(width, height, rgb).ok_or_else(|| {
-                DecodeError::new(FailureKind::Corrupted, "jpeg gray buffer does not match the frame")
+                DecodeError::new(
+                    FailureKind::Corrupted,
+                    "jpeg gray buffer does not match the frame",
+                )
             })?;
             Ok(DynamicImage::ImageRgb8(rgb))
         }
-        jpeg_decoder::PixelFormat::L16 | jpeg_decoder::PixelFormat::CMYK32 => Err(DecodeError::new(
-            FailureKind::Unsupported,
-            "jpeg pixel format is decoded by the full decoder",
-        )),
+        jpeg_decoder::PixelFormat::L16 | jpeg_decoder::PixelFormat::CMYK32 => {
+            Err(DecodeError::new(
+                FailureKind::Unsupported,
+                "jpeg pixel format is decoded by the full decoder",
+            ))
+        }
     }
 }
 

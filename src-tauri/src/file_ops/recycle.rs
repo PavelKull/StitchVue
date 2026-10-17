@@ -49,11 +49,17 @@ pub fn inspect_target(path: &Path) -> Result<fs::Metadata, RecycleError> {
     if is_drive_root(path) {
         return Err(RecycleError::new(
             "outside",
-            format!("Нельзя отправить корень диска в корзину: {}", path.display()),
+            format!(
+                "Нельзя отправить корень диска в корзину: {}",
+                path.display()
+            ),
         ));
     }
     let meta = fs::symlink_metadata(path).map_err(|err| {
-        RecycleError::new("not_found", format!("Объект недоступен: {} ({err})", path.display()))
+        RecycleError::new(
+            "not_found",
+            format!("Объект недоступен: {} ({err})", path.display()),
+        )
     })?;
     if is_reparse(&meta) {
         return Err(RecycleError::new(
@@ -118,7 +124,10 @@ pub fn tree_has_reparse(root: &Path) -> Result<bool, RecycleError> {
 pub fn authorize_trash_file(path: &Path) -> Result<PathBuf, RecycleError> {
     let meta = inspect_target(path)?;
     if !meta.is_file() {
-        return Err(RecycleError::new("not_image", "В корзину Windows из «Удаленное» можно отправить только файл."));
+        return Err(RecycleError::new(
+            "not_image",
+            "В корзину Windows из «Удаленное» можно отправить только файл.",
+        ));
     }
     let name = path
         .file_name()
@@ -137,7 +146,10 @@ pub fn authorize_trash_file(path: &Path) -> Result<PathBuf, RecycleError> {
         RecycleError::new("outside", format!("Папка «Удаленное» недоступна: {err}"))
     })?;
     if is_reparse(&parent_meta) || !parent_meta.is_dir() {
-        return Err(RecycleError::new("reparse", "Папка «Удаленное» недоступна."));
+        return Err(RecycleError::new(
+            "reparse",
+            "Папка «Удаленное» недоступна.",
+        ));
     }
     if read_service_role(parent) != Some(ServiceRole::Trash) {
         return Err(RecycleError::new(
@@ -174,9 +186,8 @@ pub fn authorize_trash_folder(path: &Path) -> Result<PathBuf, RecycleError> {
             "В папке есть ссылка. Операция остановлена, ничего не удалено.",
         ));
     }
-    let canonical = fs::canonicalize(path).map_err(|err| {
-        RecycleError::new("outside", format!("Папка недоступна: {err}"))
-    })?;
+    let canonical = fs::canonicalize(path)
+        .map_err(|err| RecycleError::new("outside", format!("Папка недоступна: {err}")))?;
     if is_drive_root(&canonical) {
         return Err(RecycleError::new("outside", "Нельзя удалить корень диска."));
     }
@@ -195,7 +206,10 @@ pub fn authorize_trash_folder(path: &Path) -> Result<PathBuf, RecycleError> {
 pub fn authorize_favorite_copy(copy: &Path, origin: &Path) -> Result<(), RecycleError> {
     let meta = inspect_target(copy)?;
     if !meta.is_file() {
-        return Err(RecycleError::new("not_image", "Копия избранного не является файлом."));
+        return Err(RecycleError::new(
+            "not_image",
+            "Копия избранного не является файлом.",
+        ));
     }
     if same_path(copy, origin) {
         return Err(RecycleError::new(
@@ -203,7 +217,9 @@ pub fn authorize_favorite_copy(copy: &Path, origin: &Path) -> Result<(), Recycle
             "Нельзя отправить в корзину оригинал вместо копии.",
         ));
     }
-    let parent = copy.parent().ok_or_else(|| RecycleError::new("outside", "Нет папки копии"))?;
+    let parent = copy
+        .parent()
+        .ok_or_else(|| RecycleError::new("outside", "Нет папки копии"))?;
     if read_service_role(parent) != Some(ServiceRole::Favorites) {
         return Err(RecycleError::new(
             "outside",
@@ -222,11 +238,19 @@ fn identity(path: &Path) -> Result<Identity, RecycleError> {
     let meta = inspect_target(path)?;
     Ok(Identity {
         is_dir: meta.is_dir(),
-        size: if meta.is_file() { Some(meta.len()) } else { None },
+        size: if meta.is_file() {
+            Some(meta.len())
+        } else {
+            None
+        },
     })
 }
 
-fn verify_gone(path: &Path, before: Identity, shell_ok: bool) -> Result<RecycleStatus, RecycleError> {
+fn verify_gone(
+    path: &Path,
+    before: Identity,
+    shell_ok: bool,
+) -> Result<RecycleStatus, RecycleError> {
     match fs::symlink_metadata(path) {
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
             if shell_ok {
@@ -276,7 +300,10 @@ fn path_for_shell_parsing(path: &Path) -> PathBuf {
 #[cfg(windows)]
 fn wide_path(path: &Path) -> Vec<u16> {
     use std::os::windows::ffi::OsStrExt;
-    path.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+    path.as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect()
 }
 
 #[cfg(windows)]
@@ -302,8 +329,9 @@ fn shell_recycle_sta(wide: &[u16], verify_path: &Path) -> Result<bool, RecycleEr
         CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_ALL, COINIT_APARTMENTTHREADED,
     };
     use windows::Win32::UI::Shell::{
-        FileOperation, IFileOperation, IShellItem, SHCreateItemFromParsingName, FOF_ALLOWUNDO,
-        FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOF_WANTNUKEWARNING, FOFX_RECYCLEONDELETE,
+        FileOperation, IFileOperation, IShellItem, SHCreateItemFromParsingName,
+        FOFX_RECYCLEONDELETE, FOF_ALLOWUNDO, FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT,
+        FOF_WANTNUKEWARNING,
     };
 
     unsafe {
@@ -313,40 +341,84 @@ fn shell_recycle_sta(wide: &[u16], verify_path: &Path) -> Result<bool, RecycleEr
             recycle_diag("CoInitializeEx", hr, "com_init", verify_path);
             return Err(RecycleError::new(
                 "recycle_unavailable",
-                format!("Не удалось инициализировать COM для корзины Windows (0x{:08X}).", hr),
+                format!(
+                    "Не удалось инициализировать COM для корзины Windows (0x{:08X}).",
+                    hr
+                ),
             ));
         }
         let result = (|| {
-            let op: IFileOperation = CoCreateInstance(&FileOperation, None, CLSCTX_ALL).map_err(|err| {
-                recycle_diag("CoCreateInstance", err.code().0 as u32, "file_operation", verify_path);
-                RecycleError::new(
-                    "recycle_unavailable",
-                    format!("Корзина Windows недоступна: {err}"),
-                )
-            })?;
-            let flags =
-                FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_NOERRORUI | FOF_SILENT | FOF_WANTNUKEWARNING | FOFX_RECYCLEONDELETE;
+            let op: IFileOperation =
+                CoCreateInstance(&FileOperation, None, CLSCTX_ALL).map_err(|err| {
+                    recycle_diag(
+                        "CoCreateInstance",
+                        err.code().0 as u32,
+                        "file_operation",
+                        verify_path,
+                    );
+                    RecycleError::new(
+                        "recycle_unavailable",
+                        format!("Корзина Windows недоступна: {err}"),
+                    )
+                })?;
+            let flags = FOF_ALLOWUNDO
+                | FOF_NOCONFIRMATION
+                | FOF_NOERRORUI
+                | FOF_SILENT
+                | FOF_WANTNUKEWARNING
+                | FOFX_RECYCLEONDELETE;
             op.SetOperationFlags(flags).map_err(|err| {
-                recycle_diag("SetOperationFlags", err.code().0 as u32, "file_operation", verify_path);
+                recycle_diag(
+                    "SetOperationFlags",
+                    err.code().0 as u32,
+                    "file_operation",
+                    verify_path,
+                );
                 RecycleError::new(
                     "recycle_unavailable",
                     format!("Не удалось настроить корзину Windows: {err}"),
                 )
             })?;
-            let item: IShellItem = SHCreateItemFromParsingName(PCWSTR(wide.as_ptr()), None).map_err(|err| {
-                recycle_diag("SHCreateItemFromParsingName", err.code().0 as u32, "shell_item", verify_path);
-                RecycleError::new("not_found", format!("Не удалось открыть объект для корзины: {err}"))
-            })?;
+            let item: IShellItem = SHCreateItemFromParsingName(PCWSTR(wide.as_ptr()), None)
+                .map_err(|err| {
+                    recycle_diag(
+                        "SHCreateItemFromParsingName",
+                        err.code().0 as u32,
+                        "shell_item",
+                        verify_path,
+                    );
+                    RecycleError::new(
+                        "not_found",
+                        format!("Не удалось открыть объект для корзины: {err}"),
+                    )
+                })?;
             op.DeleteItem(&item, None).map_err(|err| {
-                recycle_diag("DeleteItem", err.code().0 as u32, "file_operation", verify_path);
+                recycle_diag(
+                    "DeleteItem",
+                    err.code().0 as u32,
+                    "file_operation",
+                    verify_path,
+                );
                 map_shell_error(err, "Не удалось поставить объект в очередь корзины Windows")
             })?;
             op.PerformOperations().map_err(|err| {
-                recycle_diag("PerformOperations", err.code().0 as u32, "file_operation", verify_path);
+                recycle_diag(
+                    "PerformOperations",
+                    err.code().0 as u32,
+                    "file_operation",
+                    verify_path,
+                );
                 map_shell_error(err, "Корзина Windows отклонила операцию")
             })?;
-            if op.GetAnyOperationsAborted().map(|flag| flag.as_bool()).unwrap_or(false) {
-                return Err(RecycleError::new("cancelled", "Операция корзины Windows отменена."));
+            if op
+                .GetAnyOperationsAborted()
+                .map(|flag| flag.as_bool())
+                .unwrap_or(false)
+            {
+                return Err(RecycleError::new(
+                    "cancelled",
+                    "Операция корзины Windows отменена.",
+                ));
             }
             Ok(true)
         })();
@@ -461,7 +533,10 @@ mod tests {
         let canonical = fs::canonicalize(&file).unwrap();
         let result = recycle_path(&canonical);
         assert!(
-            matches!(result, Ok(RecycleStatus::Recycled) | Ok(RecycleStatus::Ambiguous)),
+            matches!(
+                result,
+                Ok(RecycleStatus::Recycled) | Ok(RecycleStatus::Ambiguous)
+            ),
             "canonical recycle failed: {:?}",
             result
         );
@@ -481,7 +556,11 @@ mod tests {
             Ok(RecycleStatus::Recycled) => assert!(!file.exists()),
             Ok(RecycleStatus::Ambiguous) => {}
             Err(err) => {
-                assert!(file.exists(), "file must remain after recycle error: {}", err.message);
+                assert!(
+                    file.exists(),
+                    "file must remain after recycle error: {}",
+                    err.message
+                );
             }
         }
         let folder = root.join("stitchvue-recycle-folder");
@@ -491,7 +570,11 @@ mod tests {
             Ok(RecycleStatus::Recycled) => assert!(!folder.exists()),
             Ok(RecycleStatus::Ambiguous) => {}
             Err(err) => {
-                assert!(folder.exists(), "folder must remain after recycle error: {}", err.message);
+                assert!(
+                    folder.exists(),
+                    "folder must remain after recycle error: {}",
+                    err.message
+                );
                 assert_eq!(fs::read(folder.join("inside.jpg")).unwrap(), b"nested");
             }
         }

@@ -250,7 +250,12 @@ pub fn sniff(head: &[u8]) -> Option<Format> {
 fn is_pnm(head: &[u8]) -> bool {
     matches!(
         head,
-        [b'P', b'1' | b'2' | b'3' | b'4' | b'5' | b'6', b' ' | b'\n' | b'\r' | b'\t', ..]
+        [
+            b'P',
+            b'1' | b'2' | b'3' | b'4' | b'5' | b'6',
+            b' ' | b'\n' | b'\r' | b'\t',
+            ..
+        ]
     )
 }
 
@@ -323,7 +328,10 @@ mod tests {
         cr3[4..12].copy_from_slice(b"ftypcrx ");
         assert_eq!(sniff(&cr3), Some(Format::Raw));
         assert_eq!(sniff(b"FUJIFILMCCD-RAW "), Some(Format::Raw));
-        assert_eq!(sniff(&[0x00, 0x00, 0x01, 0x00, 0x01, 0x00]), Some(Format::Ico));
+        assert_eq!(
+            sniff(&[0x00, 0x00, 0x01, 0x00, 0x01, 0x00]),
+            Some(Format::Ico)
+        );
         assert_eq!(sniff(b"qoif........"), Some(Format::Qoi));
         assert_eq!(sniff(b"#?RADIANCE\n"), Some(Format::Hdr));
         assert_eq!(sniff(b"P6\n4 4\n255\n"), Some(Format::Pnm));

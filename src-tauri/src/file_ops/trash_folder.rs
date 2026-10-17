@@ -74,9 +74,12 @@ fn scan_folder(dir: &Path, prefix: &str) -> Result<Inventory, String> {
             continue;
         }
         let path = entry.path();
-        let meta = fs::symlink_metadata(&path).map_err(|err| format!("Не удалось прочитать {name}: {err}"))?;
+        let meta = fs::symlink_metadata(&path)
+            .map_err(|err| format!("Не удалось прочитать {name}: {err}"))?;
         if is_reparse(&meta) {
-            return Err(format!("Папка содержит ссылку: {name}. Подсчёт остановлен."));
+            return Err(format!(
+                "Папка содержит ссылку: {name}. Подсчёт остановлен."
+            ));
         }
         let relative = if prefix.is_empty() {
             name.to_string()
@@ -126,7 +129,7 @@ pub fn parent_restore_target(trash_file: &Path) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::file_ops::{write_service_role, LOCAL_TRASH, ServiceRole};
+    use crate::file_ops::{write_service_role, ServiceRole, LOCAL_TRASH};
     use std::sync::atomic::{AtomicU64, Ordering};
 
     fn sandbox() -> PathBuf {

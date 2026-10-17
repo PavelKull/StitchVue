@@ -20,7 +20,11 @@ pub fn decode_viewer(bytes: &[u8]) -> Result<Source, DecodeError> {
     decode_with(bytes, heic_rs::PixelLayout::Rgba8, true)
 }
 
-fn decode_with(bytes: &[u8], layout: heic_rs::PixelLayout, alpha: bool) -> Result<Source, DecodeError> {
+fn decode_with(
+    bytes: &[u8],
+    layout: heic_rs::PixelLayout,
+    alpha: bool,
+) -> Result<Source, DecodeError> {
     let options = heic_rs::DecodeOptions {
         layout,
         apply_transforms: true,
@@ -31,15 +35,17 @@ fn decode_with(bytes: &[u8], layout: heic_rs::PixelLayout, alpha: bool) -> Resul
     let image = heic_rs::decode(bytes, &options).map_err(map_error)?;
     let image = match layout {
         heic_rs::PixelLayout::Rgba8 => {
-            let rgba = image::RgbaImage::from_raw(image.width, image.height, image.data).ok_or_else(|| {
-                DecodeError::new(FailureKind::Failed, "heic pixel buffer size mismatch")
-            })?;
+            let rgba = image::RgbaImage::from_raw(image.width, image.height, image.data)
+                .ok_or_else(|| {
+                    DecodeError::new(FailureKind::Failed, "heic pixel buffer size mismatch")
+                })?;
             DynamicImage::ImageRgba8(rgba)
         }
         _ => {
-            let rgb = RgbImage::from_raw(image.width, image.height, image.data).ok_or_else(|| {
-                DecodeError::new(FailureKind::Failed, "heic pixel buffer size mismatch")
-            })?;
+            let rgb =
+                RgbImage::from_raw(image.width, image.height, image.data).ok_or_else(|| {
+                    DecodeError::new(FailureKind::Failed, "heic pixel buffer size mismatch")
+                })?;
             DynamicImage::ImageRgb8(rgb)
         }
     };
@@ -80,7 +86,8 @@ pub(crate) fn collect_meta(path: &Path) -> Result<Vec<u8>, String> {
     let len = file.metadata().map(|meta| meta.len()).unwrap_or(0);
     if len > 0 && len <= META_LIMIT {
         let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).map_err(|err| err.to_string())?;
+        file.read_to_end(&mut bytes)
+            .map_err(|err| err.to_string())?;
         return Ok(bytes);
     }
     let mut collected = Vec::new();

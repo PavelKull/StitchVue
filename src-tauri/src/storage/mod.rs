@@ -70,7 +70,9 @@ pub(crate) fn volume_bus(volume: &str) -> Option<u32> {
     if returned < BUS_OFFSET + 4 {
         return None;
     }
-    Some(u32::from_le_bytes(descriptor[BUS_OFFSET..BUS_OFFSET + 4].try_into().ok()?))
+    Some(u32::from_le_bytes(
+        descriptor[BUS_OFFSET..BUS_OFFSET + 4].try_into().ok()?,
+    ))
 }
 
 #[cfg(windows)]

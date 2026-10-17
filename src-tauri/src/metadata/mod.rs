@@ -37,8 +37,8 @@ fn read_as(path: &Path, format: Option<Format>) -> Result<HeaderMeta, String> {
 }
 
 fn read_common_header(path: &Path) -> Result<HeaderMeta, String> {
-    let mut reader = ImageReader::open(path)
-        .map_err(|err| format!("open {}: {err}", path.display()))?;
+    let mut reader =
+        ImageReader::open(path).map_err(|err| format!("open {}: {err}", path.display()))?;
     if let Some(format) = formats::from_path(path).and_then(Format::image_format) {
         reader.set_format(format);
     } else {
@@ -71,8 +71,8 @@ pub fn oriented_size(width: u32, height: u32, orientation: u8) -> (u32, u32) {
 }
 
 fn read_jpeg_header(path: &Path) -> Result<HeaderMeta, String> {
-    let mut file = std::fs::File::open(path)
-        .map_err(|err| format!("open {}: {err}", path.display()))?;
+    let mut file =
+        std::fs::File::open(path).map_err(|err| format!("open {}: {err}", path.display()))?;
     let mut orientation = 1u8;
     let mut width = 0u32;
     let mut height = 0u32;
@@ -290,7 +290,8 @@ pub struct PhotoProperties {
 }
 
 pub fn photo_properties(path: &Path) -> Result<PhotoProperties, String> {
-    let meta = std::fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
+    let meta =
+        std::fs::metadata(path).map_err(|err| format!("metadata {}: {err}", path.display()))?;
     if !meta.is_file() {
         return Err(format!("not a file: {}", path.display()));
     }
@@ -466,9 +467,15 @@ fn notes_from_tiff(tiff: &[u8]) -> ExifNotes {
             if tag == 0x9003 {
                 notes.captured_at = ascii_at(tiff, kind, count, raw, little);
             } else if tag == 0x010F {
-                notes.camera = join_camera(ascii_at(tiff, kind, count, raw, little), notes.camera.take());
+                notes.camera = join_camera(
+                    ascii_at(tiff, kind, count, raw, little),
+                    notes.camera.take(),
+                );
             } else if tag == 0x0110 {
-                notes.camera = join_camera(notes.camera.take(), ascii_at(tiff, kind, count, raw, little));
+                notes.camera = join_camera(
+                    notes.camera.take(),
+                    ascii_at(tiff, kind, count, raw, little),
+                );
             } else if tag == 0xA434 {
                 notes.lens = ascii_at(tiff, kind, count, raw, little);
             } else if tag == 0x8827 {
@@ -476,7 +483,8 @@ fn notes_from_tiff(tiff: &[u8]) -> ExifNotes {
             } else if tag == 0x829A {
                 notes.exposure = rational_text(tiff, raw as usize, little);
             } else if tag == 0x829D {
-                notes.aperture = rational_text(tiff, raw as usize, little).map(|value| format!("f/{value}"));
+                notes.aperture =
+                    rational_text(tiff, raw as usize, little).map(|value| format!("f/{value}"));
             }
         }
     }
@@ -496,14 +504,21 @@ fn ascii_at(tiff: &[u8], kind: u16, count: u32, raw: u32, little: bool) -> Optio
         return None;
     }
     let bytes = if count <= 4 {
-        let packed = if little { raw.to_le_bytes() } else { raw.to_be_bytes() };
+        let packed = if little {
+            raw.to_le_bytes()
+        } else {
+            raw.to_be_bytes()
+        };
         packed[..count as usize].to_vec()
     } else {
         let start = raw as usize;
         let end = start + count as usize;
         tiff.get(start..end)?.to_vec()
     };
-    let end = bytes.iter().position(|byte| *byte == 0).unwrap_or(bytes.len());
+    let end = bytes
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(bytes.len());
     let text = String::from_utf8_lossy(&bytes[..end]).trim().to_string();
     (!text.is_empty()).then_some(text)
 }
@@ -541,9 +556,9 @@ mod tests {
     #[test]
     fn reads_capture_date_from_exif_ifd() {
         let tiff = [
-            b'I', b'I', 42, 0, 8, 0, 0, 0, 1, 0, 0x03, 0x90, 2, 0, 20, 0, 0, 0, 26, 0, 0, 0, 0, 0, 0,
-            0, b'2', b'0', b'2', b'4', b':', b'0', b'1', b':', b'0', b'2', b' ', b'0', b'3', b':', b'0',
-            b'4', b':', b'0', b'5', 0,
+            b'I', b'I', 42, 0, 8, 0, 0, 0, 1, 0, 0x03, 0x90, 2, 0, 20, 0, 0, 0, 26, 0, 0, 0, 0, 0,
+            0, 0, b'2', b'0', b'2', b'4', b':', b'0', b'1', b':', b'0', b'2', b' ', b'0', b'3',
+            b':', b'0', b'4', b':', b'0', b'5', 0,
         ];
         let payload = [b"Exif\0\0".as_slice(), tiff.as_slice()].concat();
         assert_eq!(
@@ -555,8 +570,8 @@ mod tests {
     #[test]
     fn reads_orientation_tag_from_tiff_header() {
         let tiff = [
-            b'I', b'I', 42, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0,
-            0, 0,
+            b'I', b'I', 42, 0, 8, 0, 0, 0, 1, 0, 0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0, 0, 0, 0,
+            0,
         ];
         assert_eq!(orientation_from_tiff(&tiff), Some(6));
     }

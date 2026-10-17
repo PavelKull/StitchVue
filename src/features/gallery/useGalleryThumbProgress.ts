@@ -12,6 +12,10 @@ import {
     markThumbSettled,
     seedSettledThumbKeys,
 } from './lib/thumbnails/folderThumbnailsPending.ts';
+import {
+    emptyFolderThumbLoaderSnapshot,
+    type FolderThumbLoaderSnapshot,
+} from './lib/thumbnails/folderThumbLoaderProgress.ts';
 import { fetchPipelineStats } from './api/pipelineStats.ts';
 
 export type FolderThumbProgressInputs = {
@@ -64,20 +68,37 @@ export function useGalleryThumbProgress(options: {
     const pipelinePassRef = useRef<string | null>(null);
     const pipelinePendingRef = useRef<number | null>(null);
     const cacheCappedRef = useRef(false);
+    const folderThumbLoaderRef = useRef<FolderThumbLoaderSnapshot>(
+        emptyFolderThumbLoaderSnapshot(),
+    );
 
-    const syncFolderThumbnailsPending = useCallback(() => {
-        const next = resolveFolderThumbnailsPending({
+    const writeLoaderSnapshot = useCallback((): FolderThumbLoaderSnapshot => {
+        const snapshot: FolderThumbLoaderSnapshot = {
+            session: thumbProgressSessionRef.current,
             listingBusy: folderListingBusyRef.current,
             imageCount: thumbTotalRef.current,
             settledCount: thumbSettledRef.current.size,
-            pipelinePending: pipelinePendingRef.current,
             pipelinePass: pipelinePassRef.current,
             cacheCapped: cacheCappedRef.current,
+        };
+        folderThumbLoaderRef.current = snapshot;
+        return snapshot;
+    }, [folderListingBusyRef]);
+
+    const syncFolderThumbnailsPending = useCallback(() => {
+        const snapshot = writeLoaderSnapshot();
+        const next = resolveFolderThumbnailsPending({
+            listingBusy: snapshot.listingBusy,
+            imageCount: snapshot.imageCount,
+            settledCount: snapshot.settledCount,
+            pipelinePending: pipelinePendingRef.current,
+            pipelinePass: snapshot.pipelinePass,
+            cacheCapped: snapshot.cacheCapped,
         });
         setFolderThumbnailsPending((current) =>
             current === next ? current : next,
         );
-    }, [folderListingBusyRef]);
+    }, [writeLoaderSnapshot]);
 
     const beginFolderThumbProgress = useCallback((session: number) => {
         thumbProgressSessionRef.current = session;
@@ -87,8 +108,9 @@ export function useGalleryThumbProgress(options: {
         pipelinePassRef.current = null;
         pipelinePendingRef.current = null;
         cacheCappedRef.current = false;
+        writeLoaderSnapshot();
         setFolderThumbnailsPending(true);
-    }, []);
+    }, [writeLoaderSnapshot]);
 
     const seedFolderThumbProgress = useCallback(
         (session: number, images: readonly ImageFile[]) => {
@@ -169,6 +191,7 @@ export function useGalleryThumbProgress(options: {
     return {
         folderThumbnailsPending,
         folderThumbsLoading,
+        folderThumbLoaderRef,
         beginFolderThumbProgress,
         seedFolderThumbProgress,
         syncFolderThumbnailsPending,

@@ -4,7 +4,9 @@ use rusqlite::{params, Connection};
 
 use crate::scanner::FolderShortcut;
 
-pub use display_rotation::{DisplayRotation, list_for_paths as list_display_rotations, rotate_clockwise};
+pub use display_rotation::{
+    list_for_paths as list_display_rotations, rotate_clockwise, DisplayRotation,
+};
 
 pub fn remember(conn: &Connection, path: &str, name: &str) -> Result<(), String> {
     let opened_at = now();
@@ -79,8 +81,9 @@ fn rows(conn: &Connection, sql: &str) -> Result<Vec<FolderShortcut>, String> {
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("folders: {err}"))?;
     for folder in &mut folders {
-        folder.service_role = crate::file_ops::read_service_role(std::path::Path::new(&folder.path))
-            .map(|role| role.as_str().to_string());
+        folder.service_role =
+            crate::file_ops::read_service_role(std::path::Path::new(&folder.path))
+                .map(|role| role.as_str().to_string());
     }
     Ok(folders)
 }

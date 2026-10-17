@@ -44,6 +44,7 @@ pub fn home_view() -> DirectoryView {
         parent: None,
         folders,
         images: Vec::new(),
+        unsupported_file_count: 0,
         service_role: None,
         place_code: Some("this-pc".to_string()),
     }
@@ -92,7 +93,10 @@ pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
         let mut wide: Vec<u16> = format!("{letter}:\\").encode_utf16().collect();
         wide.push(0);
         let kind = unsafe { GetDriveTypeW(wide.as_ptr()) };
-        if !matches!(kind, DRIVE_REMOVABLE | DRIVE_FIXED | DRIVE_REMOTE | DRIVE_CDROM) {
+        if !matches!(
+            kind,
+            DRIVE_REMOVABLE | DRIVE_FIXED | DRIVE_REMOTE | DRIVE_CDROM
+        ) {
             continue;
         }
         // Skip volume IOCTL / seek probes for remote and optical roots — they can stall
@@ -165,7 +169,10 @@ fn volume_label(letter: char) -> Option<String> {
     if ok == 0 {
         return None;
     }
-    let end = name.iter().position(|unit| *unit == 0).unwrap_or(name.len());
+    let end = name
+        .iter()
+        .position(|unit| *unit == 0)
+        .unwrap_or(name.len());
     let label = String::from_utf16_lossy(&name[..end]).trim().to_string();
     (!label.is_empty()).then_some(label)
 }
@@ -245,8 +252,8 @@ mod media_tests {
 
 #[cfg(test)]
 mod home_tests {
-    use super::{home_view, PLACES};
     use super::FolderKind;
+    use super::{home_view, PLACES};
 
     #[test]
     fn home_view_sets_place_codes() {

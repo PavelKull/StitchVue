@@ -55,6 +55,8 @@ pub struct DirectoryView {
     pub parent: Option<String>,
     pub folders: Vec<FolderShortcut>,
     pub images: Vec<ImageFile>,
+    /// Non-image files in this directory (one level, same rules as listing).
+    pub unsupported_file_count: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_role: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,8 +67,8 @@ pub fn list_subfolders(folder: &Path) -> Result<Vec<FolderShortcut>, String> {
     if !folder.is_dir() {
         return Err(format!("not a directory: {}", folder.display()));
     }
-    let entries = std::fs::read_dir(folder)
-        .map_err(|err| format!("read_dir {}: {err}", folder.display()))?;
+    let entries =
+        std::fs::read_dir(folder).map_err(|err| format!("read_dir {}: {err}", folder.display()))?;
     let mut folders = Vec::new();
     for entry in entries {
         let Ok(entry) = entry else {
@@ -117,14 +119,14 @@ pub(super) fn scan_directory(
         return Err(format!("not a directory: {}", folder.display()));
     }
 
-    let entries = std::fs::read_dir(folder).map_err(|err| {
-        format!("read_dir {}: {err}", folder.display())
-    })?;
+    let entries =
+        std::fs::read_dir(folder).map_err(|err| format!("read_dir {}: {err}", folder.display()))?;
 
     let folder_path = folder.display().to_string();
     let mut folders = Vec::new();
     let mut names = Vec::new();
     let mut name_batch = Vec::new();
+    let mut unsupported_file_count = 0u32;
     for entry in entries {
         let Ok(entry) = entry else {
             continue;
@@ -150,7 +152,11 @@ pub(super) fn scan_directory(
                 drive_letter: None,
                 drive_kind: None,
             });
-        } else if file_type.is_file() && is_image_name(&name) {
+        } else if file_type.is_file() {
+            if !is_image_name(&name) {
+                unsupported_file_count += 1;
+                continue;
+            }
             let file = ImageFile {
                 name,
                 path,
@@ -232,7 +238,9 @@ pub(super) fn scan_directory(
         parent,
         folders,
         images,
-        service_role: crate::file_ops::read_service_role(folder).map(|role| role.as_str().to_string()),
+        unsupported_file_count,
+        service_role: crate::file_ops::read_service_role(folder)
+            .map(|role| role.as_str().to_string()),
         place_code: None,
     })
 }
@@ -284,6 +292,7 @@ mod tests {
         assert_eq!(names, ["a.JPG", "clip.avif", "phone.HEIC", "shot.CR3"]);
         assert_eq!(view.folders.len(), 1);
         assert_eq!(view.folders[0].name, "nested");
+        assert_eq!(view.unsupported_file_count, 1);
         let children = list_subfolders(&root).unwrap();
         assert_eq!(children.len(), 1);
         assert_eq!(children[0].name, "nested");
@@ -293,10 +302,7 @@ mod tests {
 
     #[test]
     fn renamed_favorites_folder_is_listed_as_ordinary() {
-        let root = std::env::temp_dir().join(format!(
-            "stitchvue-scan-fav-{}",
-            std::process::id()
-        ));
+        let root = std::env::temp_dir().join(format!("stitchvue-scan-fav-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let favorites = root.join(crate::file_ops::LOCAL_FAVORITES);
         fs::create_dir_all(&favorites).unwrap();
@@ -322,10 +328,8 @@ mod tests {
     #[ignore = "stage 15 disk timing"]
     fn times_one_level_listing() {
         for count in [100usize, 1_000, 10_000, 50_000] {
-            let root = std::env::temp_dir().join(format!(
-                "stitchvue-bench-{count}-{}",
-                std::process::id()
-            ));
+            let root = std::env::temp_dir()
+                .join(format!("stitchvue-bench-{count}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&root);
             fs::create_dir_all(&root).unwrap();
             for index in 0..count {

@@ -29,7 +29,14 @@ description: Scoped Rust/Tauri/SQLite refactoring executor with strict file-safe
 6. Запрещено: commit/reset/clean/checkout с потерей чужих изменений; расширение scope.
 7. Две попытки на ошибку — стоп. High → NEXT: guardian и ручной smoke.
 
-Правила: `.cursor/rules/safe-refactoring.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
+Правила: `.cursor/rules/safe-refactoring.mdc`, `rust-backend-architecture.mdc` (прочитать в начале backend-задачи), `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
+
+# Модульная структура Rust
+- Соблюдай границы из задачи и `rust-backend-architecture.mdc`: feature-first, подпапки по ответственности; без лишних traits/слоёв.
+- Сохраняй публичные Rust API и Tauri IPC-контракты; структурный рефакторинг не меняет алгоритмы без ТЗ.
+- Добавляй тесты для изменённых инвариантов; не выходи за утверждённый scope.
+- Не создавай плоские каталоги из множества несвязанных `.rs`-модулей; не применяй FSD-сегменты к `src-tauri/` механически.
+
 Комментарии — по `code-comments.mdc` (явно подключать/проверять загрузку правила в задаче). Не дублировать правило здесь; не расширять scope ради документации.
 Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 

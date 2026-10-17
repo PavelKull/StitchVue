@@ -167,7 +167,11 @@ pub(super) fn run(inner: Arc<Inner>) {
         );
         let mut burst = 0u32;
         for (index, file) in plan.files.iter().enumerate() {
-            let band = if index < plan.first_end { Band::First } else { Band::Extra };
+            let band = if index < plan.first_end {
+                Band::First
+            } else {
+                Band::Extra
+            };
             if !wait_until_run(&inner, request.generation, &request.path, band, &mut burst) {
                 break;
             }
@@ -198,7 +202,12 @@ pub(super) fn admit(
     }
 }
 
-pub fn photo_action(open_busy: bool, hover_started: bool, same_path: bool, covered: bool) -> PhotoAction {
+pub fn photo_action(
+    open_busy: bool,
+    hover_started: bool,
+    same_path: bool,
+    covered: bool,
+) -> PhotoAction {
     if covered {
         PhotoAction::Ready
     } else if same_path {
@@ -210,7 +219,12 @@ pub fn photo_action(open_busy: bool, hover_started: bool, same_path: bool, cover
     }
 }
 
-pub(super) fn screen_window(files: &[ScreenFile], order: &str, first: usize, extra: usize) -> ScreenPlan {
+pub(super) fn screen_window(
+    files: &[ScreenFile],
+    order: &str,
+    first: usize,
+    extra: usize,
+) -> ScreenPlan {
     let first = first.clamp(1, FIRST_CAP);
     let extra = extra.min(WINDOW_CAP.saturating_sub(first));
     let mut files = files.to_vec();
@@ -234,7 +248,9 @@ fn sort_files(files: &mut [ScreenFile], order: &str) {
         let ordering = if key == "name" {
             natural_cmp(&left.name, &right.name)
         } else {
-            left.modified_at.cmp(&right.modified_at).then_with(|| natural_cmp(&left.name, &right.name))
+            left.modified_at
+                .cmp(&right.modified_at)
+                .then_with(|| natural_cmp(&left.name, &right.name))
         };
         let ordering = if desc { ordering.reverse() } else { ordering };
         ordering.then_with(|| claim_key(&left.path).cmp(&claim_key(&right.path)))
@@ -276,7 +292,9 @@ fn take_number(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> u64 {
             break;
         }
         chars.next();
-        number = number.saturating_mul(10).saturating_add(u64::from(ch as u8 - b'0'));
+        number = number
+            .saturating_mul(10)
+            .saturating_add(u64::from(ch as u8 - b'0'));
     }
     number
 }
@@ -303,13 +321,22 @@ fn warm_file(inner: &Inner, generation: u64, folder: &str, file: &ScreenFile) ->
             drop(guard);
             return false;
         }
-        let decoded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| decode_tile(inner, file)));
-        match decoded.unwrap_or(Err(DecodeError::new(FailureKind::Failed, "hover decoder panicked"))) {
+        let decoded =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| decode_tile(inner, file)));
+        match decoded.unwrap_or(Err(DecodeError::new(
+            FailureKind::Failed,
+            "hover decoder panicked",
+        ))) {
             Ok(()) => break,
-            Err(err) if err.message.contains("hover read yielded") => wait_board(inner, Duration::from_millis(150)),
+            Err(err) if err.message.contains("hover read yielded") => {
+                wait_board(inner, Duration::from_millis(150))
+            }
             Err(err) if err.kind == FailureKind::NeedsDevelop => break,
             Err(err) => {
-                let db = inner.db.lock().unwrap_or_else(|lock_err| lock_err.into_inner());
+                let db = inner
+                    .db
+                    .lock()
+                    .unwrap_or_else(|lock_err| lock_err.into_inner());
                 let _ = crate::cache::save_fail(
                     &db,
                     &file.path,
@@ -361,14 +388,16 @@ fn decode_tile(inner: &Inner, file: &ScreenFile) -> Result<(), DecodeError> {
     let format = formats::from_path(path);
     if format.map(Format::backend) == Some(formats::Backend::Raw) {
         let source = {
-            let _slot = take_slot(inner).ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
+            let _slot = take_slot(inner)
+                .ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
             thumbnail::decode_path(path, format)
         }?;
         return store_tile(inner, file, source);
     }
     if format == Some(Format::Jpeg) {
         let embedded = {
-            let _slot = take_slot(inner).ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
+            let _slot = take_slot(inner)
+                .ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
             thumbnail::embedded_jpeg(path).filter(|bytes| thumbnail::embedded_covers(bytes, 256))
         };
         if let Some(preview) = embedded {
@@ -386,12 +415,15 @@ fn decode_tile(inner: &Inner, file: &ScreenFile) -> Result<(), DecodeError> {
             return store_tile(inner, file, source);
         }
         let bytes = {
-            let _slot = take_slot(inner).ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
+            let _slot = take_slot(inner)
+                .ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
             std::fs::read(path).map_err(DecodeError::io)?
         };
         let source = match thumbnail::decode_jpeg_scaled(&bytes, 512) {
             Ok(source) => source,
-            Err(err) if err.kind == FailureKind::Unsupported => thumbnail::decode(&bytes, Some(Format::Jpeg))?,
+            Err(err) if err.kind == FailureKind::Unsupported => {
+                thumbnail::decode(&bytes, Some(Format::Jpeg))?
+            }
             Err(err) => return Err(err),
         };
         let (width, height, orientation, rgb) = thumbnail::bitmap_for_tier(source, 512)?;
@@ -400,14 +432,19 @@ fn decode_tile(inner: &Inner, file: &ScreenFile) -> Result<(), DecodeError> {
         return Ok(());
     }
     let bytes = {
-        let _slot = take_slot(inner).ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
+        let _slot = take_slot(inner)
+            .ok_or_else(|| DecodeError::new(FailureKind::Failed, "hover read yielded"))?;
         std::fs::read(path).map_err(DecodeError::io)?
     };
     let source = thumbnail::decode_owned(std::sync::Arc::new(bytes), format)?;
     store_tile(inner, file, source)
 }
 
-fn store_tile(inner: &Inner, file: &ScreenFile, source: thumbnail::Source) -> Result<(), DecodeError> {
+fn store_tile(
+    inner: &Inner,
+    file: &ScreenFile,
+    source: thumbnail::Source,
+) -> Result<(), DecodeError> {
     let mut stored = false;
     thumbnail::render_each(source, &[256], |tier, bytes, width, height, orientation| {
         store_bytes(inner, file, tier, &bytes, width, height, orientation);
@@ -416,11 +453,22 @@ fn store_tile(inner: &Inner, file: &ScreenFile, source: thumbnail::Source) -> Re
     if stored {
         Ok(())
     } else {
-        Err(DecodeError::new(FailureKind::Failed, "hover thumbnail was empty"))
+        Err(DecodeError::new(
+            FailureKind::Failed,
+            "hover thumbnail was empty",
+        ))
     }
 }
 
-fn store_bytes(inner: &Inner, file: &ScreenFile, tier: u32, bytes: &[u8], width: u32, height: u32, orientation: u8) {
+fn store_bytes(
+    inner: &Inner,
+    file: &ScreenFile,
+    tier: u32,
+    bytes: &[u8],
+    width: u32,
+    height: u32,
+    orientation: u8,
+) {
     let dest = thumbnail::thumb_path(&file.path, file.size, file.modified_at, tier);
     let thumb = {
         let _write = inner.write.lock().unwrap_or_else(|err| err.into_inner());
@@ -458,9 +506,15 @@ fn take_slot(inner: &Inner) -> Option<ReadSlot<'_>> {
         }
         if board.reads_in_use < board.read_slots.max(1) {
             board.reads_in_use += 1;
-            return Some(ReadSlot { inner, for_viewer: false });
+            return Some(ReadSlot {
+                inner,
+                for_viewer: false,
+            });
         }
-        board = inner.read_wake.wait(board).unwrap_or_else(|err| err.into_inner());
+        board = inner
+            .read_wake
+            .wait(board)
+            .unwrap_or_else(|err| err.into_inner());
     }
 }
 
@@ -498,13 +552,26 @@ fn cache_blocked(inner: &Inner) -> bool {
     super::cache_is_full(inner)
 }
 
-fn wait_until_run(inner: &Inner, generation: u64, folder: &str, band: Band, burst: &mut u32) -> bool {
+fn wait_until_run(
+    inner: &Inner,
+    generation: u64,
+    folder: &str,
+    band: Band,
+    burst: &mut u32,
+) -> bool {
     loop {
         if generation_now(inner) != generation || folder_is_open(inner, folder) {
             return false;
         }
         let snap = snapshot(inner);
-        match admit(band, snap.scrolling, snap.visible_hot, snap.neighbor_hot, *burst, snap.background_pending) {
+        match admit(
+            band,
+            snap.scrolling,
+            snap.visible_hot,
+            snap.neighbor_hot,
+            *burst,
+            snap.background_pending,
+        ) {
             Admit::Run => return true,
             Admit::Wait => wait_board(inner, Duration::from_millis(150)),
             Admit::YieldBackground => {
@@ -517,7 +584,10 @@ fn wait_until_run(inner: &Inner, generation: u64, folder: &str, band: Band, burs
                         return false;
                     }
                     let next = snapshot(inner);
-                    if next.visible_hot || next.scrolling || (next.base_ready, next.background_index) != mark {
+                    if next.visible_hot
+                        || next.scrolling
+                        || (next.base_ready, next.background_index) != mark
+                    {
                         break;
                     }
                 }
@@ -539,8 +609,10 @@ fn snapshot(inner: &Inner) -> Snap {
     let board = inner.board.lock().unwrap_or_else(|err| err.into_inner());
     Snap {
         scrolling: board.scrolling,
-        visible_hot: super::pick_p0(&board).is_some() || super::pick_visible_missing(&board).is_some(),
-        neighbor_hot: super::pick_direction(&board).is_some() || super::pick_overscan(&board).is_some(),
+        visible_hot: super::pick_p0(&board).is_some()
+            || super::pick_visible_missing(&board).is_some(),
+        neighbor_hot: super::pick_direction(&board).is_some()
+            || super::pick_overscan(&board).is_some(),
         background_pending: super::pick_background(&board).is_some(),
         base_ready: board.base_ready,
         background_index: board.background_index,
@@ -553,12 +625,19 @@ fn wait_request(inner: &Inner) -> HoverRequest {
         if let Some(request) = control.pending.take() {
             return request;
         }
-        control = inner.hover_wake.wait(control).unwrap_or_else(|err| err.into_inner());
+        control = inner
+            .hover_wake
+            .wait(control)
+            .unwrap_or_else(|err| err.into_inner());
     }
 }
 
 fn generation_now(inner: &Inner) -> u64 {
-    inner.hover.lock().unwrap_or_else(|err| err.into_inner()).generation
+    inner
+        .hover
+        .lock()
+        .unwrap_or_else(|err| err.into_inner())
+        .generation
 }
 
 fn folder_is_open(inner: &Inner, path: &str) -> bool {
@@ -568,7 +647,10 @@ fn folder_is_open(inner: &Inner, path: &str) -> bool {
 
 fn wait_board(inner: &Inner, pause: Duration) {
     let board = inner.board.lock().unwrap_or_else(|err| err.into_inner());
-    let _ = inner.wake.wait_timeout(board, pause).unwrap_or_else(|err| err.into_inner());
+    let _ = inner
+        .wake
+        .wait_timeout(board, pause)
+        .unwrap_or_else(|err| err.into_inner());
 }
 
 fn wake(inner: &Inner) {
@@ -578,7 +660,9 @@ fn wake(inner: &Inner) {
 }
 
 fn claim_key(path: &str) -> String {
-    path.replace('/', "\\").trim_end_matches('\\').to_lowercase()
+    path.replace('/', "\\")
+        .trim_end_matches('\\')
+        .to_lowercase()
 }
 
 #[cfg(test)]
@@ -596,7 +680,11 @@ mod tests {
 
     #[test]
     fn the_first_screen_follows_newest_first_and_stays_capped() {
-        let files = vec![file("img2.jpg", 10), file("img10.jpg", 30), file("img1.jpg", 20)];
+        let files = vec![
+            file("img2.jpg", 10),
+            file("img10.jpg", 30),
+            file("img1.jpg", 20),
+        ];
         let plan = screen_window(&files, "date-desc", 2, 8);
         assert_eq!(plan.first_end, 2);
         assert_eq!(plan.files.len(), 3);
@@ -614,7 +702,9 @@ mod tests {
 
     #[test]
     fn a_window_never_asks_for_the_whole_folder() {
-        let files: Vec<_> = (0..500).map(|index| file(&format!("f{index}.jpg"), index)).collect();
+        let files: Vec<_> = (0..500)
+            .map(|index| file(&format!("f{index}.jpg"), index))
+            .collect();
         let plan = screen_window(&files, "date-desc", 10_000, 10_000);
         assert!(plan.files.len() <= WINDOW_CAP);
         assert!(plan.first_end <= FIRST_CAP);
@@ -622,21 +712,39 @@ mod tests {
 
     #[test]
     fn visible_work_and_scrolling_hold_a_hover_folder() {
-        assert_eq!(admit(Band::First, true, false, false, 0, false), Admit::Wait);
-        assert_eq!(admit(Band::First, false, true, false, 0, false), Admit::Wait);
+        assert_eq!(
+            admit(Band::First, true, false, false, 0, false),
+            Admit::Wait
+        );
+        assert_eq!(
+            admit(Band::First, false, true, false, 0, false),
+            Admit::Wait
+        );
         assert_eq!(admit(Band::First, false, false, true, 0, true), Admit::Run);
     }
 
     #[test]
     fn extra_screens_wait_for_the_open_folder_neighbors() {
-        assert_eq!(admit(Band::Extra, false, false, true, 0, false), Admit::Wait);
-        assert_eq!(admit(Band::Extra, false, false, false, 0, false), Admit::Run);
+        assert_eq!(
+            admit(Band::Extra, false, false, true, 0, false),
+            Admit::Wait
+        );
+        assert_eq!(
+            admit(Band::Extra, false, false, false, 0, false),
+            Admit::Run
+        );
     }
 
     #[test]
     fn a_long_hover_lets_background_run() {
-        assert_eq!(admit(Band::First, false, false, false, FAIRNESS_FILES, true), Admit::YieldBackground);
-        assert_eq!(admit(Band::First, false, false, false, FAIRNESS_FILES, false), Admit::Run);
+        assert_eq!(
+            admit(Band::First, false, false, false, FAIRNESS_FILES, true),
+            Admit::YieldBackground
+        );
+        assert_eq!(
+            admit(Band::First, false, false, false, FAIRNESS_FILES, false),
+            Admit::Run
+        );
     }
 
     #[test]

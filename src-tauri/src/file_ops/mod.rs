@@ -15,21 +15,24 @@ pub(crate) mod favorites_batch;
 #[cfg(test)]
 mod favorites_bench;
 #[cfg(test)]
+mod favorites_copy_recovery;
+#[cfg(test)]
+mod favorites_trash_lifecycle;
+mod favorites_trash_lifecycle_final;
+#[cfg(test)]
 mod favorites_lifecycle;
 mod locks;
-pub mod recycle;
 pub mod reconcile;
+pub mod recycle;
 pub(crate) mod trash_folder;
 
 pub use favorites::RemoveFavoriteCopyResult;
-pub use favorites_batch::{
-    FavoriteBatchPathResult, FavoriteBatchRemoveItem, FavoriteCopyOrigin,
-};
+pub use favorites_batch::{FavoriteBatchPathResult, FavoriteBatchRemoveItem, FavoriteCopyOrigin};
 // ServiceFolderCleanupResult is defined in this module.
+pub use content_hash::sha256_file;
 pub use locks::try_lock_paths;
 pub(crate) use recycle::recycle_path;
 pub use recycle::RecycleStatus;
-pub use content_hash::sha256_file;
 
 pub const LOCAL_TRASH: &str = "Удаленное";
 pub const LOCAL_FAVORITES: &str = "Избранное";
@@ -105,6 +108,13 @@ pub struct OperationRequest {
     pub action: Action,
     pub paths: Vec<String>,
 }
+
+pub fn file_op_log_id(operation_id: &str, source_path: &str) -> String {
+    format!("{}:{}", operation_id, normalize_key(Path::new(source_path)))
+}
+
+/// Called after the copy target path is reserved and before irreversible IO (temp file / copy).
+pub type PendingDestinationJournal = dyn Fn(&str, &str) + Sync;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -187,9 +197,7 @@ pub fn claim(operation_id: &str) -> Claim {
 pub fn complete(operation_id: &str, result: FileOperationResult) {
     let mut registry = registry().lock().unwrap_or_else(|err| err.into_inner());
     registry.active.remove(operation_id);
-    registry
-        .done
-        .push_back((operation_id.to_string(), result));
+    registry.done.push_back((operation_id.to_string(), result));
     while registry.done.len() > RESULT_CACHE {
         registry.done.pop_front();
     }
@@ -202,13 +210,10 @@ pub fn abandon(operation_id: &str) {
 
 pub fn cancel(operation_id: &str) -> bool {
     let registry = registry().lock().unwrap_or_else(|err| err.into_inner());
-    registry
-        .active
-        .get(operation_id)
-        .is_some_and(|flag| {
-            flag.store(true, Ordering::Relaxed);
-            true
-        })
+    registry.active.get(operation_id).is_some_and(|flag| {
+        flag.store(true, Ordering::Relaxed);
+        true
+    })
 }
 
 pub trait IoGate: Send + Sync {
@@ -264,8 +269,16 @@ impl Emitter<'_> {
         let progress = FileOperationProgress {
             operation_id: self.operation_id.to_string(),
             directory: self.directory.to_string(),
-            state: self.state.lock().unwrap_or_else(|err| err.into_inner()).clone(),
-            phase: self.phase.lock().unwrap_or_else(|err| err.into_inner()).clone(),
+            state: self
+                .state
+                .lock()
+                .unwrap_or_else(|err| err.into_inner())
+                .clone(),
+            phase: self
+                .phase
+                .lock()
+                .unwrap_or_else(|err| err.into_inner())
+                .clone(),
             processed: self.processed.load(Ordering::Relaxed),
             total: self.total,
             bytes_done: self.bytes_done.load(Ordering::Relaxed),
@@ -287,6 +300,7 @@ pub fn execute<G: IoGate>(
     copy_slots: usize,
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(&FileOperationProgress) + Sync),
+    pending_destination_journal: Option<&PendingDestinationJournal>,
 ) -> Result<FileOperationResult, String> {
     if request.paths.is_empty() {
         return Err("Нет выбранных файлов".to_string());
@@ -348,7 +362,11 @@ pub fn execute<G: IoGate>(
         return Ok(finish(request, outcomes, None));
     }
 
-    let (destination, created) = match prepare_destination(&directory, request.action.folder_name(), request.action.role()) {
+    let (destination, created) = match prepare_destination(
+        &directory,
+        request.action.folder_name(),
+        request.action.role(),
+    ) {
         Ok(value) => value,
         Err(message) => {
             let mut outcomes = early;
@@ -390,35 +408,35 @@ pub fn execute<G: IoGate>(
 
     std::thread::scope(|scope| {
         for _ in 0..slots {
-            scope.spawn(|| {
-                loop {
-                    let index = next.fetch_add(1, Ordering::Relaxed);
-                    if index >= job_count {
-                        break;
-                    }
-                    let job = &jobs[index as usize];
-                    let outcome = if cancel.load(Ordering::Relaxed) {
-                        cancelled_outcome(&job.requested)
-                    } else {
-                        match request.action {
-                            Action::MoveToLocalTrash => {
-                                move_one(&job.requested, &job.path, &destination, cancel)
-                            }
-                            Action::CopyToLocalFavorites => copy_one(
-                                gate,
-                                &names,
-                                &emitter,
-                                &job.requested,
-                                &job.path,
-                                &destination,
-                                cancel,
-                            ),
-                        }
-                    };
-                    job_outcomes.lock().unwrap_or_else(|err| err.into_inner())[index as usize] =
-                        Some(outcome);
-                    emitter.finish_one();
+            scope.spawn(|| loop {
+                let index = next.fetch_add(1, Ordering::Relaxed);
+                if index >= job_count {
+                    break;
                 }
+                let job = &jobs[index as usize];
+                let outcome = if cancel.load(Ordering::Relaxed) {
+                    cancelled_outcome(&job.requested)
+                } else {
+                    match request.action {
+                        Action::MoveToLocalTrash => {
+                            move_one(&job.requested, &job.path, &destination, cancel)
+                        }
+                        Action::CopyToLocalFavorites => copy_one(
+                            gate,
+                            &names,
+                            &emitter,
+                            &job.requested,
+                            &job.path,
+                            &destination,
+                            cancel,
+                            pending_destination_journal,
+                            &request.operation_id,
+                        ),
+                    }
+                };
+                job_outcomes.lock().unwrap_or_else(|err| err.into_inner())[index as usize] =
+                    Some(outcome);
+                emitter.finish_one();
             });
         }
     });
@@ -446,7 +464,10 @@ fn invalidate_listing_caches(directory: &str, outcomes: &[FileOutcome]) {
         paths.insert(directory.to_string());
     }
     for outcome in outcomes {
-        if !matches!(outcome.status.as_str(), "moved" | "copied" | "already_exists") {
+        if !matches!(
+            outcome.status.as_str(),
+            "moved" | "copied" | "already_exists"
+        ) {
             continue;
         }
         if let Some(destination) = outcome.destination_path.as_deref() {
@@ -503,7 +524,12 @@ fn final_state(outcomes: &[FileOutcome]) -> &'static str {
     }
 }
 
-fn move_one(requested: &str, source: &Path, destination: &Path, cancel: &AtomicBool) -> FileOutcome {
+fn move_one(
+    requested: &str,
+    source: &Path,
+    destination: &Path,
+    cancel: &AtomicBool,
+) -> FileOutcome {
     if cancel.load(Ordering::Relaxed) {
         return cancelled_outcome(requested);
     }
@@ -521,7 +547,10 @@ fn move_one(requested: &str, source: &Path, destination: &Path, cancel: &AtomicB
             Ok(meta) if is_reparse(&meta) => {
                 return failed_outcome(
                     requested,
-                    fail("reparse", format!("Имя назначения является ссылкой: {name}")),
+                    fail(
+                        "reparse",
+                        format!("Имя назначения является ссылкой: {name}"),
+                    ),
                 );
             }
             Ok(_) => continue,
@@ -554,6 +583,18 @@ fn move_one(requested: &str, source: &Path, destination: &Path, cancel: &AtomicB
     )
 }
 
+fn journal_copy_destination(
+    journal: Option<&PendingDestinationJournal>,
+    operation_id: &str,
+    requested: &str,
+    target: &Path,
+) {
+    if let Some(record) = journal {
+        let log_id = file_op_log_id(operation_id, requested);
+        record(&log_id, &path_string_for_app(target));
+    }
+}
+
 fn copy_one<G: IoGate>(
     gate: &G,
     names: &Mutex<NameLock>,
@@ -562,6 +603,8 @@ fn copy_one<G: IoGate>(
     source: &Path,
     destination: &Path,
     cancel: &AtomicBool,
+    pending_destination_journal: Option<&PendingDestinationJournal>,
+    operation_id: &str,
 ) -> FileOutcome {
     if cancel.load(Ordering::Relaxed) {
         return cancelled_outcome(requested);
@@ -575,13 +618,22 @@ fn copy_one<G: IoGate>(
         if is_reparse(&meta) {
             return failed_outcome(
                 requested,
-                fail("reparse", format!("Имя назначения является ссылкой: {file_name}")),
+                fail(
+                    "reparse",
+                    format!("Имя назначения является ссылкой: {file_name}"),
+                ),
             );
         }
         if meta.is_file() {
             emitter.set_phase("running", "checking_duplicates", false);
             match files_identical(gate, source, &original, cancel) {
                 Ok(true) => {
+                    journal_copy_destination(
+                        pending_destination_journal,
+                        operation_id,
+                        requested,
+                        &original,
+                    );
                     return FileOutcome {
                         source_path: requested.to_string(),
                         status: "already_exists".to_string(),
@@ -610,12 +662,21 @@ fn copy_one<G: IoGate>(
         Err(fail) => return failed_outcome(requested, fail),
     };
 
+    journal_copy_destination(
+        pending_destination_journal,
+        operation_id,
+        requested,
+        &target,
+    );
+
     let temp = destination.join(temp_name());
     let guard = match create_temp(&temp) {
         Ok(guard) => guard,
         Err(fail) => return failed_outcome(requested, fail),
     };
-    let source_hash = match copy_bytes(gate, source, &temp, cancel, true, |delta| emitter.add_bytes(delta)) {
+    let source_hash = match copy_bytes(gate, source, &temp, cancel, true, |delta| {
+        emitter.add_bytes(delta)
+    }) {
         Ok(hash) => hash,
         Err(fail) => {
             return if fail.code == "cancelled" {
@@ -644,6 +705,12 @@ fn copy_one<G: IoGate>(
             }
             Err(err) if is_already_exists(&err) => {
                 if files_identical(gate, source, &target, cancel).ok() == Some(true) {
+                    journal_copy_destination(
+                        pending_destination_journal,
+                        operation_id,
+                        requested,
+                        &target,
+                    );
                     return FileOutcome {
                         source_path: requested.to_string(),
                         status: "already_exists".to_string(),
@@ -761,7 +828,9 @@ fn files_identical<G: IoGate>(
     cancel: &AtomicBool,
 ) -> Result<bool, Fail> {
     let left_len = fs::metadata(left).map_err(|err| io_fail(left, &err))?.len();
-    let right_len = fs::metadata(right).map_err(|err| io_fail(right, &err))?.len();
+    let right_len = fs::metadata(right)
+        .map_err(|err| io_fail(right, &err))?
+        .len();
     if left_len != right_len {
         return Ok(false);
     }
@@ -925,7 +994,10 @@ pub fn clear_service_role(dir: &Path) -> Result<(), String> {
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(err) => Err(format!("Не удалось снять роль папки {}: {err}", path.display())),
+        Err(err) => Err(format!(
+            "Не удалось снять роль папки {}: {err}",
+            path.display()
+        )),
     }
 }
 
@@ -960,7 +1032,11 @@ fn hide_marker(path: &Path) {
         extern "system" {
             fn SetFileAttributesW(name: *const u16, attrs: u32) -> i32;
         }
-        let wide: Vec<u16> = path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+        let wide: Vec<u16> = path
+            .as_os_str()
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
         unsafe {
             SetFileAttributesW(wide.as_ptr(), 2);
         }
@@ -971,7 +1047,11 @@ fn hide_marker(path: &Path) {
     }
 }
 
-fn prepare_destination(directory: &Path, folder_name: &str, role: ServiceRole) -> Result<(PathBuf, bool), String> {
+fn prepare_destination(
+    directory: &Path,
+    folder_name: &str,
+    role: ServiceRole,
+) -> Result<(PathBuf, bool), String> {
     let dest = directory.join(folder_name);
     match fs::symlink_metadata(&dest) {
         Ok(meta) => {
@@ -985,7 +1065,10 @@ fn prepare_destination(directory: &Path, folder_name: &str, role: ServiceRole) -
             }
             let canonical = fs::canonicalize(&dest)
                 .map_err(|err| format!("Не удалось открыть «{folder_name}»: {err}"))?;
-            if canonical.parent().is_none_or(|parent| !same_path(parent, directory)) {
+            if canonical
+                .parent()
+                .is_none_or(|parent| !same_path(parent, directory))
+            {
                 return Err(format!(
                     "«{folder_name}» выходит за пределы открытой папки."
                 ));
@@ -1000,24 +1083,21 @@ fn prepare_destination(directory: &Path, folder_name: &str, role: ServiceRole) -
                 )),
             }
         }
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            match fs::create_dir(&dest) {
-                Ok(()) => {
-                    if let Err(mark) = write_service_role(&dest, role) {
-                        let _ = fs::remove_dir(&dest);
-                        return Err(mark);
-                    }
-                    let canonical = fs::canonicalize(&dest).map_err(|err| {
-                        format!("Не удалось открыть «{folder_name}»: {err}")
-                    })?;
-                    Ok((canonical, true))
+        Err(err) if err.kind() == io::ErrorKind::NotFound => match fs::create_dir(&dest) {
+            Ok(()) => {
+                if let Err(mark) = write_service_role(&dest, role) {
+                    let _ = fs::remove_dir(&dest);
+                    return Err(mark);
                 }
-                Err(create_err) if create_err.kind() == io::ErrorKind::AlreadyExists => {
-                    prepare_destination(directory, folder_name, role)
-                }
-                Err(create_err) => Err(format!("Не удалось создать «{folder_name}»: {create_err}")),
+                let canonical = fs::canonicalize(&dest)
+                    .map_err(|err| format!("Не удалось открыть «{folder_name}»: {err}"))?;
+                Ok((canonical, true))
             }
-        }
+            Err(create_err) if create_err.kind() == io::ErrorKind::AlreadyExists => {
+                prepare_destination(directory, folder_name, role)
+            }
+            Err(create_err) => Err(format!("Не удалось создать «{folder_name}»: {create_err}")),
+        },
         Err(err) => Err(format!("Не удалось открыть «{folder_name}»: {err}")),
     }
 }
@@ -1064,22 +1144,21 @@ fn resolve_source(directory: &Path, requested: &str) -> Result<PathBuf, Fail> {
     let Some(parent) = absolute.parent() else {
         return Err(fail("outside", "Файл должен лежать в открытой папке"));
     };
-    let parent = fs::canonicalize(parent).map_err(|_| {
-        fail("outside", "Файл должен лежать в открытой папке")
-    })?;
+    let parent = fs::canonicalize(parent)
+        .map_err(|_| fail("outside", "Файл должен лежать в открытой папке"))?;
     if !same_path(&parent, directory) {
         return Err(fail("outside", "Файл должен лежать в открытой папке"));
     }
     let candidate = directory.join(name);
     let meta = fs::symlink_metadata(&candidate).map_err(|err| io_fail(&candidate, &err))?;
     if is_reparse(&meta) {
-        return Err(fail(
-            "reparse",
-            format!("Файл является ссылкой: {name}"),
-        ));
+        return Err(fail("reparse", format!("Файл является ссылкой: {name}")));
     }
     if !meta.is_file() {
-        return Err(fail("not_image", format!("Это не файл изображения: {name}")));
+        return Err(fail(
+            "not_image",
+            format!("Это не файл изображения: {name}"),
+        ));
     }
     if !crate::formats::listed_image(Path::new(name)) {
         return Err(fail(
@@ -1113,7 +1192,11 @@ pub fn is_service_folder_name(name: &str) -> bool {
 
 pub const COPY_CHANGED: &str = "Копия в избранном изменена. Файл не удалён.";
 
-pub fn confirm_copy_unchanged(copy: &Path, recorded_size: u64, recorded_modified_ms: i64) -> Result<(), String> {
+pub fn confirm_copy_unchanged(
+    copy: &Path,
+    recorded_size: u64,
+    recorded_modified_ms: i64,
+) -> Result<(), String> {
     let meta = fs::symlink_metadata(copy).map_err(|err| format!("copy missing: {err}"))?;
     if is_reparse(&meta) || !meta.is_file() {
         return Err("Нельзя удалить этот путь".to_string());
@@ -1139,7 +1222,11 @@ pub struct TrashCandidate {
     pub source_size: Option<u64>,
 }
 
-pub fn match_renamed_trash(folder: &Path, file: &Path, rows: &[TrashCandidate]) -> Option<TrashCandidate> {
+pub fn match_renamed_trash(
+    folder: &Path,
+    file: &Path,
+    rows: &[TrashCandidate],
+) -> Option<TrashCandidate> {
     let file_size = fs::metadata(file).ok()?.len();
     let mut orphans = Vec::new();
     for row in rows {
@@ -1147,7 +1234,10 @@ pub fn match_renamed_trash(folder: &Path, file: &Path, rows: &[TrashCandidate]) 
         let Some(parent) = trash.parent() else {
             continue;
         };
-        if !same_path(parent, folder) || fs::symlink_metadata(trash).is_ok() || row.source_size != Some(file_size) {
+        if !same_path(parent, folder)
+            || fs::symlink_metadata(trash).is_ok()
+            || row.source_size != Some(file_size)
+        {
             continue;
         }
         orphans.push(row.clone());
@@ -1159,7 +1249,10 @@ pub fn match_renamed_trash(folder: &Path, file: &Path, rows: &[TrashCandidate]) 
         .iter()
         .filter(|row| {
             let trash = Path::new(&row.trash_path);
-            trash.parent().is_some_and(|parent| same_path(parent, folder)) && fs::symlink_metadata(trash).is_ok()
+            trash
+                .parent()
+                .is_some_and(|parent| same_path(parent, folder))
+                && fs::symlink_metadata(trash).is_ok()
         })
         .map(|row| normalize_key(Path::new(&row.trash_path)))
         .collect();
@@ -1185,17 +1278,27 @@ pub fn match_renamed_trash(folder: &Path, file: &Path, rows: &[TrashCandidate]) 
     }
 }
 
-pub fn restore_recorded_file(trash: &Path, origin: &Path, renamed: bool) -> Result<PathBuf, String> {
-    let trash_meta = fs::symlink_metadata(trash).map_err(|err| format!("Файл корзины не найден: {err}"))?;
+pub fn restore_recorded_file(
+    trash: &Path,
+    origin: &Path,
+    renamed: bool,
+) -> Result<PathBuf, String> {
+    let trash_meta =
+        fs::symlink_metadata(trash).map_err(|err| format!("Файл корзины не найден: {err}"))?;
     if is_reparse(&trash_meta) || !trash_meta.is_file() {
         return Err("Нельзя восстановить этот путь".to_string());
     }
-    let trash_parent = trash.parent().ok_or_else(|| "Нет папки корзины".to_string())?;
+    let trash_parent = trash
+        .parent()
+        .ok_or_else(|| "Нет папки корзины".to_string())?;
     if read_service_role(trash_parent) != Some(ServiceRole::Trash) {
         return Err("Файл не лежит в папке «Удаленное»".to_string());
     }
-    let destination_dir = origin.parent().ok_or_else(|| "origin_missing".to_string())?;
-    let dir_meta = fs::symlink_metadata(destination_dir).map_err(|_| "origin_missing".to_string())?;
+    let destination_dir = origin
+        .parent()
+        .ok_or_else(|| "origin_missing".to_string())?;
+    let dir_meta =
+        fs::symlink_metadata(destination_dir).map_err(|_| "origin_missing".to_string())?;
     if is_reparse(&dir_meta) || !dir_meta.is_dir() {
         return Err("origin_missing".to_string());
     }
@@ -1246,7 +1349,10 @@ pub fn candidate_name(stem: &str, ext: &str, index: u32) -> String {
 
 pub fn split_stem_ext(file_name: &str) -> (String, String) {
     match file_name.rfind('.') {
-        Some(dot) if dot > 0 => (file_name[..dot].to_string(), file_name[dot + 1..].to_string()),
+        Some(dot) if dot > 0 => (
+            file_name[..dot].to_string(),
+            file_name[dot + 1..].to_string(),
+        ),
         _ => (file_name.to_string(), String::new()),
     }
 }
@@ -1269,7 +1375,10 @@ pub struct FolderMenuOptions {
     pub can_recycle_trash_folder: bool,
 }
 
-pub fn folder_menu_options(parent_directory: &str, folder_path: &str) -> Result<FolderMenuOptions, String> {
+pub fn folder_menu_options(
+    parent_directory: &str,
+    folder_path: &str,
+) -> Result<FolderMenuOptions, String> {
     let (_parent, child) = resolve_child_folder(parent_directory, folder_path)?;
     let role = read_service_role(&child);
     let can_delete = role.is_some() && service_folder_empty_for_delete(&child)?;
@@ -1281,7 +1390,9 @@ pub fn folder_menu_options(parent_directory: &str, folder_path: &str) -> Result<
     })
 }
 
-pub fn describe_local_trash_folder(folder_path: &str) -> Result<trash_folder::LocalTrashFolderSnapshot, String> {
+pub fn describe_local_trash_folder(
+    folder_path: &str,
+) -> Result<trash_folder::LocalTrashFolderSnapshot, String> {
     trash_folder::describe_local_trash_folder(folder_path)
 }
 
@@ -1316,9 +1427,8 @@ pub fn rename_child_folder(
         Err(err) => return Err(io_fail(&destination, &err).message.clone()),
     }
     let was_active_favorites = is_active_favorites_folder(&child);
-    fs::rename(&child, &destination).map_err(|err| {
-        format!("Не удалось переименовать папку: {err}")
-    })?;
+    fs::rename(&child, &destination)
+        .map_err(|err| format!("Не удалось переименовать папку: {err}"))?;
     if was_active_favorites && !is_favorites_folder_name(&new_name) {
         let _ = clear_service_role(&destination);
     }
@@ -1352,7 +1462,10 @@ pub struct RecycleItemResult {
     pub removed_service_folder: Option<ServiceFolderLocation>,
 }
 
-pub fn remove_empty_service_folder(parent_directory: &str, folder_path: &str) -> Result<ServiceFolderLocation, String> {
+pub fn remove_empty_service_folder(
+    parent_directory: &str,
+    folder_path: &str,
+) -> Result<ServiceFolderLocation, String> {
     match cleanup_empty_service_folder(parent_directory, folder_path) {
         outcome if outcome.status == "removed" => outcome
             .location
@@ -1360,9 +1473,7 @@ pub fn remove_empty_service_folder(parent_directory: &str, folder_path: &str) ->
         outcome if outcome.status == "not_empty" => {
             Err("Папку можно удалить только если в ней нет фотографий.".to_string())
         }
-        outcome if outcome.status == "already_gone" => {
-            Err("Папка недоступна.".to_string())
-        }
+        outcome if outcome.status == "already_gone" => Err("Папка недоступна.".to_string()),
         outcome => Err(outcome
             .message
             .unwrap_or_else(|| "Не удалось удалить папку.".to_string())),
@@ -1473,7 +1584,9 @@ fn cleanup_service_folder_dir(dir: &Path) -> CleanupDetail {
         Err(err) => CleanupDetail::Failed(format!("Папка недоступна: {err}")),
         Ok(meta) => {
             if is_reparse(&meta) {
-                return CleanupDetail::Failed("Папка является ссылкой. Операция остановлена.".to_string());
+                return CleanupDetail::Failed(
+                    "Папка является ссылкой. Операция остановлена.".to_string(),
+                );
             }
             if !meta.is_dir() {
                 return CleanupDetail::Failed("Выбранный путь не является папкой.".to_string());
@@ -1576,9 +1689,15 @@ fn remove_empty_service_folder_at(child: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn resolve_child_folder(parent_directory: &str, folder_path: &str) -> Result<(PathBuf, PathBuf), String> {
+fn resolve_child_folder(
+    parent_directory: &str,
+    folder_path: &str,
+) -> Result<(PathBuf, PathBuf), String> {
     let parent = open_directory(parent_directory)?;
-    if folder_path.is_empty() || folder_path.contains('\0') || has_disallowed_path_syntax(folder_path) {
+    if folder_path.is_empty()
+        || folder_path.contains('\0')
+        || has_disallowed_path_syntax(folder_path)
+    {
         return Err("Некорректный путь папки.".to_string());
     }
     let raw = PathBuf::from(folder_path);
@@ -1622,7 +1741,9 @@ fn service_folder_empty_for_delete(dir: &Path) -> Result<bool, String> {
     let entries = fs::read_dir(dir).map_err(|err| format!("Папка недоступна: {err}"))?;
     for entry in entries {
         let entry = entry.map_err(|err| format!("Папка недоступна: {err}"))?;
-        let file_type = entry.file_type().map_err(|err| format!("Папка недоступна: {err}"))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("Папка недоступна: {err}"))?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
         if file_type.is_dir() {
@@ -1816,7 +1937,10 @@ fn move_noreplace(from: &Path, to: &Path) -> io::Result<()> {
     #[cfg(not(windows))]
     {
         if fs::symlink_metadata(to).is_ok() {
-            return Err(io::Error::new(io::ErrorKind::AlreadyExists, "target exists"));
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "target exists",
+            ));
         }
         fs::rename(from, to)
     }
@@ -1937,14 +2061,20 @@ mod tests {
         fs::write(path, bytes).unwrap();
     }
 
-    fn run(dir: &Path, action: Action, paths: Vec<String>, slots: usize, cancel: &AtomicBool) -> FileOperationResult {
+    fn run(
+        dir: &Path,
+        action: Action,
+        paths: Vec<String>,
+        slots: usize,
+        cancel: &AtomicBool,
+    ) -> FileOperationResult {
         let request = OperationRequest {
             operation_id: format!("op-{}", paths.len()),
             directory: dir.display().to_string(),
             action,
             paths,
         };
-        execute(&DirectIo, &request, slots, cancel, &|_progress| {}).unwrap()
+        execute(&DirectIo, &request, slots, cancel, &|_progress| {}, None).unwrap()
     }
 
     #[test]
@@ -1959,9 +2089,9 @@ mod tests {
             paths: vec![source.display().to_string()],
         };
         let cancel = AtomicBool::new(false);
-        let first = execute(&DirectIo, &request, 1, &cancel, &|_| {}).unwrap();
+        let first = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None).unwrap();
         assert_eq!(first.state, "completed");
-        let second = execute(&DirectIo, &request, 1, &cancel, &|_| {}).unwrap();
+        let second = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None).unwrap();
         assert_eq!(second.state, "completed");
         assert_eq!(second.outcomes.len(), first.outcomes.len());
         let _ = fs::remove_dir_all(&root);
@@ -1972,14 +2102,20 @@ mod tests {
         assert_eq!(candidate_name("photo", "jpg", 1), "photo.jpg");
         assert_eq!(candidate_name("photo", "jpg", 2), "photo (2).jpg");
         assert_eq!(candidate_name("scan.final", "png", 2), "scan.final (2).png");
-        assert_eq!(split_stem_ext("scan.final.png"), ("scan.final".to_string(), "png".to_string()));
+        assert_eq!(
+            split_stem_ext("scan.final.png"),
+            ("scan.final".to_string(), "png".to_string())
+        );
     }
 
     #[test]
     fn maps_disk_full_and_sharing_violation() {
         assert_eq!(error_code(&io::Error::from_raw_os_error(112)), "no_space");
         assert_eq!(error_code(&io::Error::from_raw_os_error(32)), "locked");
-        assert_eq!(error_code(&io::Error::from_raw_os_error(5)), "access_denied");
+        assert_eq!(
+            error_code(&io::Error::from_raw_os_error(5)),
+            "access_denied"
+        );
     }
 
     #[test]
@@ -2034,7 +2170,10 @@ mod tests {
         assert!(result.outcomes[0].renamed_due_to_collision);
         assert!(!source.exists());
         assert_eq!(fs::read(trash.join("photo.jpg")).unwrap(), b"same-bytes");
-        assert_eq!(fs::read(trash.join("photo (2).jpg")).unwrap(), b"same-bytes");
+        assert_eq!(
+            fs::read(trash.join("photo (2).jpg")).unwrap(),
+            b"same-bytes"
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -2096,12 +2235,17 @@ mod tests {
             paths: vec![source.display().to_string()],
         };
         let cancel = AtomicBool::new(false);
-        let result = execute(&gate, &request, 1, &cancel, &|_| {}).unwrap();
+        let result = execute(&gate, &request, 1, &cancel, &|_| {}, None).unwrap();
         writer.join().unwrap();
         assert_eq!(result.outcomes[0].status, "copied");
         let hash = result.outcomes[0].source_content_sha256.as_deref().unwrap();
         assert_ne!(hash, original_hash.as_str());
-        assert_ne!(hash, crate::file_ops::content_hash::sha256_file(&source).unwrap().as_str());
+        assert_ne!(
+            hash,
+            crate::file_ops::content_hash::sha256_file(&source)
+                .unwrap()
+                .as_str()
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -2122,11 +2266,12 @@ mod tests {
             result.outcomes[0].source_content_sha256.as_deref(),
             Some(expected.as_str())
         );
-        let dest = root
-            .join(LOCAL_FAVORITES)
-            .join("hash-me.jpg");
+        let dest = root.join(LOCAL_FAVORITES).join("hash-me.jpg");
         assert_eq!(fs::read(&dest).unwrap(), b"stitchvue-fav-hash");
-        assert_eq!(crate::file_ops::content_hash::sha256_file(&dest).unwrap(), expected);
+        assert_eq!(
+            crate::file_ops::content_hash::sha256_file(&dest).unwrap(),
+            expected
+        );
         let _ = fs::remove_dir_all(&root);
     }
 
@@ -2210,8 +2355,21 @@ mod tests {
         assert_eq!(copied.outcomes.len(), 100);
         assert!(root.join("img-0.jpg").is_file());
         assert!(root.join(LOCAL_FAVORITES).join("img-99.jpg").is_file());
-        let moved = run(&root, Action::MoveToLocalTrash, paths, 1, &AtomicBool::new(false));
-        assert_eq!(moved.outcomes.iter().filter(|item| item.status == "moved").count(), 100);
+        let moved = run(
+            &root,
+            Action::MoveToLocalTrash,
+            paths,
+            1,
+            &AtomicBool::new(false),
+        );
+        assert_eq!(
+            moved
+                .outcomes
+                .iter()
+                .filter(|item| item.status == "moved")
+                .count(),
+            100
+        );
         assert!(!root.join("img-0.jpg").exists());
         assert!(root.join(LOCAL_TRASH).join("img-0.jpg").is_file());
         let _ = fs::remove_dir_all(&root);
@@ -2224,7 +2382,8 @@ mod tests {
         fs::create_dir(&nested).unwrap();
         write_image(&nested.join("inner.jpg"), b"inner");
         write_image(&root.join("notes.txt"), b"text");
-        let outside = std::env::temp_dir().join(format!("stitchvue-outside-{}.jpg", std::process::id()));
+        let outside =
+            std::env::temp_dir().join(format!("stitchvue-outside-{}.jpg", std::process::id()));
         write_image(&outside, b"secret");
         let escaped = root.join("..").join(outside.file_name().unwrap());
         let result = run(
@@ -2260,7 +2419,15 @@ mod tests {
             action: Action::CopyToLocalFavorites,
             paths: vec![trash.join("a.jpg").display().to_string()],
         };
-        let error = execute(&DirectIo, &request, 1, &AtomicBool::new(false), &|_progress| {}).unwrap_err();
+        let error = execute(
+            &DirectIo,
+            &request,
+            1,
+            &AtomicBool::new(false),
+            &|_progress| {},
+            None,
+        )
+        .unwrap_err();
         assert!(error.contains("служебн"));
         assert!(trash.join("a.jpg").is_file());
         assert!(!trash.join(LOCAL_FAVORITES).exists());
@@ -2341,7 +2508,10 @@ mod tests {
         );
         assert_eq!(copied.outcomes[0].status, "copied");
         assert!(read_service_role(&named).is_none());
-        assert_eq!(read_service_role(&named.join(LOCAL_FAVORITES)), Some(ServiceRole::Favorites));
+        assert_eq!(
+            read_service_role(&named.join(LOCAL_FAVORITES)),
+            Some(ServiceRole::Favorites)
+        );
         assert!(copied.destination_created);
         let _ = fs::remove_dir_all(&root);
     }
@@ -2381,7 +2551,7 @@ mod tests {
             action: Action::CopyToLocalFavorites,
             paths: vec![source.display().to_string()],
         };
-        let result = execute(&gate, &request, 1, &cancel, &|_progress| {}).unwrap();
+        let result = execute(&gate, &request, 1, &cancel, &|_progress| {}, None).unwrap();
         assert_eq!(result.outcomes[0].status, "cancelled");
         assert_eq!(fs::read(&source).unwrap(), b"abcdef");
         let favorites = root.join(LOCAL_FAVORITES);
@@ -2393,9 +2563,12 @@ mod tests {
             });
             assert!(!published);
             let temps = fs::read_dir(&favorites).unwrap().any(|entry| {
-                entry
-                    .ok()
-                    .is_some_and(|entry| entry.file_name().to_string_lossy().starts_with(".stitchvue-"))
+                entry.ok().is_some_and(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .starts_with(".stitchvue-")
+                })
             });
             assert!(!temps);
         }
@@ -2420,7 +2593,9 @@ mod tests {
         assert!(result.outcomes[0]
             .error_message
             .as_deref()
-            .is_some_and(|text| text.contains("unmarked_conflict") || text.contains("не является служебной")));
+            .is_some_and(
+                |text| text.contains("unmarked_conflict") || text.contains("не является служебной")
+            ));
         assert_eq!(fs::read(root.join("a.jpg")).unwrap(), b"keep-origin");
         assert!(read_service_role(&named).is_none());
         assert_eq!(fs::read(named.join("keep.jpg")).unwrap(), b"user");
@@ -2509,7 +2684,15 @@ mod tests {
                 action: Action::MoveToLocalTrash,
                 paths: vec![source.display().to_string()],
             };
-            let error = execute(&DirectIo, &request, 1, &AtomicBool::new(false), &|_progress| {}).unwrap_err();
+            let error = execute(
+                &DirectIo,
+                &request,
+                1,
+                &AtomicBool::new(false),
+                &|_progress| {},
+                None,
+            )
+            .unwrap_err();
             assert!(error.contains("ссылк"));
             assert_eq!(fs::read(&source).unwrap(), b"stay");
         }
@@ -2587,10 +2770,18 @@ mod tests {
     #[test]
     fn path_syntax_allows_drive_extended_and_unc_forms() {
         assert!(!has_disallowed_path_syntax(r"C:\Photos\Album\image.jpg"));
-        assert!(!has_disallowed_path_syntax(r"\\?\C:\Photos\Album\image.jpg"));
-        assert!(!has_disallowed_path_syntax(r"\\server\share\Photos\image.jpg"));
-        assert!(!has_disallowed_path_syntax(r"\\?\UNC\server\share\Photos\image.jpg"));
-        assert!(!has_disallowed_path_syntax(r"D:\Фото\Альбом с пробелом\фото.jpg"));
+        assert!(!has_disallowed_path_syntax(
+            r"\\?\C:\Photos\Album\image.jpg"
+        ));
+        assert!(!has_disallowed_path_syntax(
+            r"\\server\share\Photos\image.jpg"
+        ));
+        assert!(!has_disallowed_path_syntax(
+            r"\\?\UNC\server\share\Photos\image.jpg"
+        ));
+        assert!(!has_disallowed_path_syntax(
+            r"D:\Фото\Альбом с пробелом\фото.jpg"
+        ));
         assert!(!has_disallowed_path_syntax(&format!(
             r"\\?\C:\{}",
             "a".repeat(300)
@@ -2601,12 +2792,20 @@ mod tests {
     fn path_syntax_rejects_empty_nul_ads_and_device_namespace() {
         assert!(has_disallowed_path_syntax(""));
         assert!(has_disallowed_path_syntax("C:\\a\0b.jpg"));
-        assert!(has_disallowed_path_syntax(r"C:\Photos\image.jpg:Zone.Identifier"));
-        assert!(has_disallowed_path_syntax(r"\\?\C:\Photos\image.jpg:stream"));
+        assert!(has_disallowed_path_syntax(
+            r"C:\Photos\image.jpg:Zone.Identifier"
+        ));
+        assert!(has_disallowed_path_syntax(
+            r"\\?\C:\Photos\image.jpg:stream"
+        ));
         assert!(has_disallowed_path_syntax(r"\\.\C:\Photos\image.jpg"));
         assert!(has_disallowed_path_syntax(r"\\.\PhysicalDrive0"));
-        assert!(has_disallowed_path_syntax(r"\\?\GLOBALROOT\Device\Harddisk0"));
-        assert!(has_disallowed_path_syntax(r"\\?\Volume{00000000-0000-0000-0000-000000000000}\a.jpg"));
+        assert!(has_disallowed_path_syntax(
+            r"\\?\GLOBALROOT\Device\Harddisk0"
+        ));
+        assert!(has_disallowed_path_syntax(
+            r"\\?\Volume{00000000-0000-0000-0000-000000000000}\a.jpg"
+        ));
     }
 
     #[test]

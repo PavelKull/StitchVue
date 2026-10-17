@@ -72,7 +72,18 @@
     "origin_missing": "Der ursprüngliche Ordner ist nicht verfügbar"
   },
   "gallery": {
-    "emptyFolder": "Dieser Ordner ist leer",
+    "emptyFolder": {
+      "title": "Ordner ist leer",
+      "description": "Hier sind noch keine Dateien vorhanden."
+    },
+    "noSupportedFiles": {
+      "title": "Keine unterstützten Dateien",
+      "description": "Dieser Ordner enthält keine Bilder in unterstützten Formaten."
+    },
+    "subfoldersOnly": {
+      "title": "Keine Bilder",
+      "description": "Wählen Sie einen Unterordner aus, um Fotos anzuzeigen."
+    },
     "emptyFavorites": "Noch keine Fotos in den Favoriten",
     "emptyTrash": "Der Ordner „Gelöscht“ ist leer",
     "bootLastFolderUnavailable": "Der zuletzt geöffnete Ordner ist nicht verfügbar",
@@ -368,6 +379,26 @@
     "favoriteReturnFailed": "Kopie konnte nicht zurückgeführt werden",
     "favoriteOriginMissingSaved": "Original nicht gefunden. Das Bild wurde im aktuellen Ordner gespeichert",
     "favoriteUnknownTitle": "Original nicht gefunden",
+    "favoriteTrashUnfavoriteTitle": "Aus Favoriten entfernen?",
+    "favoriteTrashUnfavoriteBody": "Das Original befindet sich im Ordner „Gelöscht“. Wählen Sie eine Aktion.",
+    "favoriteTrashRemoveCopyLabel": "Aus Favoriten entfernen",
+    "favoriteTrashRestoreOriginLabel": "Original wiederherstellen",
+    "favoriteConfirmOriginInTrash": "Original in Gelöscht",
+    "favoriteTrashBatchTitle": "Favoriten verarbeiten",
+    "favoriteTrashBatchBody": "Bei einigen ausgewählten Fotos liegen die Originale im Ordner „Gelöscht“. Wählen Sie, was damit geschehen soll.",
+    "favoriteTrashBatchStatsLabel": "Auswahlübersicht",
+    "favoriteTrashBatchStatTotal": "Ausgewählt: {{count}}",
+    "favoriteTrashBatchStatInTrash": "Originale in Gelöscht: {{count}}",
+    "favoriteTrashBatchStatReadyRecycle": "Werden aus Favoriten entfernt (Original verfügbar): {{count}}",
+    "favoriteTrashBatchStatSkippedUnresolved": "Übersprungen (separate Aktion nötig): {{count}}",
+    "favoriteTrashBatchRestoreHint": "„Originale wiederherstellen“ betrifft nur Fotos mit Original in Gelöscht. Andere Auswahl bleibt unverändert.",
+    "favoriteTrashBatchRemoveCopyLabel": "Aus Favoriten entfernen",
+    "favoriteTrashBatchRestoreOriginLabel": "Originale wiederherstellen",
+    "unfavoriteBatchSummaryProcessed": "Verarbeitet: {{count}}.",
+    "unfavoriteBatchSummarySkipped": "Übersprungen: {{count}}.",
+    "unfavoriteBatchSummaryFailed": "Fehler: {{count}}.",
+    "unfavoriteBatchSummaryRestored": "Wiederhergestellt: {{count}}.",
+    "unfavoriteBatchSummaryReconcile": "Abgleich nötig: {{count}}.",
     "favoriteUnknownBody": "Sie können das Bild aus „Favoriten“ im übergeordneten Ordner speichern.",
     "favoriteChangedTitle": "Das Bild wurde geändert",
     "favoriteChangedBody": "Um Ihre Änderungen zu behalten, können Sie eine separate Kopie speichern.",

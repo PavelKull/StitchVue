@@ -119,7 +119,10 @@ pub struct Rendered {
 }
 
 pub fn thumb_path(source: &str, size: u64, modified_at: i64, tier: u32) -> PathBuf {
-    let name = format!("{:016x}-{tier}.jpg", identity_hash(source, size, modified_at));
+    let name = format!(
+        "{:016x}-{tier}.jpg",
+        identity_hash(source, size, modified_at)
+    );
     crate::database::app_dir()
         .join("cache")
         .join("thumbnails")
@@ -164,13 +167,17 @@ pub fn decode_jpeg_scaled(bytes: &[u8], target_long_edge: u32) -> Result<Source,
     jpeg::decode_scaled(bytes, target_long_edge)
 }
 
-pub fn bitmap_for_tier(source: Source, max_tier: u32) -> Result<(u32, u32, u8, RgbImage), DecodeError> {
+pub fn bitmap_for_tier(
+    source: Source,
+    max_tier: u32,
+) -> Result<(u32, u32, u8, RgbImage), DecodeError> {
     let Source {
         mut image,
         orientation,
         icc,
     } = source;
-    let (width, height) = crate::metadata::oriented_size(image.width(), image.height(), orientation);
+    let (width, height) =
+        crate::metadata::oriented_size(image.width(), image.height(), orientation);
     if image.width().max(image.height()) > max_tier {
         image = image.thumbnail(max_tier, max_tier);
     }
@@ -231,7 +238,9 @@ pub fn encode_viewer(source: Source, long_edge: u32) -> Result<ViewerImage, Deco
                 height,
                 image::ExtendedColorType::Rgba8,
             )
-            .map_err(|err| DecodeError::new(FailureKind::Failed, format!("encode viewer png: {err}")))?;
+            .map_err(|err| {
+                DecodeError::new(FailureKind::Failed, format!("encode viewer png: {err}"))
+            })?;
         return Ok(ViewerImage {
             bytes,
             width,
@@ -318,7 +327,8 @@ pub fn render_each(
         orientation,
         icc,
     } = source;
-    let (width, height) = crate::metadata::oriented_size(image.width(), image.height(), orientation);
+    let (width, height) =
+        crate::metadata::oriented_size(image.width(), image.height(), orientation);
     if tiers.is_empty() {
         return Ok((width, height, orientation));
     }
@@ -349,7 +359,9 @@ fn shrink(rgb: RgbImage, tier: u32) -> RgbImage {
     if rgb.width().max(rgb.height()) <= tier {
         return rgb;
     }
-    DynamicImage::ImageRgb8(rgb).thumbnail(tier, tier).into_rgb8()
+    DynamicImage::ImageRgb8(rgb)
+        .thumbnail(tier, tier)
+        .into_rgb8()
 }
 
 fn finish(mut image: DynamicImage, orientation: u8, icc: Option<&[u8]>) -> RgbImage {
@@ -401,8 +413,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), String> {
     let tmp = path.with_extension("tmp");
     std::fs::write(&tmp, bytes).map_err(|err| format!("write {}: {err}", tmp.display()))?;
     if path.exists() {
-        std::fs::remove_file(path)
-            .map_err(|err| format!("remove {}: {err}", path.display()))?;
+        std::fs::remove_file(path).map_err(|err| format!("remove {}: {err}", path.display()))?;
     }
     std::fs::rename(&tmp, path).map_err(|err| format!("rename {}: {err}", path.display()))?;
     Ok(())
@@ -448,8 +459,16 @@ mod tests {
             let rendered = thumbs(&bytes, Some(format));
             assert_eq!((rendered.width, rendered.height), (1200, 800), "{format:?}");
             assert_eq!(rendered.tiers.len(), 2, "{format:?}");
-            assert_eq!(decoded_tier(&rendered, 512).dimensions(), (512, 341), "{format:?}");
-            assert_eq!(decoded_tier(&rendered, 256).dimensions(), (256, 171), "{format:?}");
+            assert_eq!(
+                decoded_tier(&rendered, 512).dimensions(),
+                (512, 341),
+                "{format:?}"
+            );
+            assert_eq!(
+                decoded_tier(&rendered, 256).dimensions(),
+                (256, 171),
+                "{format:?}"
+            );
         }
     }
 
@@ -502,7 +521,8 @@ mod tests {
             assert_eq!((rendered.width, rendered.height), (320, 200), "{format:?}");
             assert!(!rendered.tiers.is_empty(), "{format:?}");
         }
-        let icon = image::RgbaImage::from_fn(64, 48, |x, y| image::Rgba([x as u8, y as u8, 128, 255]));
+        let icon =
+            image::RgbaImage::from_fn(64, 48, |x, y| image::Rgba([x as u8, y as u8, 128, 255]));
         let mut icon_bytes = std::io::Cursor::new(Vec::new());
         DynamicImage::ImageRgba8(icon)
             .write_to(&mut icon_bytes, ImageFormat::Ico)
@@ -526,7 +546,11 @@ mod tests {
 
     #[test]
     fn exif_orientation_is_baked_into_pixels_and_size() {
-        let bytes = fixtures::jpeg(&fixtures::gradient(1200, 800), Some(fixtures::exif_orientation(6)), None);
+        let bytes = fixtures::jpeg(
+            &fixtures::gradient(1200, 800),
+            Some(fixtures::exif_orientation(6)),
+            None,
+        );
         let rendered = thumbs(&bytes, Some(Format::Jpeg));
         assert_eq!((rendered.width, rendered.height), (800, 1200));
         assert_eq!(decoded_tier(&rendered, 512).dimensions(), (341, 512));
@@ -553,12 +577,20 @@ mod tests {
     #[test]
     fn display_p3_profile_is_converted_to_srgb() {
         let rgba = image::RgbaImage::from_pixel(64, 64, image::Rgba([200, 100, 50, 255]));
-        let tagged = thumbs(&fixtures::png_rgba(&rgba, Some(fixtures::display_p3_icc())), Some(Format::Png));
+        let tagged = thumbs(
+            &fixtures::png_rgba(&rgba, Some(fixtures::display_p3_icc())),
+            Some(Format::Png),
+        );
         let untagged = thumbs(&fixtures::png_rgba(&rgba, None), Some(Format::Png));
         let p3 = decoded_tier(&tagged, 256).get_pixel(32, 32).0;
         let plain = decoded_tier(&untagged, 256).get_pixel(32, 32).0;
-        assert!(p3[0] > plain[0] + 5 && p3[2] + 5 < plain[2], "P3 {p3:?} vs untagged {plain:?}");
-        assert!(color::is_identity(&moxcms::ColorProfile::new_srgb().encode().unwrap()));
+        assert!(
+            p3[0] > plain[0] + 5 && p3[2] + 5 < plain[2],
+            "P3 {p3:?} vs untagged {plain:?}"
+        );
+        assert!(color::is_identity(
+            &moxcms::ColorProfile::new_srgb().encode().unwrap()
+        ));
         assert!(!color::is_identity(&fixtures::display_p3_icc()));
     }
 
@@ -585,7 +617,10 @@ mod tests {
                 assert_ne!(err.kind, FailureKind::Io, "{}", err.message);
             }
         }
-        assert_eq!(decode(&[], None).err().map(|err| err.kind), Some(FailureKind::Unsupported));
+        assert_eq!(
+            decode(&[], None).err().map(|err| err.kind),
+            Some(FailureKind::Unsupported)
+        );
     }
 
     fn local_images(subdir: &str, extension: &str) -> Vec<std::path::PathBuf> {

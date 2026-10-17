@@ -117,9 +117,11 @@ pub fn set_cache_ttl(
 
 #[tauri::command]
 pub async fn list_subfolders(path: String) -> Result<Vec<FolderShortcut>, String> {
-    tauri::async_runtime::spawn_blocking(move || scanner::list_subfolders(std::path::Path::new(&path)))
-        .await
-        .map_err(|err| format!("list folders task failed: {err}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        scanner::list_subfolders(std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|err| format!("list folders task failed: {err}"))?
 }
 
 #[tauri::command]
@@ -130,12 +132,20 @@ pub async fn list_drives() -> Result<Vec<FolderShortcut>, String> {
 }
 
 #[tauri::command]
-pub fn remember_folder(pipeline: State<Pipeline>, path: String, name: String) -> Result<(), String> {
+pub fn remember_folder(
+    pipeline: State<Pipeline>,
+    path: String,
+    name: String,
+) -> Result<(), String> {
     pipeline.remember_folder(&path, &name)
 }
 
 #[tauri::command]
-pub fn toggle_favorite(pipeline: State<Pipeline>, path: String, name: String) -> Result<bool, String> {
+pub fn toggle_favorite(
+    pipeline: State<Pipeline>,
+    path: String,
+    name: String,
+) -> Result<bool, String> {
     pipeline.toggle_favorite(&path, &name)
 }
 
@@ -172,7 +182,13 @@ pub fn viewer_source(
 }
 
 #[tauri::command]
-pub fn prefetch_folder(pipeline: State<Pipeline>, path: String, order: String, first_count: usize, extra_count: usize) {
+pub fn prefetch_folder(
+    pipeline: State<Pipeline>,
+    path: String,
+    order: String,
+    first_count: usize,
+    extra_count: usize,
+) {
     pipeline.prefetch_folder(path, order, first_count, extra_count);
 }
 
@@ -205,7 +221,12 @@ pub fn set_viewer(
     fast: Option<bool>,
     direction: Option<i32>,
 ) {
-    pipeline.set_viewer(path, ahead.unwrap_or(5), fast.unwrap_or(false), direction.unwrap_or(0));
+    pipeline.set_viewer(
+        path,
+        ahead.unwrap_or(5),
+        fast.unwrap_or(false),
+        direction.unwrap_or(0),
+    );
 }
 
 #[tauri::command]
@@ -214,7 +235,10 @@ pub fn pipeline_stats(pipeline: State<Pipeline>) -> crate::pipeline::PipelineSta
 }
 
 #[tauri::command]
-pub fn favorite_origin_paths(pipeline: State<Pipeline>, directory: String) -> Result<Vec<String>, String> {
+pub fn favorite_origin_paths(
+    pipeline: State<Pipeline>,
+    directory: String,
+) -> Result<Vec<String>, String> {
     pipeline.favorite_origins_in(&directory)
 }
 
@@ -260,10 +284,13 @@ pub async fn remove_favorite_copy(
     pipeline: State<'_, Pipeline>,
     path: String,
     confirmed: Option<bool>,
+    resolution: Option<String>,
 ) -> Result<crate::file_ops::RemoveFavoriteCopyResult, String> {
     let pipeline = (*pipeline).clone();
     let confirmed = confirmed.unwrap_or(false);
-    tauri::async_runtime::spawn_blocking(move || pipeline.remove_favorite_copy(&path, confirmed))
+    tauri::async_runtime::spawn_blocking(move || {
+        pipeline.remove_favorite_copy(&path, confirmed, resolution.as_deref())
+    })
         .await
         .map_err(|err| format!("remove favorite failed: {err}"))?
 }
@@ -303,6 +330,7 @@ pub async fn preview_remove_favorite_copies(
 pub struct FavoriteBatchRemoveItemDto {
     path: String,
     confirmed: bool,
+    resolution: Option<String>,
 }
 
 #[tauri::command]
@@ -316,6 +344,7 @@ pub async fn remove_favorite_copies_batch(
         .map(|item| crate::file_ops::FavoriteBatchRemoveItem {
             path: item.path,
             confirmed: item.confirmed,
+            resolution: item.resolution,
         })
         .collect();
     tauri::async_runtime::spawn_blocking(move || pipeline.remove_favorite_copies_batch(mapped))
@@ -375,9 +404,11 @@ pub async fn recycle_local_trash_folder(
 pub async fn describe_local_trash_folder(
     path: String,
 ) -> Result<crate::file_ops::LocalTrashFolderSnapshot, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::file_ops::describe_local_trash_folder(&path))
-        .await
-        .map_err(|err| format!("describe trash folder failed: {err}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::file_ops::describe_local_trash_folder(&path)
+    })
+    .await
+    .map_err(|err| format!("describe trash folder failed: {err}"))?
 }
 
 #[tauri::command]
@@ -394,7 +425,8 @@ pub async fn run_file_operation(
     action: String,
     paths: Vec<String>,
 ) -> Result<crate::file_ops::FileOperationResult, String> {
-    let action = crate::file_ops::Action::parse(&action).ok_or_else(|| "Неизвестная операция".to_string())?;
+    let action = crate::file_ops::Action::parse(&action)
+        .ok_or_else(|| "Неизвестная операция".to_string())?;
     let cancel = match crate::file_ops::claim(&operation_id) {
         crate::file_ops::Claim::Replay(result) => return Ok(result),
         crate::file_ops::Claim::Busy => return Err("Операция уже выполняется".to_string()),
@@ -411,9 +443,10 @@ pub async fn run_file_operation(
             action,
             paths,
         };
-        let executed = pipeline.execute_file_operation(&gate, &request, slots, &cancel, &|progress| {
-            let _ = app.emit("file-operation-progress", progress);
-        });
+        let executed =
+            pipeline.execute_file_operation(&gate, &request, slots, &cancel, &|progress| {
+                let _ = app.emit("file-operation-progress", progress);
+            });
         match &executed {
             Ok(value) => crate::file_ops::complete(&operation_id, value.clone()),
             Err(_) => crate::file_ops::abandon(&operation_id),
@@ -435,9 +468,11 @@ pub fn cancel_file_operation(operation_id: String) -> bool {
 
 #[tauri::command]
 pub async fn image_properties(path: String) -> Result<crate::metadata::PhotoProperties, String> {
-    tauri::async_runtime::spawn_blocking(move || crate::metadata::photo_properties(std::path::Path::new(&path)))
-        .await
-        .map_err(|err| format!("properties task failed: {err}"))?
+    tauri::async_runtime::spawn_blocking(move || {
+        crate::metadata::photo_properties(std::path::Path::new(&path))
+    })
+    .await
+    .map_err(|err| format!("properties task failed: {err}"))?
 }
 
 #[derive(Serialize)]

@@ -13,12 +13,16 @@ const PREVIEW_MIN_EDGE: u32 = 512;
 
 pub fn develop_path(path: &Path) -> Result<Source, DecodeError> {
     with_file(path, |decoder, source, params| {
-        let raw = decoder.raw_image(source, params, false).map_err(map_error)?;
+        let raw = decoder
+            .raw_image(source, params, false)
+            .map_err(map_error)?;
         let image = rawler::imgop::develop::RawDevelop::default()
             .develop_intermediate(&raw)
             .map_err(|err| DecodeError::new(FailureKind::Failed, err.to_string()))?
             .to_dynamic_image()
-            .ok_or_else(|| DecodeError::new(FailureKind::Failed, "RAW develop produced no bitmap"))?;
+            .ok_or_else(|| {
+                DecodeError::new(FailureKind::Failed, "RAW develop produced no bitmap")
+            })?;
         Ok(Source {
             image,
             orientation: 1,
@@ -57,15 +61,18 @@ pub fn decode_path(path: &Path) -> Result<Source, DecodeError> {
 }
 
 pub fn decode(bytes: Arc<Vec<u8>>) -> Result<Source, DecodeError> {
-    with_source(RawSource::new_from_shared_vec(bytes), |decoder, source, params| {
-        let preview = best_preview(decoder.as_ref(), source, params)?;
-        let orientation = preview_orientation(decoder.as_ref(), source, params, &preview)?;
-        Ok(Source {
-            image: preview,
-            orientation,
-            icc: None,
-        })
-    })
+    with_source(
+        RawSource::new_from_shared_vec(bytes),
+        |decoder, source, params| {
+            let preview = best_preview(decoder.as_ref(), source, params)?;
+            let orientation = preview_orientation(decoder.as_ref(), source, params, &preview)?;
+            Ok(Source {
+                image: preview,
+                orientation,
+                icc: None,
+            })
+        },
+    )
 }
 
 pub fn read_header(path: &Path) -> Result<HeaderMeta, String> {
@@ -95,7 +102,11 @@ pub fn read_header(path: &Path) -> Result<HeaderMeta, String> {
 
 fn with_file<T>(
     path: &Path,
-    job: impl FnOnce(&Box<dyn rawler::decoders::Decoder>, &RawSource, &RawDecodeParams) -> Result<T, DecodeError>,
+    job: impl FnOnce(
+        &Box<dyn rawler::decoders::Decoder>,
+        &RawSource,
+        &RawDecodeParams,
+    ) -> Result<T, DecodeError>,
 ) -> Result<T, DecodeError> {
     let source = RawSource::new(path).map_err(DecodeError::io)?;
     with_source(source, job)
@@ -103,7 +114,11 @@ fn with_file<T>(
 
 fn with_source<T>(
     source: RawSource,
-    job: impl FnOnce(&Box<dyn rawler::decoders::Decoder>, &RawSource, &RawDecodeParams) -> Result<T, DecodeError>,
+    job: impl FnOnce(
+        &Box<dyn rawler::decoders::Decoder>,
+        &RawSource,
+        &RawDecodeParams,
+    ) -> Result<T, DecodeError>,
 ) -> Result<T, DecodeError> {
     let decoder = rawler::get_decoder(&source).map_err(map_error)?;
     job(&decoder, &source, &RawDecodeParams::default())
@@ -137,9 +152,9 @@ fn largest_embedded(
         candidates.push(image);
     }
     candidates.sort_by_key(|image| image.dimensions().0.max(image.dimensions().1));
-    candidates.pop().ok_or_else(|| {
-        DecodeError::new(FailureKind::NeedsDevelop, "RAW has no embedded preview")
-    })
+    candidates
+        .pop()
+        .ok_or_else(|| DecodeError::new(FailureKind::NeedsDevelop, "RAW has no embedded preview"))
 }
 
 fn preview_orientation(

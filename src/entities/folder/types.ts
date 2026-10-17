@@ -45,6 +45,8 @@ export type DirectoryView = {
   parent: string | null;
   folders: FolderShortcut[];
   images: ImageFile[];
+  /** Non-image files in this directory (direct children). */
+  unsupportedFileCount?: number;
   serviceRole?: ServiceRole | null;
   placeCode?: PlaceCode | string | null;
 };

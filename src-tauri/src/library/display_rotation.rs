@@ -24,7 +24,12 @@ fn modified_millis(meta: &std::fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-pub fn read_quarters(conn: &Connection, path: &str, size: u64, modified_at: i64) -> Result<u8, String> {
+pub fn read_quarters(
+    conn: &Connection,
+    path: &str,
+    size: u64,
+    modified_at: i64,
+) -> Result<u8, String> {
     let value: Option<i64> = conn
         .query_row(
             "SELECT quarters FROM image_display_rotation

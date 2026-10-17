@@ -14,13 +14,15 @@ use std::time::Instant;
 
 use rusqlite::Connection;
 
-use super::fav_metrics;
-use super::favorites_batch::{preview_remove_favorite_copies, remove_favorite_copies_batch, FavoriteBatchRemoveItem};
-use super::{
-    execute, Action, FileOperationResult, IoGate, LOCAL_FAVORITES, OperationRequest, ServiceRole,
-    write_service_role,
-};
 use super::content_hash::sha256_file;
+use super::fav_metrics;
+use super::favorites_batch::{
+    preview_remove_favorite_copies, remove_favorite_copies_batch, FavoriteBatchRemoveItem,
+};
+use super::{
+    execute, write_service_role, Action, FileOperationResult, IoGate, OperationRequest,
+    ServiceRole, LOCAL_FAVORITES,
+};
 use crate::database;
 
 struct DirectIo;
@@ -47,10 +49,14 @@ fn run_copy(
         action: Action::CopyToLocalFavorites,
         paths,
     };
-    execute(&DirectIo, &request, slots, cancel, &|_| {}).unwrap()
+    execute(&DirectIo, &request, slots, cancel, &|_| {}, None).unwrap()
 }
 
-const SIZES: &[(&str, usize)] = &[("small", 4 * 1024), ("medium", 128 * 1024), ("large", 1024 * 1024)];
+const SIZES: &[(&str, usize)] = &[
+    ("small", 4 * 1024),
+    ("medium", 128 * 1024),
+    ("large", 1024 * 1024),
+];
 const COUNTS: &[usize] = &[10, 100, 500];
 
 fn ensure_favorite_copies(root: &Path, count: usize) {
@@ -149,7 +155,11 @@ fn run_scenario(size_label: &'static str, count: usize, body_len: usize) -> Benc
 
     let root = fixture_album(count, body_len);
     let paths: Vec<String> = (0..count)
-        .map(|index| root.join(format!("img-{index:05}.jpg")).to_string_lossy().into_owned())
+        .map(|index| {
+            root.join(format!("img-{index:05}.jpg"))
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
 
     let add_start = Instant::now();
@@ -184,11 +194,15 @@ fn run_scenario(size_label: &'static str, count: usize, body_len: usize) -> Benc
             .map(|path| FavoriteBatchRemoveItem {
                 path: path.clone(),
                 confirmed: false,
+                resolution: None,
             })
             .collect();
         let executed = remove_favorite_copies_batch(&db, &items).unwrap();
         assert_eq!(executed.len(), count);
-        let ready = executed.iter().filter(|row| row.result.status == "ready" || row.result.status == "recycled").count();
+        let ready = executed
+            .iter()
+            .filter(|row| row.result.status == "ready" || row.result.status == "recycled")
+            .count();
         eprintln!("  execute ready/recycled rows: {ready}/{count}");
     }
     #[cfg(not(windows))]
@@ -230,11 +244,7 @@ fn bench_favorites_mass() {
             let row = run_scenario(size_label, count, body_len);
             eprintln!(
                 "[{}/{}] add={:.1}ms preview={:.1}ms execute={:.1}ms",
-                size_label,
-                count,
-                row.add_ms,
-                row.preview_ms,
-                row.execute_ms,
+                size_label, count, row.add_ms, row.preview_ms, row.execute_ms,
             );
             fav_metrics::print_snapshot("  metrics", row.metrics);
         }
@@ -248,7 +258,11 @@ fn bench_favorites_sequential_vs_parallel_proxy() {
     let count = 50;
     let root = fixture_album(count, 64 * 1024);
     let paths: Vec<String> = (0..count)
-        .map(|index| root.join(format!("img-{index:05}.jpg")).to_string_lossy().into_owned())
+        .map(|index| {
+            root.join(format!("img-{index:05}.jpg"))
+                .to_string_lossy()
+                .into_owned()
+        })
         .collect();
     let cancel = AtomicBool::new(false);
     let sequential = Instant::now();
@@ -259,15 +273,13 @@ fn bench_favorites_sequential_vs_parallel_proxy() {
     let parallel = Instant::now();
     std::thread::scope(|scope| {
         for _ in 0..2 {
-            scope.spawn(|| {
-                loop {
-                    let index = next.fetch_add(1, Ordering::Relaxed);
-                    if index >= count as u64 {
-                        break;
-                    }
-                    let path = root.join(format!("img-{index:05}.jpg"));
-                    let _ = fs::metadata(&path);
+            scope.spawn(|| loop {
+                let index = next.fetch_add(1, Ordering::Relaxed);
+                if index >= count as u64 {
+                    break;
                 }
+                let path = root.join(format!("img-{index:05}.jpg"));
+                let _ = fs::metadata(&path);
             });
         }
     });

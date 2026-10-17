@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use rusqlite::{Connection, OptionalExtension};
+use std::path::PathBuf;
 
 pub fn app_dir() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA")
@@ -10,12 +10,11 @@ pub fn app_dir() -> PathBuf {
 
 pub fn open() -> Result<Connection, String> {
     let dir = app_dir();
-    std::fs::create_dir_all(dir.join("cache").join("thumbnails")).map_err(|err| {
-        format!("create_dir {}: {err}", dir.display())
-    })?;
+    std::fs::create_dir_all(dir.join("cache").join("thumbnails"))
+        .map_err(|err| format!("create_dir {}: {err}", dir.display()))?;
     let db_path = dir.join("stitchvue.db");
-    let conn = Connection::open(&db_path)
-        .map_err(|err| format!("open {}: {err}", db_path.display()))?;
+    let conn =
+        Connection::open(&db_path).map_err(|err| format!("open {}: {err}", db_path.display()))?;
     migrate(&conn).map_err(|err| format!("migrate {}: {err}", db_path.display()))?;
     Ok(conn)
 }
@@ -141,17 +140,18 @@ fn ensure_column(conn: &Connection, table: &str, column: &str, decl: &str) -> Re
     if names.iter().any(|name| name == column) {
         return Ok(());
     }
-    conn.execute(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"), [])
-        .map_err(|err| format!("add {table}.{column}: {err}"))?;
+    conn.execute(
+        &format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"),
+        [],
+    )
+    .map_err(|err| format!("add {table}.{column}: {err}"))?;
     Ok(())
 }
 
 pub fn setting(conn: &Connection, key: &str) -> Result<Option<String>, String> {
-    conn.query_row(
-        "SELECT value FROM settings WHERE key = ?1",
-        [key],
-        |row| row.get(0),
-    )
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
+        row.get(0)
+    })
     .optional()
     .map_err(|err| format!("read setting {key}: {err}"))
 }
@@ -210,7 +210,12 @@ pub fn record_favorite_copy(
     Ok(())
 }
 
-pub fn record_trash(conn: &Connection, trash_path: &str, origin_path: &str, source_size: u64) -> Result<(), String> {
+pub fn record_trash(
+    conn: &Connection,
+    trash_path: &str,
+    origin_path: &str,
+    source_size: u64,
+) -> Result<(), String> {
     let created_at = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|duration| duration.as_millis() as i64)
@@ -245,7 +250,8 @@ pub fn trash_rows(conn: &Connection) -> Result<Vec<TrashRow>, String> {
             })
         })
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn update_trash_path(conn: &Connection, from_path: &str, to_path: &str) -> Result<(), String> {
@@ -287,21 +293,27 @@ const SNAPSHOT_SELECT: &str = "SELECT origin_path, origin_size, origin_modified_
     copy_size, copy_modified_at, content_sha256, record_version
     FROM favorite_copies";
 
-pub(crate) fn load_all_favorite_snapshots(conn: &Connection) -> Result<Vec<FavoriteSnapshot>, String> {
+pub(crate) fn load_all_favorite_snapshots(
+    conn: &Connection,
+) -> Result<Vec<FavoriteSnapshot>, String> {
     let mut statement = conn
         .prepare(SNAPSHOT_SELECT)
         .map_err(|err| err.to_string())?;
     let rows = statement
         .query_map([], snapshot_row)
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 fn matches_path_key(stored: &str, requested: &str) -> bool {
     path_key(stored) == path_key(requested)
 }
 
-pub fn favorite_snapshot_for_copy(conn: &Connection, copy_path: &str) -> Result<Option<FavoriteSnapshot>, String> {
+pub fn favorite_snapshot_for_copy(
+    conn: &Connection,
+    copy_path: &str,
+) -> Result<Option<FavoriteSnapshot>, String> {
     let key = path_key(copy_path);
     let by_key = conn
         .query_row(
@@ -326,7 +338,10 @@ pub fn favorite_snapshot_for_copy(conn: &Connection, copy_path: &str) -> Result<
     Ok(matches.pop())
 }
 
-pub fn favorite_snapshot_for_origin(conn: &Connection, origin_path: &str) -> Result<Option<FavoriteSnapshot>, String> {
+pub fn favorite_snapshot_for_origin(
+    conn: &Connection,
+    origin_path: &str,
+) -> Result<Option<FavoriteSnapshot>, String> {
     let key = path_key(origin_path);
     let by_key = conn
         .query_row(
@@ -356,7 +371,9 @@ fn backfill_favorite_path_keys(conn: &Connection) -> Result<(), String> {
         .prepare("SELECT origin_path, copy_path FROM favorite_copies WHERE origin_key IS NULL OR copy_key IS NULL OR origin_key = '' OR copy_key = ''")
         .map_err(|err| err.to_string())?;
     let rows = statement
-        .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
         .map_err(|err| err.to_string())?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| err.to_string())?;
@@ -460,7 +477,8 @@ pub fn favorite_origin_paths(conn: &Connection) -> Result<Vec<(String, String)>,
     let rows = statement
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn delete_favorite_copy_path(conn: &Connection, copy_path: &str) -> Result<(), String> {
@@ -496,7 +514,8 @@ pub fn trash_paths(conn: &Connection) -> Result<Vec<String>, String> {
     let rows = statement
         .query_map([], |row| row.get(0))
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn trash_origin(conn: &Connection, trash_path: &str) -> Result<Option<String>, String> {
@@ -509,9 +528,30 @@ pub fn trash_origin(conn: &Connection, trash_path: &str) -> Result<Option<String
     .map_err(|err| err.to_string())
 }
 
-pub fn delete_trash(conn: &Connection, trash_path: &str) -> Result<(), String> {
-    conn.execute("DELETE FROM trash_entries WHERE trash_path = ?1", [trash_path])
+/// First trash entry whose `origin_path` matches and trash file still exists.
+pub fn trash_path_for_origin(conn: &Connection, origin_path: &str) -> Result<Option<String>, String> {
+    let stored = normalize_stored_path(origin_path);
+    let mut statement = conn
+        .prepare("SELECT trash_path FROM trash_entries WHERE origin_path = ?1")
         .map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map([&stored], |row| row.get::<_, String>(0))
+        .map_err(|err| err.to_string())?;
+    for row in rows {
+        let trash_path = row.map_err(|err| err.to_string())?;
+        if std::path::Path::new(&trash_path).is_file() {
+            return Ok(Some(trash_path));
+        }
+    }
+    Ok(None)
+}
+
+pub fn delete_trash(conn: &Connection, trash_path: &str) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM trash_entries WHERE trash_path = ?1",
+        [trash_path],
+    )
+    .map_err(|err| err.to_string())?;
     Ok(())
 }
 
@@ -545,7 +585,13 @@ pub fn relocate_folder_path(
     rewrite_path_prefix(conn, "favorite_copies", "copy_path", &old_key, &new_key)?;
     sync_favorite_copy_keys(conn)?;
     rewrite_path_prefix(conn, "trash_entries", "trash_path", &old_key, &new_key)?;
-    rewrite_path_prefix(conn, "image_display_rotation", "source_path", &old_key, &new_key)?;
+    rewrite_path_prefix(
+        conn,
+        "image_display_rotation",
+        "source_path",
+        &old_key,
+        &new_key,
+    )?;
     Ok(())
 }
 
@@ -606,11 +652,8 @@ fn purge_rows_with_prefix(
         if key != prefix && !key.starts_with(nested_prefix) {
             continue;
         }
-        conn.execute(
-            &format!("DELETE FROM {table} WHERE {column} = ?1"),
-            [&path],
-        )
-        .map_err(|err| format!("purge {table}: {err}"))?;
+        conn.execute(&format!("DELETE FROM {table} WHERE {column} = ?1"), [&path])
+            .map_err(|err| format!("purge {table}: {err}"))?;
     }
     Ok(())
 }
@@ -725,6 +768,23 @@ pub fn insert_pending_op(conn: &Connection, row: &FileOpLog) -> Result<(), Strin
     Ok(())
 }
 
+pub fn update_pending_destination(
+    conn: &Connection,
+    id: &str,
+    destination_path: &str,
+) -> Result<(), String> {
+    durable(conn)?;
+    let result = conn.execute(
+        "UPDATE file_op_log
+         SET destination_path = ?1, updated_at = ?2
+         WHERE id = ?3 AND status = ?4",
+        (destination_path, now_ms(), id, ST_PENDING),
+    );
+    restore_pragma(conn);
+    result.map_err(|err| format!("update pending destination: {err}"))?;
+    Ok(())
+}
+
 pub fn finish_op(
     conn: &Connection,
     id: &str,
@@ -739,7 +799,14 @@ pub fn finish_op(
          SET status = ?1, destination_path = COALESCE(?2, destination_path),
              error_code = ?3, error_message = ?4, updated_at = ?5
          WHERE id = ?6",
-        (status, destination_path, error_code, error_message, now_ms(), id),
+        (
+            status,
+            destination_path,
+            error_code,
+            error_message,
+            now_ms(),
+            id,
+        ),
     );
     restore_pragma(conn);
     result.map_err(|err| format!("update op log: {err}"))?;
@@ -773,7 +840,8 @@ pub fn unfinished_ops(conn: &Connection) -> Result<Vec<FileOpLog>, String> {
             })
         })
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn origin_from_log(conn: &Connection, trash_path: &str) -> Result<Option<String>, String> {
@@ -804,7 +872,8 @@ pub fn list_favorite_undo(conn: &Connection) -> Result<Vec<FavoriteUndo>, String
             })
         })
         .map_err(|err| err.to_string())?;
-    rows.collect::<Result<Vec<_>, _>>().map_err(|err| err.to_string())
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
 }
 
 pub fn delete_favorite_undo_row(conn: &Connection, id: &str) -> Result<(), String> {
@@ -885,7 +954,13 @@ mod tests {
         let found = favorite_snapshot_for_copy(&conn, r"C:\Photos\new\Favorites\a.jpg")
             .unwrap()
             .expect("link");
-        assert_eq!(path_key(&found.origin_path), path_key(r"C:\Photos\new\a.jpg"));
-        assert_eq!(path_key(&found.copy_path), path_key(r"C:\Photos\new\Favorites\a.jpg"));
+        assert_eq!(
+            path_key(&found.origin_path),
+            path_key(r"C:\Photos\new\a.jpg")
+        );
+        assert_eq!(
+            path_key(&found.copy_path),
+            path_key(r"C:\Photos\new\Favorites\a.jpg")
+        );
     }
 }
