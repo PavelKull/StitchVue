@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft — product requirements agreed; implementation not started
+**Status**: Draft — clarify complete (ready for `/speckit-plan`)
 
 **Input**: Product TZ «Безопасный жизненный цикл Favorites» + read-only audit `docs/audit/favorites/`
 
@@ -21,6 +21,22 @@
 | `docs/INVARIANTS.md` | Canonical invariants I1–I10 |
 
 **Out of scope (explicit):** sidebar folder bookmarks (`favorite_folders`), gallery-wide refactor, thumbnails/virtualization unless required for favorites UX, cloud storage, disk-wide photo search, in-app restore from Windows Recycle Bin, unrelated IPC/SQLite schema changes without justification.
+
+## Clarifications
+
+### Session 2026-10-17
+
+- **CL-00** — New file at a former origin path after delete: must not treat as same original or overwrite on «return to source»; on identity/path/name conflict stop, keep photo safe, offer FR-11 B/C/D only (EC-12, EC-22, INV-05, INV-06).
+- **CL-P01** — Safe metadata reconciliation runs: (1) app startup; (2) after any Favorites file operation completes, including partial or indeterminate outcomes; (3) on album open — **light** check of relevant metadata only. No full-library scan; no per-open full hash pass; **must not delete user photos** during reconcile.
+- **CL-P02** — Explorer sync scope: open album, its **active** Favorites folder, and relevant **local StitchVue trash** changes. Update affected stars/metadata on Explorer changes within that scope; no library-wide background walk; **no new origin↔copy links from filename match alone**.
+- **CL-P03** — Dialog routing: use existing `needs_confirm` flows **only** when origin presence **and** identity are **reliably confirmed** and the operation is safe. If origin missing, inaccessible, or identity unconfirmed: **forbid** automatic copy delete; use FR-11 safe choice (A–D). No redundant back-to-back confirms for the same decision; batch unfavorite keeps the same safety rules (per-file FR-11 or equivalent batch UX).
+- **CL-P04** — Temporarily unavailable disk/folder ≠ deleted origin: do not clear links, auto-move, or treat as absent on access error alone; retry on next relevant reconcile event; if problem persists show non-blocking «needs review» notice; never present unverified state as fully checked.
+- **CL-P05** — FS succeeded but SQLite not updated: no full-success messaging; UI reflects **disk-confirmed** state only; preserve recovery data; run safe reconcile; notify if unresolved; **no** automatic retry of move/delete without proven safe idempotency.
+
+### Deferred to `/speckit-plan` (technical, not product)
+
+- Algorithms for «confirmed original» identity (hash vs size/mtime tiers), exact reconcile job scheduling, and IPC event wiring.
+- Mapping CL-P03 to concrete `ConfirmKind` values and batch dialog layout.
 
 ---
 
@@ -53,7 +69,7 @@ In the parent album, the user taps an active star. The app removes only the conf
 **Acceptance Scenarios**:
 
 1. **Given** a confirmed origin↔copy link, **When** the user clears the star in the album, **Then** only the copy is recycled, the original is unchanged, and the star is off after confirmed result.
-2. **Given** ambiguous copy identification, **When** the user clears the star, **Then** the app does not perform dangerous deletion until the situation is resolved per FR-11 / existing confirm kinds.
+2. **Given** ambiguous copy identification or unverified origin, **When** the user clears the star, **Then** the app uses FR-11 or verified-safe `needs_confirm` per CL-P03 — never silent recycle.
 
 ---
 
@@ -111,7 +127,7 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 | ID | Expected result (abbrev.) |
 |----|---------------------------|
 | EC-01 | Do not recreate deleted source folder without consent |
-| EC-02 | Offline source disk → no random restore path |
+| EC-02 | Offline/unavailable disk → ambiguous, not deleted; no link purge; retry later (CL-P04) |
 | EC-03 | Name collision → no overwrite; safe alternative |
 | EC-04 | Origin in Windows Recycle ≠ confirmed destroyed |
 | EC-05 | Renamed origin outside app → no link by name only |
@@ -121,7 +137,7 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 | EC-09 | Crash mid-move → no duplicate dangerous retry |
 | EC-10 | Mass unfavorite with missing origins → no ambiguous auto-delete |
 | EC-11 | Renamed old Favorites → normal folder, no auto-stars |
-| EC-12 | New file at old path → no inherited star |
+| EC-12 | New file at old path → no inherited star; never overwrite on «return to source» |
 | EC-13 | Cross-disk move OOM → keep source on failure |
 | EC-14 | No target permission → do not delete source |
 | EC-15 | Parallel ops on same photo → blocked or serialized safely |
@@ -153,8 +169,8 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 | INV-02 | Copies are independent; origin delete/move/rename does not auto-delete copy |
 | INV-03 | No implicit delete/move; ambiguity ≠ permission to delete |
 | INV-04 | No false success in UI or persistence when required steps unconfirmed |
-| INV-05 | No automatic overwrite on name/path collision |
-| INV-06 | Stars reflect confirmed active Favorites link; path/name alone ≠ restore old link |
+| INV-05 | No automatic overwrite on name/path collision; includes «new file at old path» after original delete |
+| INV-06 | Stars reflect confirmed active Favorites link; path/name alone ≠ restore old link or confirm identity |
 | INV-07 | Crashes/errors must allow safe determination of state; no deleting user files to «fix» DB |
 | INV-08 | Deactivated renamed Favorites remains a normal folder; no auto-delete or auto-migrate of old copies |
 
@@ -162,13 +178,13 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 
 - **FR-001 (FR-01)**: Add to favorites — validate source and target; create independent copy; record confirmed origin↔copy link; optimistic UI allowed with rollback on failure; preserve partial batch results; safe duplicate handling.
 
-- **FR-002 (FR-02)**: Stale SQLite links — **policy: safe background reconciliation**. Detect stale/ambiguous links; distinguish confirmed deletion vs temporary unavailability; preserve recovery data; metadata cleanup only when safe; **forbidden**: unconditional row delete on every star list fetch.
+- **FR-002 (FR-02)**: Stale SQLite links — **policy: safe background reconciliation (CL-P01, CL-P04)**. Triggers: startup; after Favorites ops (including partial/indeterminate); light metadata check on album open. Detect stale/ambiguous links; distinguish confirmed deletion vs temporary unavailability (CL-P04); preserve recovery data; metadata cleanup only when safe; **forbidden**: unconditional row delete on every star list fetch; **forbidden**: deleting user photos during reconcile.
 
-- **FR-003 (FR-03)**: FS/SQLite mismatch — **policy: auto-reconcile + notify if unresolved**. On copy exists but journal incomplete: persist needs-review state, attempt safe repair, verify, show non-blocking plain-language notice if still broken; never auto-delete copy. Align with existing reconciliation statuses where audit confirms them (e.g. needs-reconciliation).
+- **FR-003 (FR-03)**: FS/SQLite mismatch — **policy: auto-reconcile + notify if unresolved (CL-P01, CL-P05)**. On copy exists but journal incomplete: persist needs-review state, attempt safe repair, verify, show non-blocking plain-language notice if still broken; never auto-delete copy. If FS change succeeded before SQLite update: no false full success (CL-P05); reflect disk-confirmed state; no unsafe auto-retry of move/delete.
 
-- **FR-004 (FR-04)**: Star off from album — resolve confirmed copy; apply existing confirmations when needed; send copy to Windows Recycle Bin; keep origin; update star after confirmed result; no dangerous delete when ambiguous.
+- **FR-004 (FR-04)**: Star off from album — resolve confirmed copy; use `needs_confirm` only under CL-P03; otherwise FR-11; send copy to Windows Recycle Bin when operation is verified safe; keep origin; update star after confirmed result.
 
-- **FR-005 (FR-05)**: Explorer changes — **policy: reconcile affected folders only**. Handle delete/move/rename/add/availability; no full-library scan; manual drops into Favorites do not auto-link by name; mark ambiguous states explicitly.
+- **FR-005 (FR-05)**: Explorer changes — **policy: reconcile affected folders only (CL-P02)**. Scope: open album, active Favorites, relevant local trash. Handle delete/move/rename/add/availability within scope; no full-library scan; manual drops into Favorites do not auto-link by name; mark ambiguous states explicitly.
 
 - **FR-006 (FR-06)**: Undo after unfavorite — **policy: Windows Recycle Bin only**. Clear messaging; do not advertise working in-app undo; do not treat undo stub as functional; no auto-restore without user action; do not touch unrelated Recycle Bin items.
 
@@ -180,7 +196,11 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 
 - **FR-010 (FR-10)**: Delete origin after favoriting — origin delete (app or Explorer) does not delete copy; copy remains usable; historical link may remain for safe recovery; new file at same path does not inherit star; mass origin delete does not remove copies.
 
-- **FR-011 (FR-11)**: Unfavorite copy with missing/unverified origin — **choice dialog** (title, body, actions A–D as in TZ). No silent delete; failed move does not clear Favorites status; extra confirmation for Recycle when last instance possible.
+- **FR-011 (FR-11)**: Unfavorite copy with missing/unverified origin — **choice dialog** (title, body, actions A–D as in TZ). No silent delete; failed move does not clear Favorites status; extra confirmation for Recycle when last instance possible. Action A («return to source») MUST re-verify target path is empty or destination file is the confirmed original (size/mtime/content per plan); otherwise stop and offer B/C/D — never overwrite an unrelated file at that path.
+
+- **FR-011a (identity safety)**: For any return, relocate, or restore involving a stored origin path: if a file exists at the target but is not the confirmed original, treat as **identity conflict** — abort overwrite, keep copy in Favorites, present safe choices (FR-11 actions B/C/D).
+
+- **FR-011b (confirm routing, CL-P03)**: **Standard recycle** (`needs_confirm` for `origin_changed`, `copy_changed`, `ambiguous_origin`, `origin_in_local_trash`, etc.) applies only when classification proves origin is present, identity is confirmed, and recycle/relocate is safe. **FR-11 full choice** (missing/inaccessible/unconfirmed origin, possible last instance): mandatory before any copy delete. One decision per user action — no stacked redundant dialogs. Mass unfavorite: same rules per file; no ambiguous auto-delete in batch.
 
 ### File-operation safety (§7)
 
@@ -229,8 +249,13 @@ Mandatory scenarios **EC-01** through **EC-22** from the product TZ (§6) are in
 - **SC-004**: Batch add tests with injected failures report correct success count and preserve all successful copies.
 - **SC-005**: FR-11 dialog shown in 100% of tested «missing origin» unfavorite attempts from Favorites folder (no silent recycle).
 - **SC-006**: Rename-to-normal-folder tests: 100% file retention in renamed folder; 0% erroneous star reactivation from historical links.
-- **SC-007**: Explorer-delete-copy tests: star off within one sync cycle of affected folder (define cycle in plan).
-- **SC-008**: All EC-01–EC-22 have traced test or documented manual smoke with pass/fail.
+- **SC-007**: Explorer-delete-copy in scoped folders (CL-P02): star off after the next applicable reconcile trigger (CL-P01: album open, folder-changed in scope, or post-op) — latency targets in plan.
+- **SC-011**: Reconcile triggers (CL-P01): tests prove startup / post-favorites-op / album-open light check run without deleting user files.
+- **SC-012**: Unavailable disk (CL-P04): access errors do not clear stars or links; notice only after persistent failure.
+- **SC-013**: FS-before-SQLite (CL-P05): no full-success UI when journal incomplete; copy remains on disk; notice if unresolved.
+- **SC-014**: CL-P03: unverified-origin unfavorite always reaches FR-11 or safe batch equivalent; verified-origin uses single appropriate confirm, not duplicate stacks.
+- **SC-015**: CL-00 / FR-011a: «return to source» with different file at path never overwrites; conflict offers B/C/D.
+- **SC-008**: All EC-01–EC-22 have traced automated test coverage for **critical file-operation scenarios** (favorites copy, unfavorite, relocate, reconcile, batch partial failure). Manual release smoke (SC-010) is **additional** verification, not a substitute for those automated tests. Traceability table: `specs/001-safe-favorites-lifecycle/quickstart.md` (tasks T051).
 - **SC-009**: No acceptance case marks UI/SQLite success when audited required steps failed (INV-04).
 - **SC-010**: Manual release smoke checklist for favorites (constitution + INVARIANTS) executed and recorded before ship.
 
@@ -254,7 +279,7 @@ Documented gaps to close during implementation (see `docs/audit/favorites/GAP_AN
 - Limited Explorer-driven DB sync (FR-005).
 - `undo_favorite_removal` stub (FR-006 — document only, not implement Windows restore).
 - Batch IPC total failure UX (FR-008).
-- FR-11 dialog may extend existing `needs_confirm` / relocate flows — exact UI parity TBD in `/speckit-plan`.
+- CL-P01–P05 product boundaries closed in §Clarifications; implementation mapping in plan.
 
 ## Constitution Alignment
 
@@ -269,7 +294,6 @@ Release-ready when items 1–15 of the product TZ acceptance list are verified b
 
 ## SpecKit Next Steps (no implementation)
 
-1. `/speckit-clarify` — technical boundaries only (reconcile triggers, Explorer scope, FR-11 vs existing dialogs).  
-2. `/speckit-plan` — minimal delta from audit baseline.  
+1. `/speckit-plan` — minimal delta from audit baseline (CL-P01–P05 locked).  
 3. `/speckit-checklist` / `/speckit-tasks` / `/speckit-analyze`.  
 4. Implementation only with owner approval + sealed tasks.

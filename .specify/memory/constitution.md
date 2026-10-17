@@ -10,6 +10,15 @@ source, not a destructive move of the original. Automated tests MUST use fixture
 temp paths only; production photo libraries and live app databases MUST NOT be used
 as test targets. File-operation errors MUST NOT be reported as success in UI or DB.
 
+Bulk mutation, deletion, relocation, or sending of originals to the OS recycle bin
+MUST NOT occur without explicitly confirmed user intent. Exceptions MUST be documented
+as separate product requirements — not inferred from refactoring or convenience.
+
+For high-risk filesystem operations, reviews and tasks MUST examine intermediate
+states, crash/recovery behavior, retry/idempotency, and filesystem↔SQLite consistency.
+Agents MUST NOT assume a specific recovery mechanism exists until a read-only audit
+confirms it; unconfirmed recovery claims MUST be marked UNVERIFIED.
+
 **Rationale:** StitchVue manages real photo collections; a false success or accidental
 mutation is worse than a failed operation.
 
@@ -35,15 +44,24 @@ batches and wrong thumbnails.
 
 ### IV. Scoped, Reversible Change
 
-Every implementation stage MUST follow a single sealed task file under
-`docs/refactoring/tasks/` with explicit `allowed_paths`, risk class, and acceptance
-criteria. Diffs outside `allowed_paths` are a stop condition. Scope expansion after
-seal REQUIRES re-approval and re-seal. Destructive git operations (`reset --hard`,
-force push, mass history rewrite) are forbidden unless the user explicitly requests
-them under a documented procedure.
+Every implementation stage that changes application source, contracts, or user data
+MUST follow a single sealed task file under `docs/refactoring/tasks/` with explicit
+`allowed_paths`, risk class, and acceptance criteria, per
+`docs/refactoring/TASK_HANDOFF.md`. Diffs outside `allowed_paths` are a stop
+condition. Scope expansion after seal REQUIRES re-approval and re-seal. Destructive
+git operations (`reset --hard`, force push, mass history rewrite) are forbidden
+unless the user explicitly requests them under a documented procedure.
+
+Read-only audit, documentation of observed behavior, and SpecKit planning DO NOT
+require a sealed implementation task when they do not modify application source,
+IPC/SQLite contracts, or user data.
+
+SpecKit `tasks.md` (produced by `/speckit-tasks`) is for overall planning. Code-changing
+implementation stages MUST still use sealed tasks under `TASK_HANDOFF.md`; a SpecKit
+plan alone does not authorize source edits.
 
 **Rationale:** Incremental, reversible diffs keep gallery, IPC, and filesystem paths
-auditable and rollback-safe.
+auditable and rollback-safe. Planning and evidence-gathering stay lightweight.
 
 ### V. Evidence Before Claim
 
@@ -74,10 +92,14 @@ StitchVue is a Windows desktop gallery: Tauri 2, Rust backend, React/TypeScript 
 
 ## Development Workflow & Quality Gates
 
+- For existing functionality, a read-only audit of the actual implementation MUST
+  precede `/speckit-specify`. Audit findings document observed behavior; unconfirmed
+  statements MUST be marked UNVERIFIED. Agents MUST NOT invent architecture in place
+  of evidence from code and tests.
 - Prefer targeted verification: `npm run typecheck`, focused `npm test -- …` /
   `node --test`, and `cargo test` for the touched Rust module.
 - Refactoring tasks use `node scripts/refactor-task-check.mjs` gates (`--preflight`,
-  `--auth`, `--strict`, `--seal`) per `TASK_HANDOFF.md`.
+  `--auth`, `--strict`, `--seal`) per `docs/refactoring/TASK_HANDOFF.md`.
 - Risk class follows affected invariants (session/order/favorites UI ≥ medium; FS,
   SQLite, IPC, thumbnail scheduler = high), not file count.
 - Commits use Conventional Commits; create commits only when the user asks; no
@@ -101,5 +123,9 @@ Compliance review expectations:
 - Complexity and scope growth MUST be justified against Principle IV.
 - Runtime guidance lives in `docs/INVARIANTS.md`, `docs/ARCHITECTURE.md`, and
   `docs/refactoring/TASK_HANDOFF.md`; the constitution does not duplicate full tables.
+- Before adding references to documents, scripts, rules, or skills, authors MUST
+  verify that the cited path exists in the repository (or is an explicitly named
+  SpecKit artifact such as feature `tasks.md` produced by `/speckit-tasks`).
+  Broken or speculative links MUST NOT be introduced.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-17 | **Last Amended**: 2026-10-17
+**Version**: 1.1.0 | **Ratified**: 2026-10-17 | **Last Amended**: 2026-10-17

@@ -30,4 +30,4 @@
 ## Notes
 
 - Technical gaps vs current implementation are listed under **Current State (Audit)** — not treated as desired behavior until implementation tasks close them.
-- Open **technical** boundaries for `/speckit-clarify`: reconciliation trigger scope, Explorer sync depth, FR-11 dialog vs existing confirm flows.
+- `/speckit-clarify` complete 2026-10-17: CL-00, CL-P01–CL-P05 recorded in spec §Clarifications; SC-011–SC-015 added.
