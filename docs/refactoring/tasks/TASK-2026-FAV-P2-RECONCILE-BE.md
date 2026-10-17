@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P2-RECONCILE-BE
 title: "P2 Safe Favorites — scoped reconcile backend (T015–T016, T021–T022b)"
-status: approved
+status: verification
 risk: high
 responsible_agent: backend-executor
 base_commit: "819bae3def4e865c56ed3148546976cbc0949b01"
@@ -35,7 +35,7 @@ SpecKit T015, T016, T021, T022, T022a, T022b. **Metadata-only** — never unlink
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P2-RECONCILE-BE |
-| Статус | approved |
+| Статус | verification |
 | Риск | high |
 | Ответственный | backend-executor |
 | SpecKit | T015, T016, T021, T022, T022a, T022b |
@@ -127,4 +127,35 @@ Auditor → seal → backend-executor → guardian → strict.
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** verification (ожидает guardian; `completed` после review)
+
+**CHANGED:**
+- `src-tauri/src/file_ops/reconcile.rs` — `reconcile_favorites_scope(db, directory_prefix)`: scoped favorite journal finish + copy metadata refresh; `OriginAvailability` from `p1_identity_gate`; no `recover_legacy_undo`; no FS delete/recycle of photos/orphans; Unavailable/Missing → no `favorite_copies` purge
+- `src-tauri/src/pipeline/mod.rs` — T016: after `finish_op` paths in `execute_file_operation`, call scope for `CopyToLocalFavorites` (Ok and Err)
+- `src-tauri/src/file_ops/p2_reconcile_scope.rs` — VERIFY T021–T022b (`p2_reconcile` filter)
+- `src-tauri/src/file_ops/mod.rs` — `mod p2_reconcile_scope`
+
+**Remove-gap (T016):** post-op scope hooked only on `CopyToLocalFavorites` in `execute_file_operation`. Remove/unfavorite completion (`remove_favorite_copies_batch` / related IPC) **not** hooked here — deferred to FE album-open / folder-changed (T018–T019) or a follow-up BE hook.
+
+**INVARIANTS:** originals/copies not unlinked by scope; CL-P04 Unavailable no purge; EC-21 orphan noop; EC-05 no basename invent. Boot `reconcile_on_boot` unchanged (still calls `recover_legacy_undo`). `favorites.rs` untouched; T001 stays RED.
+
+**TESTS:**
+| Filter | Result |
+|--------|--------|
+| `favorites_copy_recovery` | PASS (10) |
+| `favorites_trash_lifecycle_final` | PASS (14) |
+| `p0_safe_favorites_t003` | PASS |
+| `p2_reconcile` | PASS (T021, T022, T022a, T022b) |
+| `p0_safe_favorites_t001` | RED (expected) |
+
+**GATES:** preflight OK · auth OK · strict+run-tests OK (working tree clean at strict after code commit)
+
+**DIFF:** in scope
+
+**SHAs:** seal `f22db40` · impl `f270e36` · report (this docs commit)
+
+**SMOKE:** N/A fixture-covered; HANDOFF manual optional
+
+**RISKS:** high (FS/SQLite metadata path); remove-gap until FE/album trigger; UNC Unavailable fixture depends on Windows BAD_NETPATH
+
+**NEXT:** regression-guardian → then `completed` + smoke if guardian asks
