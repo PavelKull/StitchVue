@@ -1112,6 +1112,11 @@ impl Pipeline {
                 }
             }
         }
+        // CL-P01.2: post-op scoped reconcile after favorites file-op (Ok and Err).
+        if request.action == crate::file_ops::Action::CopyToLocalFavorites {
+            let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
+            let _ = crate::file_ops::reconcile::reconcile_favorites_scope(&db, &request.directory);
+        }
         executed
     }
 

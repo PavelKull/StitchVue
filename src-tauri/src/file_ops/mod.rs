@@ -25,6 +25,8 @@ mod locks;
 #[cfg(test)]
 mod p0_safe_favorites;
 mod p1_identity_gate;
+#[cfg(test)]
+mod p2_reconcile_scope;
 pub mod reconcile;
 pub mod recycle;
 pub(crate) mod trash_folder;
