@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P2-RECONCILE-BE
 title: "P2 Safe Favorites — scoped reconcile backend (T015–T016, T021–T022b)"
-status: verification
+status: completed
 risk: high
 responsible_agent: backend-executor
 base_commit: "819bae3def4e865c56ed3148546976cbc0949b01"
