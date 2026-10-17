@@ -1,10 +1,11 @@
 ---
 task_id: TASK-2026-FAV-P0-RUST-VERIFY
 title: "P0 Safe Favorites — Rust VERIFY (T001–T004)"
-status: draft
+status: approved
 risk: medium
 responsible_agent: backend-executor
-base_commit: ""
+base_commit: "d2f96ac33bb9a1415a92ee9c0987febc14b42109"
+approval_hash: 4527116a55008c4c89af11796072af376a099cfdf935e2614bb4c9a99a877cb6
 allowed_paths:
   - src-tauri/src/file_ops/p0_safe_favorites.rs
   - src-tauri/src/file_ops/mod.rs
@@ -34,7 +35,7 @@ SpecKit: `specs/001-safe-favorites-lifecycle/tasks.md` Phase 0. **Только �
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-RUST-VERIFY |
-| Статус | draft |
+| Статус | approved |
 | Риск | medium — тесты вызывают file_ops на temp FS; без изменения prod |
 | Ответственный | backend-executor |
 | SpecKit | T001, T002, T003, T004 |
