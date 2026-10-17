@@ -6,6 +6,7 @@ import {
   batchUnfavoriteConfirmLines,
   batchUnfavoritePromptCopy,
   bucketUnfavoritePreviewTargets,
+  partitionFr11RequiredFromOtherConfirm,
   unfavoriteConfirmKindLabel,
   cleanupOutcomeFromStatus,
   historyWithoutRemovedFolder,
@@ -111,6 +112,82 @@ test("bucketUnfavoritePreviewTargets splits trash vs ready vs other confirm", ()
   assert.equal(buckets.ready.length, 1);
   assert.equal(buckets.originInTrash.length, 1);
   assert.equal(buckets.otherConfirm.length, 1);
+});
+
+test("partitionFr11RequiredFromOtherConfirm maps unknown_origin to fr11Required (EC-10)", () => {
+  const unknownFile = file("C:\\Album\\Избранное\\unknown.jpg");
+  const changedFile = file("C:\\Album\\Избранное\\changed.jpg");
+  const ambiguousFile = file("C:\\Album\\Избранное\\ambiguous.jpg");
+  const previews = [
+    {
+      path: unknownFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "unknown_origin" as const,
+        undoId: "",
+      },
+    },
+    {
+      path: changedFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "origin_changed" as const,
+        undoId: "",
+      },
+    },
+    {
+      path: ambiguousFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "ambiguous_origin" as const,
+        undoId: "",
+      },
+    },
+  ];
+  const buckets = bucketUnfavoritePreviewTargets(
+    [unknownFile, changedFile, ambiguousFile],
+    previews,
+  );
+  assert.equal(buckets.otherConfirm.length, 3);
+  const partitioned = partitionFr11RequiredFromOtherConfirm(
+    buckets.otherConfirm,
+    previews,
+  );
+  assert.deepEqual(
+    partitioned.fr11Required.map((item) => item.path),
+    [unknownFile.path],
+  );
+  assert.deepEqual(
+    partitioned.standardConfirm.map((item) => item.path).sort(),
+    [ambiguousFile.path, changedFile.path].sort(),
+  );
+});
+
+test("partitionFr11RequiredFromOtherConfirm honors fr11Required DTO hint", () => {
+  const changedFile = file("C:\\Album\\Избранное\\hint.jpg");
+  const previews = [
+    {
+      path: changedFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "origin_changed" as const,
+        undoId: "",
+        fr11Required: true,
+      } as {
+        status: "needs_confirm";
+        confirmKind: "origin_changed";
+        undoId: string;
+        fr11Required: boolean;
+      },
+    },
+  ];
+  const buckets = bucketUnfavoritePreviewTargets([changedFile], previews);
+  const partitioned = partitionFr11RequiredFromOtherConfirm(
+    buckets.otherConfirm,
+    previews,
+  );
+  assert.equal(partitioned.fr11Required.length, 1);
+  assert.equal(partitioned.standardConfirm.length, 0);
 });
 
 test("origin_in_local_trash confirm kind has a label", () => {

@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P0-FE-VERIFY
 title: "P0 Safe Favorites — Frontend VERIFY (T005–T006)"
-status: approved
+status: verification
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "6db721cf99c737ffccc410795153ce2a7c59a383"
@@ -32,7 +32,7 @@ SpecKit T005–T006. **TDD:** сначала тесты (и минимальны
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-FE-VERIFY |
-| Статус | approved |
+| Статус | verification |
 | Риск | medium — новый routing lib + batch test expectations |
 | Ответственный | frontend-executor |
 | SpecKit | T005, T006 |
@@ -112,4 +112,20 @@ SpecKit T005–T006. **TDD:** сначала тесты (и минимальны
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**Worktree:** `C:\Users\Pavel\Desktop\ImageGrid-fav-lifecycle` / `feat/safe-favorites-lifecycle`  
+**HEAD до правок:** `3dcc575` (seal); `base_commit` 6db721c — WARN only.
+
+| Пункт | Результат |
+|-------|-----------|
+| T005 | `mapRemovalToUiRoute.ts` + `.test.ts`: unverified/missing/inaccessible/`unknown_origin`/`fr11Required` → `fr11`; verified confirms → `standardConfirm`; trash → `originInTrash`; ready → `ready`/`proceed` |
+| T006 | `partitionFr11RequiredFromOtherConfirm` поверх `otherConfirm`; existing `bucketUnfavoritePreviewTargets` trash/ready/other **без изменений поведения** |
+| GalleryPage / IPC | не трогались |
+
+**Проверки:**
+- `npm run typecheck` → PASS
+- `npm test -- src/features/favorites/lib/mapRemovalToUiRoute.test.ts` → PASS (431; новый файл appended)
+- `npm test -- src/features/selection/lib/removeFavoritesBatch.test.ts` → PASS (426)
+- Targeted: mapRemoval 5/5; removeFavoritesBatch 21/21
+
+**GATES:** `--auth` OK; `--strict` OK (код до правки §7).  
+**NEXT:** regression-guardian (risk medium).

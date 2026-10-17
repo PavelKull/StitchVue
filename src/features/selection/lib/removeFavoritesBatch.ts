@@ -92,6 +92,40 @@ export function bucketUnfavoritePreviewTargets(
   return { ready, originInTrash, otherConfirm, previewFailed };
 }
 
+/** Confirm kinds that must use FR-11 (CL-P03), not standard recycle confirm. */
+export function isFr11RequiredConfirmKind(kind: RemoveFavoriteConfirmKind): boolean {
+  return kind === "unknown_origin";
+}
+
+/**
+ * Split `otherConfirm` from {@link bucketUnfavoritePreviewTargets} into FR-11 vs standard
+ * without changing the existing bucket API (GalleryPage path unchanged until P4/P5).
+ */
+export function partitionFr11RequiredFromOtherConfirm(
+  otherConfirm: readonly ImageFile[],
+  previews: readonly FavoriteBatchPathResult[],
+): { fr11Required: ImageFile[]; standardConfirm: ImageFile[] } {
+  const byPath = new Map(
+    previews.map((entry) => [pathKey(entry.path), entry] as const),
+  );
+  const fr11Required: ImageFile[] = [];
+  const standardConfirm: ImageFile[] = [];
+  for (const file of otherConfirm) {
+    const entry = byPath.get(pathKey(file.path));
+    const preview = entry?.result;
+    const hint = (preview as { fr11Required?: boolean | null } | undefined)?.fr11Required;
+    const kind = (preview?.confirmKind ??
+      entry?.classifyDebug?.confirmKind ??
+      "unknown_origin") as RemoveFavoriteConfirmKind;
+    if (hint === true || isFr11RequiredConfirmKind(kind)) {
+      fr11Required.push(file);
+    } else {
+      standardConfirm.push(file);
+    }
+  }
+  return { fr11Required, standardConfirm };
+}
+
 export function massTrashUnfavoriteCounts(
   total: number,
   buckets: Pick<UnfavoritePreviewBuckets, "ready" | "originInTrash" | "otherConfirm">,
