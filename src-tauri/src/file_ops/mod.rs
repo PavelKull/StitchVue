@@ -24,6 +24,7 @@ mod favorites_lifecycle;
 mod locks;
 #[cfg(test)]
 mod p0_safe_favorites;
+mod p1_identity_gate;
 pub mod reconcile;
 pub mod recycle;
 pub(crate) mod trash_folder;
