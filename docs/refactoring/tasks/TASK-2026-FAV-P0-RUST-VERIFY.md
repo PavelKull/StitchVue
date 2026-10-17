@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P0-RUST-VERIFY
 title: "P0 Safe Favorites — Rust VERIFY (T001–T004)"
-status: approved
+status: verification
 risk: medium
 responsible_agent: backend-executor
 base_commit: "d2f96ac33bb9a1415a92ee9c0987febc14b42109"
@@ -35,7 +35,7 @@ SpecKit: `specs/001-safe-favorites-lifecycle/tasks.md` Phase 0. **Только �
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P0-RUST-VERIFY |
-| Статус | approved |
+| Статус | verification |
 | Риск | medium — тесты вызывают file_ops на temp FS; без изменения prod |
 | Ответственный | backend-executor |
 | SpecKit | T001, T002, T003, T004 |
@@ -130,4 +130,19 @@ SpecKit: `specs/001-safe-favorites-lifecycle/tasks.md` Phase 0. **Только �
 
 ## 7. Отчёт исполнителя
 
-(заполняется после работы)
+**Worktree:** `C:\Users\Pavel\Desktop\ImageGrid-fav-lifecycle` / `feat/safe-favorites-lifecycle`
+
+**Модуль:** `src-tauri/src/file_ops/p0_safe_favorites.rs` + `#[cfg(test)] mod p0_safe_favorites;` в `mod.rs`
+
+| Тест | Имя | Результат | Факт |
+|------|-----|-----------|------|
+| T001 | `p0_safe_favorites_t001_unknown_origin_confirmed_must_not_relocate` | **FAIL (ожидаемо RED)** | `remove_favorite_copy(..., true, None)` → `status == "relocated"` (дефект dispatch) |
+| T002 | `p0_safe_favorites_t002_return_to_source_aborts_if_origin_path_occupied_by_other_file` | **PASS** | OriginChanged + confirmed → `relocated` в parent (`… (из избранного)`); байты чужого файла на origin **не** перезаписаны |
+| T003 | `p0_safe_favorites_t003_reconcile_paths_do_not_delete_user_photos` | **PASS** | `reconcile_one` / `reconcile_on_boot` на pending/needs_reconciliation add-to-favorites: origin + album + copy не unlink |
+| T004 | `p0_safe_favorites_t004_unavailable_origin_does_not_purge_favorite_copies_row` | **PASS** | Origin `Z:\sv-fav-p0-missing\…`; preview + unconfirmed remove → `favorite_copies` count=1 |
+
+**Baseline:** `favorites_copy_recovery` 10/10 PASS; `favorites_trash_lifecycle_final` 14/14 PASS.
+
+**fmt:** `rustfmt --check` на allowed OK. Полный `cargo fmt --check` по crate — FAIL из‑за pre-existing (вне scope; не трогали).
+
+**Production:** не менялся. STOP не требовался (T001 RED как в ТЗ).
