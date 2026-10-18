@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P4-FE-FR11
 title: "P4 Safe Favorites — FR-11 UI A–D + wiring (T034–T037, T039)"
-status: approved
+status: verification
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "1fe4775ae2e3a87ffdb68785ed9a2221fa151f1a"
@@ -40,7 +40,7 @@ Includes **P4b action B** (folder picker) — mandatory for release.
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P4-FE-FR11 |
-| Статус | draft |
+| Статус | verification |
 | Риск | medium |
 | Ответственный | frontend-executor |
 | SpecKit | T034, T035, T036, T037, T039 |
@@ -101,4 +101,12 @@ frontend-executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** verification  
+**SHA (pre):** `06be58b` (seal) → feat commit below  
+
+**Done:** T034 mapRemoval unverified/unknown→fr11 (already); T039 cancel/identity tests; T035 `FavoriteMissingOriginDialog` A–D; T036 GalleryPage wires FR-11 via `mapRemovalToUiRoute` + resolution IPC; T037 `flightToken` on selection `unfavoriteGate`; i18n en/ru/de/zh-Hans.
+
+**B picker:** UI presents folder picker (`selectFolder`) and sends `choose_folder:<path>`. **BE still stubs** both `choose_folder` and `choose_folder:*` (P4a) — invoke fails with P4b message; copy kept. Release still needs BE P4b execute for B.
+
+**GATES:** preflight/auth/strict/run-tests OK. typecheck OK. i18n-check OK.  
+**NEXT:** regression-guardian (risk medium).

@@ -77,3 +77,48 @@ test("ready → ready; proceed alias", () => {
   assert.equal(mapRemovalToUiRoute({ status: "ready" }), "ready");
   assert.equal(mapRemovalToUiRouteOrProceed({ status: "ready" }), "proceed");
 });
+
+test("T039: cancel / keep path stays fr11-safe (not standardConfirm relocate)", () => {
+  // После cancel UI не должен маршрутизировать в confirm-as-relocate.
+  assert.equal(
+    mapRemovalToUiRoute({
+      status: "skipped",
+      confirmKind: "unknown_origin",
+    }),
+    "fr11",
+  );
+  assert.notEqual(
+    mapRemovalToUiRoute({
+      status: "needs_confirm",
+      confirmKind: "unknown_origin",
+      originPresence: "unverified",
+    }),
+    "standardConfirm",
+  );
+});
+
+test("T039: identity conflict / failed unverified → fr11 (B/C/D, not relocate confirm)", () => {
+  assert.equal(
+    mapRemovalToUiRoute({
+      status: "failed",
+      originPresence: "unverified",
+    }),
+    "fr11",
+  );
+  assert.equal(
+    mapRemovalToUiRoute({
+      status: "failed",
+      confirmKind: "unknown_origin",
+      fr11Required: true,
+    }),
+    "fr11",
+  );
+  assert.equal(
+    mapRemovalToUiRoute({
+      status: "needs_confirm",
+      confirmKind: "ambiguous_origin",
+      originPresence: "missing",
+    }),
+    "fr11",
+  );
+});

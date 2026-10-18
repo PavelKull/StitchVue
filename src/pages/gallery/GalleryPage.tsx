@@ -162,12 +162,14 @@ import { logUnfavoriteBatchClassifyDebug } from '../../features/selection/lib/un
 import {
     beginUnfavorite,
     beginUnfavoriteConfirmPass,
+    canResolveUnfavoriteConfirm,
     canStartUnfavorite,
     endUnfavorite,
     idleUnfavoriteGate,
     markUnfavoriteConfirmPending,
     type UnfavoriteGate,
 } from '../../features/selection/lib/unfavoriteGate';
+import { mapRemovalToUiRoute } from '../../features/favorites/lib/mapRemovalToUiRoute';
 import {
     applyFavoriteOverlayPending,
     applyFavoriteOverlayPendingBatch,
@@ -214,6 +216,7 @@ import {
     SelectionActions,
 } from '../../widgets/selection-actions/SelectionActions';
 import { FavoriteTrashUnfavoriteDialog } from '../../widgets/favorites-trash-unfavorite-dialog/ui/FavoriteTrashUnfavoriteDialog';
+import { FavoriteMissingOriginDialog } from '../../widgets/favorites-missing-origin-dialog/ui/FavoriteMissingOriginDialog';
 import selectionActionsStyles from '../../widgets/selection-actions/SelectionActions.module.scss';
 import { FolderSidebar } from '../../widgets/folder-sidebar/FolderSidebar';
 import { orderFoldersForDisplay } from '../../features/folder/lib/folderOrder';
@@ -436,6 +439,11 @@ export function GalleryPage() {
     const [confirmMove, setConfirmMove] = useState<ImageFile[] | null>(null);
     const [favoriteTrashUnfavorite, setFavoriteTrashUnfavorite] =
         useState<ImageFile | null>(null);
+    /** FR-11 missing/unverified origin — A–D dialog (+ in-flight token). */
+    const [favoriteMissingOrigin, setFavoriteMissingOrigin] = useState<{
+        file: ImageFile;
+        flightToken: string;
+    } | null>(null);
     const [massTrashUnfavoriteOpen, setMassTrashUnfavoriteOpen] =
         useState(false);
     const [massTrashBatchCounts, setMassTrashBatchCounts] =
@@ -503,6 +511,9 @@ export function GalleryPage() {
     const { mounted: unfavoriteOverlayMounted } = useAnimatedModal(
         unfavoritePrompt !== null,
     );
+    const { mounted: missingOriginOverlayMounted } = useAnimatedModal(
+        favoriteMissingOrigin !== null,
+    );
     const { mounted: restoreOverlayMounted } = useAnimatedModal(
         restorePrompt !== null,
     );
@@ -512,6 +523,7 @@ export function GalleryPage() {
         propertiesOverlayMounted ||
         confirmMoveOverlayMounted ||
         unfavoriteOverlayMounted ||
+        missingOriginOverlayMounted ||
         restoreOverlayMounted;
 
     const galleryHasImages = useCallback(
@@ -1051,6 +1063,7 @@ export function GalleryPage() {
         }
         setConfirmMove(null);
         setUnfavoritePrompt(null);
+        setFavoriteMissingOrigin(null);
         releaseUnfavoriteGate();
         setRestorePrompt(null);
         setFolderHeaderMorph(false);
@@ -2971,10 +2984,8 @@ export function GalleryPage() {
             }
         } else if (backgroundUnfavoriteRef.current) {
             return;
-        } else if (
-            unfavoriteGateRef.current.busy &&
-            !unfavoriteGateRef.current.confirmPending
-        ) {
+        } else if (!canStartUnfavorite(unfavoriteGateRef.current)) {
+            // T037: любой in-flight / confirmPending блокирует новый старт.
             return;
         }
         const removeOpId = operationId();
@@ -3004,7 +3015,22 @@ export function GalleryPage() {
                     return;
                 }
                 const kind = removal.confirmKind ?? 'unknown_origin';
-                if (kind === 'origin_in_local_trash') {
+                const uiRoute = mapRemovalToUiRoute({
+                    status: removal.status,
+                    confirmKind: kind,
+                    fr11Required: removal.fr11Required,
+                });
+                if (uiRoute === 'fr11') {
+                    const flightToken = operationId();
+                    setUnfavoriteGate(
+                        markUnfavoriteConfirmPending(
+                            beginUnfavorite(flightToken),
+                        ),
+                    );
+                    setFavoriteMissingOrigin({ file, flightToken });
+                    return;
+                }
+                if (uiRoute === 'originInTrash') {
                     setFavoriteTrashUnfavorite(file);
                     return;
                 }
@@ -3136,6 +3162,7 @@ export function GalleryPage() {
                     busy: true,
                     sessionId,
                     confirmPending: true,
+                    flightToken: sessionId,
                 });
                 return;
             }
@@ -3209,6 +3236,7 @@ export function GalleryPage() {
                 busy: true,
                 sessionId: pending.sessionId,
                 confirmPending: false,
+                flightToken: pending.sessionId,
             };
         }
         if (!nextGate) {
@@ -3688,6 +3716,118 @@ export function GalleryPage() {
             lockedUnfavoritePathsRef.current.delete(key);
             markBusy([key], false);
         }
+    }
+
+    function cancelMissingOriginUnfavorite() {
+        const pending = favoriteMissingOrigin;
+        setFavoriteMissingOrigin(null);
+        if (
+            pending &&
+            canResolveUnfavoriteConfirm(
+                unfavoriteGateRef.current,
+                pending.flightToken,
+            )
+        ) {
+            setUnfavoriteGate(endUnfavorite());
+        } else if (
+            pending &&
+            unfavoriteGateRef.current.sessionId === pending.flightToken
+        ) {
+            setUnfavoriteGate(endUnfavorite());
+        }
+    }
+
+    /**
+     * FR-11 A/B/C/D → remove_favorite_copy resolution.
+     * B: `choose_folder:<path>` (BE P4b stub may still reject — UI presents picker).
+     */
+    async function resolveMissingOriginUnfavorite(
+        resolution:
+            | 'return_to_source'
+            | 'keep_copy'
+            | 'recycle_copy'
+            | `choose_folder:${string}`,
+    ) {
+        const pending = favoriteMissingOrigin;
+        if (!pending) {
+            return;
+        }
+        const pass = beginUnfavoriteConfirmPass(
+            unfavoriteGateRef.current,
+            pending.flightToken,
+        );
+        if (!pass) {
+            return;
+        }
+        setUnfavoriteGate(pass);
+        setFavoriteMissingOrigin(null);
+
+        if (resolution === 'keep_copy') {
+            try {
+                await invoke<RemoveFavoriteCopyResult>('remove_favorite_copy', {
+                    path: pending.file.path,
+                    confirmed: true,
+                    resolution: 'keep_copy',
+                });
+            } catch {
+                // Копия уже на месте после needs_confirm — локальный cancel достаточен.
+            } finally {
+                setUnfavoriteGate(endUnfavorite());
+            }
+            return;
+        }
+
+        const file = pending.file;
+        const key = pathKey(file.path);
+        const overlayGeneration = startFavoriteStarOverlay(
+            key,
+            false,
+            operationId(),
+        );
+        lockedUnfavoritePathsRef.current.add(key);
+        markBusy([key], true);
+        try {
+            const removal = await invoke<RemoveFavoriteCopyResult>(
+                'remove_favorite_copy',
+                {
+                    path: file.path,
+                    confirmed: true,
+                    resolution,
+                },
+            );
+            applyUnfavoriteResult(file, removal);
+            rollbackFavoriteStarOverlay(key, overlayGeneration);
+        } catch (error: unknown) {
+            rollbackFavoriteStarOverlay(key, overlayGeneration);
+            setFileNotice({
+                tone: 'failed',
+                text: formatInvokeError(error),
+                details: [],
+            });
+        } finally {
+            lockedUnfavoritePathsRef.current.delete(key);
+            markBusy([key], false);
+            setUnfavoriteGate(endUnfavorite());
+        }
+    }
+
+    async function resolveMissingOriginChooseFolder() {
+        const pending = favoriteMissingOrigin;
+        if (
+            !pending ||
+            !canResolveUnfavoriteConfirm(
+                unfavoriteGateRef.current,
+                pending.flightToken,
+            )
+        ) {
+            return;
+        }
+        const directory = await selectFolder();
+        if (!directory) {
+            // Пикер отменён — диалог остаётся открытым (токен жив).
+            return;
+        }
+        await resolveMissingOriginUnfavorite(`choose_folder:${directory}`);
     }
 
     function applyUnfavoriteResult(
@@ -4622,6 +4762,25 @@ export function GalleryPage() {
                     if (file) {
                         void resolveTrashUnfavorite(file, 'restore_origin');
                     }
+                }}
+            />
+            <FavoriteMissingOriginDialog
+                open={favoriteMissingOrigin !== null}
+                busy={
+                    favoriteMissingOrigin !== null &&
+                    busyPaths.has(pathKey(favoriteMissingOrigin.file.path))
+                }
+                showRecycle
+                onCancel={cancelMissingOriginUnfavorite}
+                onReturnToSource={() => {
+                    void resolveMissingOriginUnfavorite('return_to_source');
+                }}
+                onChooseFolder={() => resolveMissingOriginChooseFolder()}
+                onKeepCopy={() => {
+                    void resolveMissingOriginUnfavorite('keep_copy');
+                }}
+                onRecycleCopy={() => {
+                    void resolveMissingOriginUnfavorite('recycle_copy');
                 }}
             />
             <FavoriteTrashUnfavoriteDialog
