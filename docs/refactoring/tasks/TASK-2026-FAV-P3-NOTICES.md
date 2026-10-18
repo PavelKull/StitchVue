@@ -4,8 +4,8 @@ title: "P3 Safe Favorites — notices & no false success (T023–T029)"
 status: approved
 risk: medium
 responsible_agent: frontend-executor
-base_commit: "8300232865ff57ef6616383f754d1163250cb78c"
-approval_hash: e583f79b256052b7d23dfef8373dd589ca1ec5a1503963e77782d6e88c09bc0f
+base_commit: "d6e1d2b14f38e1cb6feadabc83619196dbba1e28"
+approval_hash: 64f8e2b101fe739c41ea9481b12539be6783c72cd240371b6289ca6ab2c1f14b
 allowed_paths:
   - src-tauri/src/file_ops/favorites.rs
   - src/features/favorites/lib/favoritePathsServerSync.ts
@@ -14,8 +14,8 @@ allowed_paths:
   - src/features/favorites/lib/favoriteOptimisticOverlay.test.ts
   - src/features/favorites/lib/favoriteOptimisticLifecycle.test.ts
   - src/pages/gallery/GalleryPage.tsx
-  - src/shared/locales/en.json
-  - src/shared/locales/ru.json
+  - src/shared/i18n/locales/en.json
+  - src/shared/i18n/locales/ru.json
   - src/features/selection/lib/fileOperation.ts
   - specs/001-safe-favorites-lifecycle/quickstart.md
   - docs/refactoring/tasks/TASK-2026-FAV-P3-NOTICES.md
@@ -54,7 +54,7 @@ Disk-confirmed stars; needs-review; no false full success. T024 deferred (no new
 - `favoritePathsServerSync.ts` (+test) — disk-confirmed apply; **no full-success** when journal incomplete / needs reconciliation (T026, T029)
 - `favoriteOptimisticOverlay.ts` (+tests) — rollback optimistic stars on indeterminate link (T027)
 - `GalleryPage.tsx` — map `ST_NEEDS_RECONCILIATION` / incomplete journal to needs-review notice (T025); sequential only
-- locales en/ru — needs-review / partial success keys (T028)
+- `src/shared/i18n/locales/en.json` + `ru.json` — needs-review / partial success keys (T028)
 - `fileOperation.ts` — only if notice tone helpers needed for CL-P05
 - `quickstart.md` — T024 defer note: no `favorites_reconcile_status` IPC; DTO+refetch sufficient
 
