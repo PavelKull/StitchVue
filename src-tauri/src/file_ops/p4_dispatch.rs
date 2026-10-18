@@ -147,8 +147,66 @@ fn p4_fr11_c_cancel_keeps_copy() {
 }
 
 #[test]
-fn p4_fr11_b_choose_folder_stub() {
-    let (root, conn, copy) = missing_origin_fixture("fr11-b");
+fn p4_fr11_b_choose_folder_relocates_into_chosen() {
+    let (root, conn, copy) = missing_origin_fixture("fr11-b-ok");
+    let chosen = root.join("picked");
+    fs::create_dir_all(&chosen).unwrap();
+    let resolution = format!("choose_folder:{}", chosen.to_str().unwrap());
+    let result =
+        remove_favorite_copy(&conn, copy.to_str().unwrap(), true, Some(&resolution)).unwrap();
+    assert_eq!(result.status, "relocated");
+    assert!(!copy.is_file(), "copy left Избранное after B");
+    let restored = PathBuf::from(result.restored_path.expect("restored_path"));
+    assert!(
+        restored.starts_with(&chosen),
+        "restored under chosen: {}",
+        restored.display()
+    );
+    assert!(restored.is_file());
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+/// Занятый путь (файл вместо каталога) — Err, копия и occupant сохраняются (CL-00).
+#[test]
+fn p4_fr11_b_choose_folder_occupied_conflict() {
+    let (root, conn, copy) = missing_origin_fixture("fr11-b-conflict");
+    let occupied = root.join("occupied-as-file");
+    write_bytes(&occupied, b"NOT-A-DIRECTORY");
+    let resolution = format!("choose_folder:{}", occupied.to_str().unwrap());
+    let err = remove_favorite_copy(&conn, copy.to_str().unwrap(), true, Some(&resolution))
+        .unwrap_err();
+    assert!(!err.is_empty(), "must reject occupied non-dir target");
+    assert!(copy.is_file(), "CL-00: copy kept on conflict");
+    assert_eq!(
+        fs::read(&occupied).unwrap(),
+        b"NOT-A-DIRECTORY",
+        "occupant bytes must survive"
+    );
+
+    // Предпочитаемое имя занято чужим содержимым: gate не перезаписывает;
+    // claim берёт свободный суффикс — чужие байты целы (как return_to_source / T012).
+    let (root2, conn2, copy2) = missing_origin_fixture("fr11-b-name");
+    let chosen = root2.join("picked-id");
+    fs::create_dir_all(&chosen).unwrap();
+    let preferred = chosen.join("gone (из избранного).jpg");
+    let occupant = b"OTHER-OCCUPANT";
+    write_bytes(&preferred, occupant);
+    let resolution = format!("choose_folder:{}", chosen.to_str().unwrap());
+    let result =
+        remove_favorite_copy(&conn2, copy2.to_str().unwrap(), true, Some(&resolution)).unwrap();
+    assert_eq!(result.status, "relocated");
+    assert_eq!(fs::read(&preferred).unwrap(), occupant);
+    let restored = PathBuf::from(result.restored_path.expect("restored_path"));
+    assert_ne!(restored, preferred);
+
+    let _ = fs::remove_dir_all(&root);
+    let _ = fs::remove_dir_all(&root2);
+}
+
+#[test]
+fn p4_fr11_b_choose_folder_requires_path() {
+    let (root, conn, copy) = missing_origin_fixture("fr11-b-bare");
     let err = remove_favorite_copy(
         &conn,
         copy.to_str().unwrap(),
@@ -156,7 +214,10 @@ fn p4_fr11_b_choose_folder_stub() {
         Some("choose_folder"),
     )
     .unwrap_err();
-    assert!(err.contains("P4b"), "{err}");
+    assert!(
+        err.contains("папк") || err.contains("FR-11"),
+        "{err}"
+    );
     assert!(copy.is_file());
 
     let _ = fs::remove_dir_all(&root);

@@ -467,8 +467,29 @@ fn fr11_requires_resolution(kind: ConfirmKind) -> bool {
     )
 }
 
-/// Контракт строк `resolution` для FR-11 (P4a): A=`return_to_source`, C=`cancel`|`keep_copy`;
-/// B=`choose_folder` — stub до P4b; `recycle_copy` — явный destructive recycle последней копии.
+/// FR-11 B: `choose_folder:<absPath>` → выбранный родитель; голый `choose_folder` без пути — ошибка.
+fn parse_choose_folder_target(resolution: &str) -> Result<PathBuf, String> {
+    const PREFIX: &str = "choose_folder:";
+    if resolution == "choose_folder" {
+        return Err(
+            "Не указана папка назначения. Выберите существующую папку (FR-11 B).".to_string(),
+        );
+    }
+    if let Some(raw) = resolution.strip_prefix(PREFIX) {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return Err(
+                "Не указана папка назначения. Выберите существующую папку (FR-11 B)."
+                    .to_string(),
+            );
+        }
+        return Ok(PathBuf::from(trimmed));
+    }
+    Err("Некорректное разрешение choose_folder.".to_string())
+}
+
+/// Контракт строк `resolution` для FR-11: A=`return_to_source`, B=`choose_folder:<path>`,
+/// C=`cancel`|`keep_copy`; `recycle_copy` — явный destructive recycle последней копии.
 fn dispatch_fr11_needs_confirm_distributed(
     db_mutex: &Mutex<rusqlite::Connection>,
     kind: ConfirmKind,
@@ -485,12 +506,11 @@ fn dispatch_fr11_needs_confirm_distributed(
         Some("cancel") | Some("keep_copy") => {
             Ok(RemoveFavoriteCopyResult::skipped("cancelled"))
         }
-        Some("choose_folder") => Err(
-            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
-        ),
-        Some(s) if s.starts_with("choose_folder:") => Err(
-            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
-        ),
+        Some(s) if s == "choose_folder" || s.starts_with("choose_folder:") => {
+            let chosen = parse_choose_folder_target(s)?;
+            // Тот же identity/reparse gate, что у A; родитель = выбранная папка (без mkdir дерева).
+            relocate_distributed(db_mutex, copy, &chosen, snapshot, notice_for(kind))
+        }
         Some("recycle_copy") => match snapshot {
             Some(row) => recycle_copy_only_distributed(db_mutex, copy, row),
             // EC-21: orphan без SQLite-ряда не удаляем «для починки» БД.
@@ -521,12 +541,10 @@ fn dispatch_fr11_needs_confirm_on_conn(
         Some("cancel") | Some("keep_copy") => {
             Ok(RemoveFavoriteCopyResult::skipped("cancelled"))
         }
-        Some("choose_folder") => Err(
-            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
-        ),
-        Some(s) if s.starts_with("choose_folder:") => Err(
-            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
-        ),
+        Some(s) if s == "choose_folder" || s.starts_with("choose_folder:") => {
+            let chosen = parse_choose_folder_target(s)?;
+            execute_relocate(db, copy, &chosen, snapshot, notice_for(kind))
+        }
         Some("recycle_copy") => match snapshot {
             Some(row) => recycle_copy_only_on_conn(db, copy, row),
             None => Err(

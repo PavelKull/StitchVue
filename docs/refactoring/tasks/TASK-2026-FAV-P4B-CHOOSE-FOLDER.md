@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P4B-CHOOSE-FOLDER
 title: "P4b Safe Favorites — FR-11 action B choose_folder (T035 B)"
-status: approved
+status: verification
 risk: high
 responsible_agent: backend-executor
 base_commit: "6d17a6e66b286c89833a9e3ac1427ed9645aa063"
@@ -62,4 +62,24 @@ seal → backend-executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** verification — T035 B done; T001 GREEN; p1_identity GREEN.
+
+### FR-11 B
+
+| String | Behavior |
+|--------|----------|
+| `choose_folder` | Err — нужен абсолютный путь |
+| `choose_folder:<absPath>` | Relocate в существующую папку; `prepare_relocate_parent` (нет mkdir дерева, reject reparse/junction/non-dir); identity gate как у A |
+| Conflict (target не каталог / missing / reparse) | Err, копия в «Избранное» сохраняется |
+
+### Changed
+- `favorites.rs` — `parse_choose_folder_target`; stub B → `execute_relocate` / `relocate_distributed` с chosen parent
+- `p4_dispatch.rs` — B success, occupied conflict, bare-path Err
+
+### Tests
+- `p4_dispatch` PASS (7)
+- `p0_safe_favorites` PASS (T001 GREEN)
+- `p1_identity` PASS
+
+### NEXT
+guardian + ручной smoke (high); temp fixtures only.
