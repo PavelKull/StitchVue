@@ -140,7 +140,7 @@ import {
 import {
     batchUnfavoriteConfirmLines,
     batchUnfavoritePromptCopy,
-    bucketUnfavoritePreviewTargets,
+    bucketUnfavoriteUiTargets,
     massTrashUnfavoriteCounts as computeMassTrashBatchCounts,
     type BatchUnfavoriteConfirmLine,
     type MassTrashUnfavoriteCounts,
@@ -158,6 +158,13 @@ import {
     type UnfavoriteBatchItemResult,
     type UnfavoriteCleanupOutcome,
 } from '../../features/selection/lib/removeFavoritesBatch';
+import {
+    batchAddNoticeToneAfterDiskTruth,
+    classifyAttemptedFavoriteAddsAgainstDisk,
+    classifyMassUnfavoriteWorkAfterTransportFailure,
+    mayAnnounceAllBatchFailed,
+    refetchFavoriteOriginPathsAfterIpcFailure,
+} from '../../features/favorites/lib/favoritesDiskTruthAfterIpc';
 import { logUnfavoriteBatchClassifyDebug } from '../../features/selection/lib/unfavoriteClassifyDiag';
 import {
     beginUnfavorite,
@@ -553,8 +560,21 @@ export function GalleryPage() {
         parentDirectory: string | null;
         readyFiles: ImageFile[];
         trashFiles: ImageFile[];
+        /** FR-11 очередь (по одному диалогу). */
+        fr11Files: ImageFile[];
+        /** Standard confirm (не FR-11). */
         confirmFiles: ImageFile[];
         priorResults: UnfavoriteBatchItemResult[];
+        trashResolution?: 'recycle_copy' | 'restore_origin';
+        /** Накопленные FR-11 resolutions для единого batch pass. */
+        fr11Resolved: {
+            file: ImageFile;
+            resolution:
+                | 'return_to_source'
+                | 'keep_copy'
+                | 'recycle_copy'
+                | `choose_folder:${string}`;
+        }[];
     } | null>(null);
     const unfavoriteGateRef = useRef<UnfavoriteGate>(idleUnfavoriteGate());
     const lockedUnfavoritePathsRef = useRef(new Set<string>());
@@ -2176,11 +2196,83 @@ export function GalleryPage() {
                     setFavoriteOverlay((current) =>
                         clearFavoriteOverlayForOperation(current, id),
                     );
+                    // T044b / FR-008: без disk-truth нельзя объявлять «все failed».
+                    const albumDirectory = directory;
+                    if (
+                        albumDirectory &&
+                        viewRef.current.serviceRole !== 'favorites'
+                    ) {
+                        void (async () => {
+                            const truth =
+                                await refetchFavoriteOriginPathsAfterIpcFailure({
+                                    directory: albumDirectory,
+                                    fetchOriginPaths: (dir) =>
+                                        invoke<string[]>('favorite_origin_paths', {
+                                            directory: dir,
+                                        }),
+                                    isDirectorySessionCurrent: () =>
+                                        !!viewRef.current.path &&
+                                        pathKey(viewRef.current.path) ===
+                                            pathKey(albumDirectory) &&
+                                        viewRef.current.serviceRole !==
+                                            'favorites',
+                                });
+                            if (truth.status === 'ok') {
+                                const classified =
+                                    classifyAttemptedFavoriteAddsAgainstDisk(
+                                        files.map((file) => file.path),
+                                        truth.originPaths,
+                                    );
+                                if (classified.confirmedOnDisk.length > 0) {
+                                    noteFavoritePathsConfirmedLocalMutation();
+                                    setFavoritePaths((current) => {
+                                        const next = new Set(current);
+                                        for (const path of classified.confirmedOnDisk) {
+                                            next.add(pathKey(path));
+                                        }
+                                        return next;
+                                    });
+                                }
+                                const tone = batchAddNoticeToneAfterDiskTruth({
+                                    attempted: files.length,
+                                    confirmedOnDisk:
+                                        classified.confirmedOnDisk.length,
+                                    diskTruthChecked: true,
+                                });
+                                if (tone === 'ok') {
+                                    return;
+                                }
+                                if (tone === 'partial') {
+                                    setFileNotice(
+                                        favoritesPartialSuccessNotice(),
+                                    );
+                                    return;
+                                }
+                                setFileNotice({
+                                    tone: 'failed',
+                                    text: formatInvokeError(error),
+                                    details: [],
+                                });
+                                return;
+                            }
+                            if (!mayAnnounceAllBatchFailed(false)) {
+                                setFileNotice(favoritesNeedsReviewNotice());
+                                if (
+                                    truth.status !== 'stale_session' &&
+                                    viewRef.current.path &&
+                                    pathKey(viewRef.current.path) ===
+                                        pathKey(albumDirectory)
+                                ) {
+                                    void fetchFavoriteOriginPaths(albumDirectory);
+                                }
+                            }
+                        })();
+                        return;
+                    }
                 }
                 setFileNotice({
                     tone: 'failed',
-                    text:
-                        formatInvokeError(error),
+                    text: formatInvokeError(error),
                     details: [],
                 });
             })
@@ -3111,21 +3203,18 @@ export function GalleryPage() {
         }
 
         void (async () => {
-            let confirmLines: BatchUnfavoriteConfirmLine[] = [];
             let buckets;
+            let previews: FavoriteBatchPathResult[] = [];
             try {
-                const previews = await invoke<FavoriteBatchPathResult[]>(
+                previews = await invoke<FavoriteBatchPathResult[]>(
                     'preview_remove_favorite_copies',
                     { paths: targets.map((file) => file.path) },
                 );
                 logUnfavoriteBatchClassifyDebug(previews);
-                buckets = bucketUnfavoritePreviewTargets(targets, previews);
-                confirmLines = batchUnfavoriteConfirmLines(
-                    buckets.otherConfirm,
-                    previews,
-                );
+                buckets = bucketUnfavoriteUiTargets(targets, previews);
                 for (const file of [
-                    ...buckets.otherConfirm,
+                    ...buckets.fr11Required,
+                    ...buckets.standardConfirm,
                     ...buckets.originInTrash,
                 ]) {
                     rollbackMassUnfavoriteCopyOrigin(file.path);
@@ -3136,26 +3225,45 @@ export function GalleryPage() {
                 releaseUnfavoriteGate();
                 setFileNotice({
                     tone: 'failed',
-                    text:
-                        formatInvokeError(error),
+                    text: formatInvokeError(error),
                     details: [],
                 });
                 return;
             }
 
+            const pendingBase = {
+                sessionId,
+                sessionPath,
+                parentDirectory,
+                readyFiles: buckets.ready,
+                trashFiles: buckets.originInTrash,
+                fr11Files: buckets.fr11Required,
+                confirmFiles: buckets.standardConfirm,
+                priorResults: buckets.previewFailed,
+                fr11Resolved: [] as {
+                    file: ImageFile;
+                    resolution:
+                        | 'return_to_source'
+                        | 'keep_copy'
+                        | 'recycle_copy'
+                        | `choose_folder:${string}`;
+                }[],
+            };
+
             if (buckets.originInTrash.length > 0) {
                 clearOptimisticFavoritesFolderHide(sessionId);
-                unfavoriteBatchRef.current = {
-                    sessionId,
-                    sessionPath,
-                    parentDirectory,
-                    readyFiles: buckets.ready,
-                    trashFiles: buckets.originInTrash,
-                    confirmFiles: buckets.otherConfirm,
-                    priorResults: buckets.previewFailed,
-                };
+                unfavoriteBatchRef.current = pendingBase;
                 setMassTrashBatchCounts(
-                    computeMassTrashBatchCounts(targets.length, buckets),
+                    computeMassTrashBatchCounts(targets.length, {
+                        ready: buckets.ready,
+                        originInTrash: buckets.originInTrash,
+                        otherConfirm: [
+                            ...buckets.fr11Required,
+                            ...buckets.standardConfirm,
+                        ],
+                        fr11Required: buckets.fr11Required,
+                        standardConfirm: buckets.standardConfirm,
+                    }),
                 );
                 setMassTrashUnfavoriteOpen(true);
                 setUnfavoriteGate({
@@ -3167,27 +3275,17 @@ export function GalleryPage() {
                 return;
             }
 
-            if (buckets.otherConfirm.length > 0) {
+            if (buckets.fr11Required.length > 0) {
                 clearOptimisticFavoritesFolderHide(sessionId);
-                unfavoriteBatchRef.current = {
-                    sessionId,
-                    sessionPath,
-                    parentDirectory,
-                    readyFiles: buckets.ready,
-                    trashFiles: [],
-                    confirmFiles: buckets.otherConfirm,
-                    priorResults: buckets.previewFailed,
-                };
-                setUnfavoriteGate(
-                    markUnfavoriteConfirmPending(unfavoriteGateRef.current),
-                );
-                setUnfavoritePrompt({
-                    mode: 'batch',
-                    files: buckets.otherConfirm,
-                    confirmLines,
-                    sessionPath,
-                    parentDirectory,
-                });
+                unfavoriteBatchRef.current = pendingBase;
+                openNextMassFr11Dialog(sessionId);
+                return;
+            }
+
+            if (buckets.standardConfirm.length > 0) {
+                clearOptimisticFavoritesFolderHide(sessionId);
+                unfavoriteBatchRef.current = pendingBase;
+                openMassStandardConfirmDialog(previews);
                 return;
             }
 
@@ -3199,6 +3297,176 @@ export function GalleryPage() {
                 priorResults: buckets.previewFailed,
             });
         })();
+    }
+
+    /** T043: следующий FR-11 файл из очереди mass unfavorite. */
+    function openNextMassFr11Dialog(sessionId: string) {
+        const pending = unfavoriteBatchRef.current;
+        if (!pending || pending.sessionId !== sessionId) {
+            return;
+        }
+        const next = pending.fr11Files[0];
+        if (!next) {
+            continueMassUnfavoriteAfterConfirms();
+            return;
+        }
+        setUnfavoriteGate(
+            markUnfavoriteConfirmPending({
+                busy: true,
+                sessionId,
+                confirmPending: false,
+                flightToken: sessionId,
+            }),
+        );
+        setFavoriteMissingOrigin({ file: next, flightToken: sessionId });
+    }
+
+    function openMassStandardConfirmDialog(
+        previews: readonly FavoriteBatchPathResult[],
+    ) {
+        const pending = unfavoriteBatchRef.current;
+        if (!pending || pending.confirmFiles.length === 0) {
+            continueMassUnfavoriteAfterConfirms();
+            return;
+        }
+        const confirmLines: BatchUnfavoriteConfirmLine[] =
+            batchUnfavoriteConfirmLines(pending.confirmFiles, previews);
+        setUnfavoriteGate(
+            markUnfavoriteConfirmPending(unfavoriteGateRef.current),
+        );
+        setUnfavoritePrompt({
+            mode: 'batch',
+            files: pending.confirmFiles,
+            confirmLines,
+            sessionPath: pending.sessionPath,
+            parentDirectory: pending.parentDirectory,
+        });
+    }
+
+    /** После trash/FR-11: standard confirm или единый background pass. */
+    function continueMassUnfavoriteAfterConfirms() {
+        const pending = unfavoriteBatchRef.current;
+        if (!pending) {
+            releaseUnfavoriteGate();
+            return;
+        }
+        if (pending.fr11Files.length > 0) {
+            openNextMassFr11Dialog(pending.sessionId);
+            return;
+        }
+        if (pending.confirmFiles.length > 0) {
+            void invoke<FavoriteBatchPathResult[]>(
+                'preview_remove_favorite_copies',
+                { paths: pending.confirmFiles.map((file) => file.path) },
+            )
+                .then((previews) => {
+                    if (
+                        unfavoriteBatchRef.current?.sessionId !==
+                        pending.sessionId
+                    ) {
+                        return;
+                    }
+                    openMassStandardConfirmDialog(previews);
+                })
+                .catch(() => {
+                    if (
+                        unfavoriteBatchRef.current?.sessionId !==
+                        pending.sessionId
+                    ) {
+                        return;
+                    }
+                    openMassStandardConfirmDialog([]);
+                });
+            return;
+        }
+        flushMassUnfavoriteBatchWork();
+    }
+
+    /** Собирает ready/trash/FR-11/standard в один remove_favorite_copies_batch. */
+    function flushMassUnfavoriteBatchWork(
+        standardConfirmed: readonly ImageFile[] = [],
+    ) {
+        const pending = unfavoriteBatchRef.current;
+        if (!pending) {
+            releaseUnfavoriteGate();
+            return;
+        }
+        const work: {
+            file: ImageFile;
+            confirmed: boolean;
+            resolution?: string;
+        }[] = [];
+        const priorResults: UnfavoriteBatchItemResult[] = [
+            ...pending.priorResults,
+        ];
+
+        const trashResolution = pending.trashResolution;
+        if (trashResolution === 'recycle_copy') {
+            work.push(
+                ...pending.readyFiles.map((file) => ({
+                    file,
+                    confirmed: false,
+                })),
+                ...pending.trashFiles.map((file) => ({
+                    file,
+                    confirmed: true,
+                    resolution: 'recycle_copy',
+                })),
+            );
+        } else if (trashResolution === 'restore_origin') {
+            for (const file of pending.readyFiles) {
+                rollbackMassUnfavoriteCopyOrigin(file.path);
+            }
+            work.push(
+                ...pending.trashFiles.map((file) => ({
+                    file,
+                    confirmed: true,
+                    resolution: 'restore_origin',
+                })),
+            );
+        } else {
+            work.push(
+                ...pending.readyFiles.map((file) => ({
+                    file,
+                    confirmed: false,
+                })),
+            );
+        }
+
+        for (const item of pending.fr11Resolved) {
+            if (item.resolution === 'keep_copy') {
+                priorResults.push({
+                    path: item.file.path,
+                    status: 'skipped',
+                    reason: 'keep_copy',
+                });
+                continue;
+            }
+            work.push({
+                file: item.file,
+                confirmed: true,
+                resolution: item.resolution,
+            });
+        }
+
+        work.push(
+            ...standardConfirmed.map((file) => ({
+                file,
+                confirmed: true,
+            })),
+        );
+
+        const sessionId = pending.sessionId;
+        const sessionPath = pending.sessionPath;
+        const parentDirectory = pending.parentDirectory;
+        unfavoriteBatchRef.current = null;
+        void startBackgroundMassUnfavorite({
+            sessionId,
+            sessionPath,
+            parentDirectory,
+            work,
+            priorResults,
+        });
     }
 
     function cancelMassTrashUnfavorite() {
@@ -3249,55 +3517,11 @@ export function GalleryPage() {
             return;
         }
         setUnfavoriteGate(nextGate);
-        const skippedUnresolved: UnfavoriteBatchItemResult[] =
-            pending.confirmFiles.map((file) => ({
-                path: file.path,
-                status: 'skipped',
-                reason: 'needs_confirm',
-            }));
-        const work: {
-            file: ImageFile;
-            confirmed: boolean;
-            resolution?: 'recycle_copy' | 'restore_origin';
-        }[] = [];
-        if (resolution === 'recycle_copy') {
-            work.push(
-                ...pending.readyFiles.map((file) => ({
-                    file,
-                    confirmed: false,
-                })),
-                ...pending.trashFiles.map((file) => ({
-                    file,
-                    confirmed: true,
-                    resolution: 'recycle_copy' as const,
-                })),
-            );
-        } else {
-            for (const file of pending.readyFiles) {
-                rollbackMassUnfavoriteCopyOrigin(file.path);
-            }
-            work.push(
-                ...pending.trashFiles.map((file) => ({
-                    file,
-                    confirmed: true,
-                    resolution: 'restore_origin' as const,
-                })),
-            );
-        }
-        const sessionPath = pending.sessionPath;
-        const parentDirectory = pending.parentDirectory;
-        const priorResults = [
-            ...pending.priorResults,
-            ...skippedUnresolved,
-        ];
-        unfavoriteBatchRef.current = null;
-        void startBackgroundMassUnfavorite({
-            sessionId: pending.sessionId,
-            sessionPath,
-            parentDirectory,
-            work,
-            priorResults,
-        });
+        unfavoriteBatchRef.current = {
+            ...pending,
+            trashResolution: resolution,
+        };
+        continueMassUnfavoriteAfterConfirms();
     }
 
     async function confirmBatchUnfavorite(files: ImageFile[]) {
@@ -3312,24 +3536,15 @@ export function GalleryPage() {
         if (!nextGate) {
             return;
         }
-        const sessionPath = pending.sessionPath;
-        const parentDirectory = pending.parentDirectory;
-        const readyFiles = pending.readyFiles;
-        const priorResults = pending.priorResults;
-        unfavoriteBatchRef.current = null;
+        setUnfavoriteGate(nextGate);
         for (const file of files) {
             restoreMassUnfavoriteCopyOriginOverlay(file.path, pending.sessionId);
         }
-        void startBackgroundMassUnfavorite({
-            sessionId: pending.sessionId,
-            sessionPath,
-            parentDirectory,
-            work: [
-                ...readyFiles.map((file) => ({ file, confirmed: false })),
-                ...files.map((file) => ({ file, confirmed: true })),
-            ],
-            priorResults,
-        });
+        unfavoriteBatchRef.current = {
+            ...pending,
+            confirmFiles: [],
+        };
+        flushMassUnfavoriteBatchWork(files);
     }
 
     function skipBatchUnfavorite(files: ImageFile[]) {
@@ -3351,22 +3566,16 @@ export function GalleryPage() {
             path: file.path,
             status: 'skipped',
         }));
-        const readyFiles = pending.readyFiles;
-        const sessionPath = pending.sessionPath;
-        const parentDirectory = pending.parentDirectory;
-        const priorResults = [...pending.priorResults, ...skipped];
-        unfavoriteBatchRef.current = null;
         setUnfavoritePrompt(null);
         for (const file of files) {
             rollbackMassUnfavoriteCopyOrigin(file.path);
         }
-        void startBackgroundMassUnfavorite({
-            sessionId: pending.sessionId,
-            sessionPath,
-            parentDirectory,
-            work: readyFiles.map((file) => ({ file, confirmed: false })),
-            priorResults,
-        });
+        unfavoriteBatchRef.current = {
+            ...pending,
+            confirmFiles: [],
+            priorResults: [...pending.priorResults, ...skipped],
+        };
+        flushMassUnfavoriteBatchWork();
     }
     skipBatchUnfavoriteRef.current = skipBatchUnfavorite;
 
@@ -3377,7 +3586,8 @@ export function GalleryPage() {
         work: {
             file: ImageFile;
             confirmed: boolean;
-            resolution?: 'recycle_copy' | 'restore_origin';
+            /** recycle/restore/FR-11 resolution (в т.ч. choose_folder:…). */
+            resolution?: string;
         }[];
         priorResults: UnfavoriteBatchItemResult[];
     }) {
@@ -3468,14 +3678,58 @@ export function GalleryPage() {
                     }
                 }
             } catch (error: unknown) {
-                const message =
-                    formatInvokeError(error);
-                for (const item of options.work) {
-                    results.push({
-                        path: item.file.path,
-                        status: 'failed',
-                        message,
-                    });
+                // T044b / FR-008: не помечать все failed без disk-truth (preview).
+                const message = formatInvokeError(error);
+                let postPreviews: FavoriteBatchPathResult[] | null = null;
+                try {
+                    postPreviews = await invoke<FavoriteBatchPathResult[]>(
+                        'preview_remove_favorite_copies',
+                        {
+                            paths: options.work.map((item) => item.file.path),
+                        },
+                    );
+                } catch {
+                    postPreviews = null;
+                }
+                const classified =
+                    classifyMassUnfavoriteWorkAfterTransportFailure(
+                        options.work.map((item) => item.file.path),
+                        postPreviews,
+                    );
+                // Без preview — needs_reconciliation; не «все failed» (FR-008).
+                if (!mayAnnounceAllBatchFailed(postPreviews !== null)) {
+                    for (const row of classified) {
+                        results.push({
+                            path: row.path,
+                            status: 'failed',
+                            message: 'needs_reconciliation',
+                        });
+                    }
+                } else {
+                    for (const row of classified) {
+                        if (row.verdict === 'still_present') {
+                            results.push({
+                                path: row.path,
+                                status: 'failed',
+                                message,
+                            });
+                        } else if (row.verdict === 'absent') {
+                            results.push({
+                                path: row.path,
+                                status: 'recycled',
+                                result: {
+                                    status: 'recycled',
+                                    undoId: '',
+                                } as RemoveFavoriteCopyResult,
+                            });
+                        } else {
+                            results.push({
+                                path: row.path,
+                                status: 'failed',
+                                message: 'needs_reconciliation',
+                            });
+                        }
+                    }
                 }
             }
             await finishBackgroundMassUnfavorite({
@@ -3721,6 +3975,41 @@ export function GalleryPage() {
     function cancelMissingOriginUnfavorite() {
         const pending = favoriteMissingOrigin;
         setFavoriteMissingOrigin(null);
+        const batch = unfavoriteBatchRef.current;
+        // T043: cancel одного FR-11 в mass = keep_copy для этого файла, очередь продолжается.
+        if (
+            pending &&
+            batch &&
+            batch.sessionId === pending.flightToken &&
+            batch.fr11Files.some(
+                (file) => pathKey(file.path) === pathKey(pending.file.path),
+            )
+        ) {
+            if (
+                !canResolveUnfavoriteConfirm(
+                    unfavoriteGateRef.current,
+                    pending.flightToken,
+                )
+            ) {
+                return;
+            }
+            beginUnfavoriteConfirmPass(
+                unfavoriteGateRef.current,
+                pending.flightToken,
+            );
+            unfavoriteBatchRef.current = {
+                ...batch,
+                fr11Files: batch.fr11Files.filter(
+                    (file) => pathKey(file.path) !== pathKey(pending.file.path),
+                ),
+                fr11Resolved: [
+                    ...batch.fr11Resolved,
+                    { file: pending.file, resolution: 'keep_copy' },
+                ],
+            };
+            continueMassUnfavoriteAfterConfirms();
+            return;
+        }
         if (
             pending &&
             canResolveUnfavoriteConfirm(
@@ -3740,6 +4029,7 @@ export function GalleryPage() {
     /**
      * FR-11 A/B/C/D → remove_favorite_copy resolution.
      * B: `choose_folder:<path>` (BE P4b stub may still reject — UI presents picker).
+     * Mass (T043): копит resolution и показывает следующий FR-11 / flush.
      */
     async function resolveMissingOriginUnfavorite(
         resolution:
@@ -3761,6 +4051,28 @@ export function GalleryPage() {
         }
         setUnfavoriteGate(pass);
         setFavoriteMissingOrigin(null);
+
+        const batch = unfavoriteBatchRef.current;
+        if (
+            batch &&
+            batch.sessionId === pending.flightToken &&
+            batch.fr11Files.some(
+                (file) => pathKey(file.path) === pathKey(pending.file.path),
+            )
+        ) {
+            unfavoriteBatchRef.current = {
+                ...batch,
+                fr11Files: batch.fr11Files.filter(
+                    (file) => pathKey(file.path) !== pathKey(pending.file.path),
+                ),
+                fr11Resolved: [
+                    ...batch.fr11Resolved,
+                    { file: pending.file, resolution },
+                ],
+            };
+            continueMassUnfavoriteAfterConfirms();
+            return;
+        }
 
         if (resolution === 'keep_copy') {
             try {

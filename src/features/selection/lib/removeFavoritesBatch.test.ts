@@ -6,6 +6,7 @@ import {
   batchUnfavoriteConfirmLines,
   batchUnfavoritePromptCopy,
   bucketUnfavoritePreviewTargets,
+  bucketUnfavoriteUiTargets,
   partitionFr11RequiredFromOtherConfirm,
   unfavoriteConfirmKindLabel,
   cleanupOutcomeFromStatus,
@@ -114,7 +115,7 @@ test("bucketUnfavoritePreviewTargets splits trash vs ready vs other confirm", ()
   assert.equal(buckets.otherConfirm.length, 1);
 });
 
-test("partitionFr11RequiredFromOtherConfirm maps unknown_origin to fr11Required (EC-10)", () => {
+test("partitionFr11RequiredFromOtherConfirm maps unknown/ambiguous to fr11Required (EC-10)", () => {
   const unknownFile = file("C:\\Album\\Избранное\\unknown.jpg");
   const changedFile = file("C:\\Album\\Избранное\\changed.jpg");
   const ambiguousFile = file("C:\\Album\\Избранное\\ambiguous.jpg");
@@ -154,12 +155,67 @@ test("partitionFr11RequiredFromOtherConfirm maps unknown_origin to fr11Required 
     previews,
   );
   assert.deepEqual(
-    partitioned.fr11Required.map((item) => item.path),
-    [unknownFile.path],
+    partitioned.fr11Required.map((item) => item.path).sort(),
+    [ambiguousFile.path, unknownFile.path].sort(),
   );
   assert.deepEqual(
-    partitioned.standardConfirm.map((item) => item.path).sort(),
-    [ambiguousFile.path, changedFile.path].sort(),
+    partitioned.standardConfirm.map((item) => item.path),
+    [changedFile.path],
+  );
+});
+
+test("bucketUnfavoriteUiTargets exposes fr11Required / standardConfirm / ready (T042)", () => {
+  const readyFile = file("C:\\Album\\Избранное\\ready.jpg");
+  const fr11File = file("C:\\Album\\Избранное\\fr11.jpg");
+  const standardFile = file("C:\\Album\\Избранное\\std.jpg");
+  const trashFile = file("C:\\Album\\Избранное\\trash.jpg");
+  const previews = [
+    { path: readyFile.path, result: { status: "ready" as const, undoId: "" } },
+    {
+      path: fr11File.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "unknown_origin" as const,
+        undoId: "",
+        fr11Required: true,
+      },
+    },
+    {
+      path: standardFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "origin_changed" as const,
+        undoId: "",
+      },
+    },
+    {
+      path: trashFile.path,
+      result: {
+        status: "needs_confirm" as const,
+        confirmKind: "origin_in_local_trash" as const,
+        undoId: "",
+      },
+    },
+  ];
+  const ui = bucketUnfavoriteUiTargets(
+    [readyFile, fr11File, standardFile, trashFile],
+    previews,
+  );
+  assert.deepEqual(
+    ui.ready.map((item) => item.path),
+    [readyFile.path],
+  );
+  assert.deepEqual(
+    ui.fr11Required.map((item) => item.path),
+    [fr11File.path],
+  );
+  assert.deepEqual(
+    ui.standardConfirm.map((item) => item.path),
+    [standardFile.path],
+  );
+  assert.deepEqual(
+    ui.originInTrash.map((item) => item.path),
+    [trashFile.path],
   );
 });
 
@@ -334,6 +390,31 @@ test("summarizeUnfavoriteBatch partial outcome for three succeeded and one faile
   assert.equal(notice.tone, "partial");
   assert.equal(notice.text, "Исключено: 3 из 4. Не удалось обработать: 1");
   assert.deepEqual(notice.details, ["файл не найден"]);
+});
+
+test("T046 EC-20: partial batch keeps successes and reports failures", () => {
+  const recycled = interpretRemovalOutcome("C:\\F\\ok.jpg", {
+    status: "recycled",
+    undoId: "",
+  } as RemoveFavoriteCopyResult);
+  const failed = interpretRemovalOutcome("C:\\F\\bad.jpg", {
+    status: "failed",
+    undoId: "",
+    noticeCode: "disk full",
+  } as RemoveFavoriteCopyResult);
+  const results = [recycled, failed];
+  assert.deepEqual([...successfulRemovalKeys(results)], ["c:\\f\\ok.jpg"]);
+  const notice = summarizeUnfavoriteBatch({
+    total: results.length,
+    succeeded: successfulRemovalKeys(results).size,
+    failed: 1,
+    skipped: 0,
+    cleanup: noCleanup,
+    errors: ["disk full"],
+  });
+  assert.equal(notice.tone, "partial");
+  assert.match(notice.text, /1 из 2/);
+  assert.deepEqual(notice.details, ["disk full"]);
 });
 
 test("summarizeUnfavoriteBatch covers full success, folder deleted, partial, and cleanup failure", () => {

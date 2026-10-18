@@ -38,6 +38,15 @@ export type UnfavoritePreviewBuckets = {
   previewFailed: UnfavoriteBatchItemResult[];
 };
 
+/** UI-бакеты mass unfavorite: FR-11 / standard confirm / ready (+ trash отдельно). */
+export type UnfavoriteUiBuckets = {
+  ready: ImageFile[];
+  originInTrash: ImageFile[];
+  fr11Required: ImageFile[];
+  standardConfirm: ImageFile[];
+  previewFailed: UnfavoriteBatchItemResult[];
+};
+
 export type MassTrashUnfavoriteCounts = {
   total: number;
   inTrash: number;
@@ -92,14 +101,17 @@ export function bucketUnfavoritePreviewTargets(
   return { ready, originInTrash, otherConfirm, previewFailed };
 }
 
-/** Confirm kinds that must use FR-11 (CL-P03), not standard recycle confirm. */
+/**
+ * Confirm kinds that must use FR-11 (CL-P03), not standard recycle confirm.
+ * Согласовано с Rust `classify_preview_bucket`: unknown_origin | ambiguous_origin.
+ */
 export function isFr11RequiredConfirmKind(kind: RemoveFavoriteConfirmKind): boolean {
-  return kind === "unknown_origin";
+  return kind === "unknown_origin" || kind === "ambiguous_origin";
 }
 
 /**
- * Split `otherConfirm` from {@link bucketUnfavoritePreviewTargets} into FR-11 vs standard
- * without changing the existing bucket API (GalleryPage path unchanged until P4/P5).
+ * Split `otherConfirm` from {@link bucketUnfavoritePreviewTargets} into FR-11 vs standard.
+ * DTO-hint `fr11Required` и kind unknown/ambiguous → fr11 (как BE T040).
  */
 export function partitionFr11RequiredFromOtherConfirm(
   otherConfirm: readonly ImageFile[],
@@ -126,15 +138,41 @@ export function partitionFr11RequiredFromOtherConfirm(
   return { fr11Required, standardConfirm };
 }
 
+/** T042: preview → UI-бакеты fr11Required / standardConfirm / ready (+ trash). */
+export function bucketUnfavoriteUiTargets(
+  targets: readonly ImageFile[],
+  previews: readonly FavoriteBatchPathResult[],
+): UnfavoriteUiBuckets {
+  const base = bucketUnfavoritePreviewTargets(targets, previews);
+  const { fr11Required, standardConfirm } = partitionFr11RequiredFromOtherConfirm(
+    base.otherConfirm,
+    previews,
+  );
+  return {
+    ready: base.ready,
+    originInTrash: base.originInTrash,
+    fr11Required,
+    standardConfirm,
+    previewFailed: base.previewFailed,
+  };
+}
+
 export function massTrashUnfavoriteCounts(
   total: number,
-  buckets: Pick<UnfavoritePreviewBuckets, "ready" | "originInTrash" | "otherConfirm">,
+  buckets: Pick<UnfavoritePreviewBuckets, "ready" | "originInTrash" | "otherConfirm"> & {
+    fr11Required?: readonly ImageFile[];
+    standardConfirm?: readonly ImageFile[];
+  },
 ): MassTrashUnfavoriteCounts {
+  const unresolved =
+    buckets.fr11Required !== undefined || buckets.standardConfirm !== undefined
+      ? (buckets.fr11Required?.length ?? 0) + (buckets.standardConfirm?.length ?? 0)
+      : buckets.otherConfirm.length;
   return {
     total,
     inTrash: buckets.originInTrash.length,
     ready: buckets.ready.length,
-    unresolved: buckets.otherConfirm.length,
+    unresolved,
   };
 }
 
