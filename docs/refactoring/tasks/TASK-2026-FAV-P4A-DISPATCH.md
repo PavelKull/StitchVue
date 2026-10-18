@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P4A-DISPATCH
 title: "P4a Safe Favorites — dispatch fix & FR-11 backend (T030–T033, T038)"
-status: verification
+status: completed
 risk: high
 responsible_agent: backend-executor
 base_commit: "aeefde1c95a400402d0390a509da17cba22490d1"
