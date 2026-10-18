@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P5-BATCH-BE
 title: "P5 Safe Favorites — batch buckets & per-item dispatch (T040–T041, T045)"
-status: approved
+status: verification
 risk: high
 responsible_agent: backend-executor
 base_commit: "ef1cc543897bf7cbd6465124abb33e49e0142b61"
@@ -65,4 +65,15 @@ seal → backend-executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** verification — T040, T041, T045 done; awaiting guardian.
+
+### Changed
+- `favorites_batch.rs` — `classify_preview_bucket` / `FavoriteBatchPreviewBuckets` / `preview_remove_favorite_copies_bucketed` (T040); per-item `confirmed`+`resolution` in batch (T041)
+- `p5_batch.rs` — mixed missing-origin preview + dispatch (T045)
+- `mod.rs` — `p5_batch` mod
+
+### Tests
+- `p5_batch` PASS; `p0_safe_favorites` PASS; `p4_dispatch` PASS; `favorites_copy_recovery` PASS
+
+### NEXT
+guardian + manual smoke (high)
