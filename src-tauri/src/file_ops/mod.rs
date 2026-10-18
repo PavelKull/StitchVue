@@ -26,6 +26,8 @@ mod locks;
 mod p0_safe_favorites;
 #[cfg(test)]
 mod p4_dispatch;
+#[cfg(test)]
+mod p5_batch;
 mod p1_identity_gate;
 #[cfg(test)]
 mod p2_reconcile_scope;
