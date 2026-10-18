@@ -56,6 +56,10 @@ export type RemoveFavoriteCopyResult = {
   confirmKind?: RemoveFavoriteConfirmKind | null;
   trashPath?: string | null;
   cleanupStatus?: FavoritesCleanupStatus | null;
+  /** CL-P05: лаг журнала/связи — needs-review, не полный успех. */
+  reconcileSuggested?: boolean | null;
+  /** CL-P03: маршрутизация в FR-11 до деструктивного снятия. */
+  fr11Required?: boolean | null;
 };
 
 export type RemovalClassifyDebug = {
@@ -255,4 +259,21 @@ export function operationId(): string {
     return crypto.randomUUID();
   }
   return `op-${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
+}
+
+/** T028 CL-P05: needs-review / partial success notices. */
+export function favoritesNeedsReviewNotice(): OperationNotice {
+  return {
+    tone: "partial",
+    text: i18n.t("selection.favoriteNeedsReview"),
+    details: [],
+  };
+}
+
+export function favoritesPartialSuccessNotice(): OperationNotice {
+  return {
+    tone: "partial",
+    text: i18n.t("selection.favoritePartialSuccess"),
+    details: [],
+  };
 }

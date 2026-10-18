@@ -167,3 +167,28 @@ export function clearFavoriteOverlayForOperation(
   }
   return changed ? next : overlay;
 }
+
+/**
+ * CL-P05 / T027: при неопределённой связи (лаг журнала / needs review)
+ * сбрасывает только перечисленные pending-ключи, чужие пути не трогает.
+ */
+export function rollbackIndeterminateFavoriteOverlay(
+  overlay: FavoriteOverlayMap,
+  keys: readonly string[],
+): FavoriteOverlayMap {
+  if (keys.length === 0) {
+    return overlay;
+  }
+  let changed = false;
+  const next = new Map(overlay);
+  for (const raw of keys) {
+    const key = pathKey(raw);
+    const entry = next.get(key);
+    if (!entry || entry.status !== "pending") {
+      continue;
+    }
+    next.delete(key);
+    changed = true;
+  }
+  return changed ? next : overlay;
+}

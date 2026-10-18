@@ -79,16 +79,8 @@ pub fn remove_favorite_copies_batch(
             Some(&mut scan_caches),
         ) {
             Ok(result) => result,
-            Err(message) => RemoveFavoriteCopyResult {
-                status: "failed".to_string(),
-                undo_id: String::new(),
-                removed_service_folder: None,
-                restored_path: None,
-                notice_code: Some(message),
-                confirm_kind: None,
-                trash_path: None,
-                cleanup_status: None,
-            },
+            // Конструктор обязателен после optional DTO-полей на RemoveFavoriteCopyResult (T023).
+            Err(message) => RemoveFavoriteCopyResult::failed(message),
         };
         out.push(FavoriteBatchPathResult {
             path: item.path.clone(),

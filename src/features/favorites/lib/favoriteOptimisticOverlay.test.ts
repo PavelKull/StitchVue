@@ -10,6 +10,7 @@ import {
   favoriteDisplayOn,
   isFavoriteOverlayPending,
   nextFavoriteOverlayGeneration,
+  rollbackIndeterminateFavoriteOverlay,
 } from "./favoriteOptimisticOverlay.ts";
 
 test("isFavoriteOverlayPending reflects pending entries only", () => {
@@ -82,4 +83,12 @@ test("clearFavoriteOverlayForOperation removes only matching pending ops", () =>
   const next = clearFavoriteOverlayForOperation(overlay, "op1");
   assert.equal(next.has("a"), false);
   assert.equal(next.has("b"), true);
+});
+
+test("T027 rollbackIndeterminateFavoriteOverlay drops only listed pending keys", () => {
+  let overlay = applyFavoriteOverlayPending(new Map(), "c:\\a.jpg", "op1", true, 1);
+  overlay = applyFavoriteOverlayPending(overlay, "c:\\b.jpg", "op2", true, 1);
+  const next = rollbackIndeterminateFavoriteOverlay(overlay, ["C:\\a.jpg"]);
+  assert.equal(next.has("c:\\a.jpg"), false);
+  assert.equal(next.has("c:\\b.jpg"), true);
 });

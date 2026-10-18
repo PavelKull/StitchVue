@@ -105,6 +105,12 @@ pub struct RemoveFavoriteCopyResult {
     pub trash_path: Option<String>,
     /// `removed` | `not_empty` | `already_gone` | `failed` after a successful file op.
     pub cleanup_status: Option<String>,
+    /// CL-P05: UI показывает needs-review (неполный журнал / неразрешённая сверка).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reconcile_suggested: Option<bool>,
+    /// CL-P03: UI должен открыть FR-11 вместо стандартного confirm.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fr11_required: Option<bool>,
 }
 
 impl RemoveFavoriteCopyResult {
@@ -118,6 +124,8 @@ impl RemoveFavoriteCopyResult {
             confirm_kind: None,
             trash_path: None,
             cleanup_status,
+            reconcile_suggested: None,
+            fr11_required: None,
         }
     }
 
@@ -136,10 +144,16 @@ impl RemoveFavoriteCopyResult {
             confirm_kind: None,
             trash_path: None,
             cleanup_status,
+            reconcile_suggested: None,
+            fr11_required: None,
         }
     }
 
     fn needs_confirm(kind: ConfirmKind, trash_path: Option<String>) -> Self {
+        let fr11 = matches!(
+            kind,
+            ConfirmKind::UnknownOrigin | ConfirmKind::AmbiguousOrigin
+        );
         Self {
             status: "needs_confirm".to_string(),
             undo_id: String::new(),
@@ -149,6 +163,8 @@ impl RemoveFavoriteCopyResult {
             confirm_kind: Some(kind.as_str().to_string()),
             trash_path,
             cleanup_status: None,
+            reconcile_suggested: None,
+            fr11_required: if fr11 { Some(true) } else { None },
         }
     }
 
@@ -162,6 +178,8 @@ impl RemoveFavoriteCopyResult {
             confirm_kind: None,
             trash_path: None,
             cleanup_status: None,
+            reconcile_suggested: None,
+            fr11_required: None,
         }
     }
 
@@ -175,6 +193,40 @@ impl RemoveFavoriteCopyResult {
             confirm_kind: None,
             trash_path: None,
             cleanup_status: None,
+            reconcile_suggested: None,
+            fr11_required: None,
+        }
+    }
+
+    /// CL-P05: неоднозначный FS / журнал требует сверки — не полный успех.
+    fn needs_reconciliation(notice_code: &str) -> Self {
+        Self {
+            status: "failed".to_string(),
+            undo_id: String::new(),
+            removed_service_folder: None,
+            restored_path: None,
+            notice_code: Some(notice_code.to_string()),
+            confirm_kind: None,
+            trash_path: None,
+            cleanup_status: None,
+            reconcile_suggested: Some(true),
+            fr11_required: None,
+        }
+    }
+
+    /// Ошибка снятия избранного (в т.ч. для batch Err → DTO).
+    pub(crate) fn failed(notice_code: impl Into<String>) -> Self {
+        Self {
+            status: "failed".to_string(),
+            undo_id: String::new(),
+            removed_service_folder: None,
+            restored_path: None,
+            notice_code: Some(notice_code.into()),
+            confirm_kind: None,
+            trash_path: None,
+            cleanup_status: None,
+            reconcile_suggested: None,
+            fr11_required: None,
         }
     }
 }
@@ -659,6 +711,8 @@ fn restore_origin_keep_favorite_on_conn(
         confirm_kind: None,
         trash_path: None,
         cleanup_status: None,
+        reconcile_suggested: None,
+        fr11_required: None,
     })
 }
 
@@ -851,9 +905,9 @@ fn finish_recycle_op(
                 Some("ambiguous"),
                 Some("Результат корзины Windows неоднозначен"),
             );
-            return Err(
-                "Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string(),
-            );
+            return Ok(RemoveFavoriteCopyResult::needs_reconciliation(
+                "needs_reconciliation",
+            ));
         }
         Err(err) => {
             let _ = database::finish_op(
@@ -1444,9 +1498,9 @@ fn execute_recycle(
                 Some("ambiguous"),
                 Some("Результат корзины Windows неоднозначен"),
             );
-            return Err(
-                "Результат корзины Windows неоднозначен. Копия и связь сохранены.".to_string(),
-            );
+            return Ok(RemoveFavoriteCopyResult::needs_reconciliation(
+                "needs_reconciliation",
+            ));
         }
         Err(err) => {
             let _ = database::finish_op(

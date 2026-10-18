@@ -80,6 +80,17 @@ export function shouldApplyFavoritePathsFetch(
   return true;
 }
 
+/**
+ * Звёзды только из disk/server listing (`favorite_origin_paths`) + pending overlay.
+ * Оптимистичный IPC-успех без этого apply не считается подтверждённым.
+ */
+export function diskConfirmedFavoritePaths(
+  serverPaths: readonly string[],
+  overlay: FavoriteOverlayMap,
+): Set<string> {
+  return favoritePathsFromServerWithOverlay(serverPaths, overlay);
+}
+
 /** Merge server listing with overlay when the fetch ticket is still current. */
 export function resolveFavoritePathsFetch(
   ticket: FavoritePathsFetchTicket,
@@ -92,7 +103,7 @@ export function resolveFavoritePathsFetch(
   }
   return {
     applied: true,
-    confirmed: favoritePathsFromServerWithOverlay(serverPaths, overlay),
+    confirmed: diskConfirmedFavoritePaths(serverPaths, overlay),
   };
 }
 
@@ -117,4 +128,43 @@ export function needsFavoritePathsResyncAfterStaleReject(
     return false;
   }
   return false;
+}
+
+/** CL-P05: неполный журнал / needs-reconciliation — нельзя объявлять полный успех. */
+export type FavoriteJournalLinkState = {
+  /** FS завершён, но SQLite-связь/журнал ещё не закрыт или требует сверки. */
+  journalIncomplete?: boolean;
+  /** Подсказка DTO снятия: `reconcileSuggested`. */
+  reconcileSuggested?: boolean | null;
+  /** В UI явно всплыл ST_NEEDS_RECONCILIATION. */
+  needsReconciliation?: boolean;
+};
+
+/**
+ * Полный успех только после disk-confirmed apply и без флагов неполного журнала.
+ */
+export function shouldAnnounceFullFavoriteSuccess(
+  diskPathsApplied: boolean,
+  journal: FavoriteJournalLinkState = {},
+): boolean {
+  if (!diskPathsApplied) {
+    return false;
+  }
+  if (journal.journalIncomplete || journal.needsReconciliation) {
+    return false;
+  }
+  if (journal.reconcileSuggested === true) {
+    return false;
+  }
+  return true;
+}
+
+export function favoriteNeedsReviewNotice(
+  journal: FavoriteJournalLinkState,
+): boolean {
+  return (
+    journal.journalIncomplete === true ||
+    journal.needsReconciliation === true ||
+    journal.reconcileSuggested === true
+  );
 }

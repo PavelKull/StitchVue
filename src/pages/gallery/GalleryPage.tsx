@@ -119,6 +119,8 @@ import { useGallerySelectionCoordinator } from '../../features/selection/useGall
 import {
     commandAvailability,
     confirmMoveText,
+    favoritesNeedsReviewNotice,
+    favoritesPartialSuccessNotice,
     needsMoveConfirm,
     operationId,
     operationNotice,
@@ -176,13 +178,16 @@ import {
     isFavoriteOverlayPending,
     mapSnapshotCopyOrigins,
     nextFavoriteOverlayGeneration,
+    rollbackIndeterminateFavoriteOverlay,
     type FavoriteOverlayMap,
 } from '../../features/favorites/lib/favoriteOptimisticOverlay';
 import {
     beginFavoritePathsFetch,
     bumpFavoritePathsConfirmedRevision,
+    favoriteNeedsReviewNotice,
     needsFavoritePathsResyncAfterStaleReject,
     resolveFavoritePathsFetch,
+    shouldAnnounceFullFavoriteSuccess,
     type FavoritePathsSyncCounters,
 } from '../../features/favorites/lib/favoritePathsServerSync';
 import {
@@ -2038,11 +2043,22 @@ export function GalleryPage() {
                     }
                 }
                 if (action === 'copy_to_local_favorites') {
+                    // CL-P05: link/journal lag keeps status copied but sets favorite_link.
+                    const journalIncompleteOutcomes = result.outcomes.filter(
+                        (item) =>
+                            (item.status === 'copied' ||
+                                item.status === 'already_exists') &&
+                            (item.errorCode === 'favorite_link' ||
+                                item.errorCode === 'needs_reconciliation' ||
+                                item.errorCode === 'ST_NEEDS_RECONCILIATION'),
+                    );
+                    const journalIncomplete = journalIncompleteOutcomes.length > 0;
                     const marked = result.outcomes
                         .filter(
                             (item) =>
-                                item.status === 'copied' ||
-                                item.status === 'already_exists',
+                                (item.status === 'copied' ||
+                                    item.status === 'already_exists') &&
+                                !item.errorCode,
                         )
                         .map((item) => pathKey(item.sourcePath));
                     if (marked.length > 0) {
@@ -2055,33 +2071,69 @@ export function GalleryPage() {
                             return next;
                         });
                     }
-                    for (const item of result.outcomes) {
-                        const key = pathKey(item.sourcePath);
-                        const generation = favoriteAddGenerations.get(key);
-                        if (generation === undefined) {
-                            continue;
+                    if (journalIncomplete) {
+                        setFavoriteOverlay((current) =>
+                            rollbackIndeterminateFavoriteOverlay(
+                                current,
+                                journalIncompleteOutcomes.map((o) => o.sourcePath),
+                            ),
+                        );
+                        if (directory) {
+                            void fetchFavoriteOriginPaths(directory);
                         }
-                        if (
-                            item.status === 'copied' ||
-                            item.status === 'already_exists'
-                        ) {
-                            setFavoriteOverlay((current) =>
-                                clearFavoriteOverlayIfGeneration(
-                                    current,
-                                    key,
-                                    generation,
-                                ),
-                            );
-                        } else if (item.status === 'failed') {
-                            setFavoriteOverlay((current) =>
-                                clearFavoriteOverlayIfGeneration(
-                                    current,
-                                    key,
-                                    generation,
-                                ),
-                            );
+                    } else {
+                        for (const item of result.outcomes) {
+                            const key = pathKey(item.sourcePath);
+                            const generation = favoriteAddGenerations.get(key);
+                            if (generation === undefined) {
+                                continue;
+                            }
+                            if (
+                                item.status === 'copied' ||
+                                item.status === 'already_exists' ||
+                                item.status === 'failed'
+                            ) {
+                                setFavoriteOverlay((current) =>
+                                    clearFavoriteOverlayIfGeneration(
+                                        current,
+                                        key,
+                                        generation,
+                                    ),
+                                );
+                            }
                         }
                     }
+                    const summary = summarize(result.outcomes);
+                    if (
+                        favoriteNeedsReviewNotice({
+                            journalIncomplete,
+                            needsReconciliation: journalIncomplete,
+                        })
+                    ) {
+                        const anyDiskOk = marked.length > 0;
+                        setFileNotice(
+                            anyDiskOk
+                                ? favoritesPartialSuccessNotice()
+                                : favoritesNeedsReviewNotice(),
+                        );
+                    } else {
+                        const quietSuccess =
+                            summary.failed === 0 &&
+                            shouldAnnounceFullFavoriteSuccess(true, {
+                                journalIncomplete: false,
+                            });
+                        if (!quietSuccess) {
+                            setFileNotice(operationNotice(action, summary));
+                        }
+                    }
+                } else if (action === 'move_to_local_trash') {
+                    const summary = summarize(result.outcomes);
+                    if (summary.failed !== 0) {
+                        setFileNotice(operationNotice(action, summary));
+                    }
+                } else {
+                    const summary = summarize(result.outcomes);
+                    setFileNotice(operationNotice(action, summary));
                 }
                 if (result.destinationFolder && result.destinationRole) {
                     const role = result.destinationRole;
@@ -2098,14 +2150,6 @@ export function GalleryPage() {
                     result.destinationFolder
                 ) {
                     forgetHotFolder(result.destinationFolder);
-                }
-                const summary = summarize(result.outcomes);
-                const quietSuccess =
-                    (action === 'copy_to_local_favorites' ||
-                        action === 'move_to_local_trash') &&
-                    summary.failed === 0;
-                if (!quietSuccess) {
-                    setFileNotice(operationNotice(action, summary));
                 }
                 if (
                     action !== 'copy_to_local_favorites' &&
@@ -3577,15 +3621,20 @@ export function GalleryPage() {
             scheduleFolderRefreshRef.current(options.parentDirectory);
         }
 
+        const needsReconciliation = options.results.filter(
+            (item) =>
+                item.status === 'failed' &&
+                item.message === 'needs_reconciliation',
+        ).length;
         const notice =
-            restored.length > 0
+            restored.length > 0 || needsReconciliation > 0
                 ? summarizeUnfavoriteBatchDetailed({
                       processed: options.results.length,
                       succeeded: succeeded.length,
                       skipped: skipped.length,
                       failed: failed.length,
                       restored: restored.length,
-                      needsReconciliation: 0,
+                      needsReconciliation,
                   })
                 : summarizeUnfavoriteBatch({
                       total: options.results.length,
@@ -3597,7 +3646,13 @@ export function GalleryPage() {
                           item.status === 'failed' ? item.message : '',
                       ),
                   });
-        if (notice.tone !== 'ok') {
+        if (needsReconciliation > 0) {
+            setFileNotice(
+                succeeded.length > 0 || restored.length > 0
+                    ? favoritesPartialSuccessNotice()
+                    : favoritesNeedsReviewNotice(),
+            );
+        } else if (notice.tone !== 'ok') {
             setFileNotice(notice);
         }
     }
@@ -3662,6 +3717,34 @@ export function GalleryPage() {
             const parent = viewRef.current.parent;
             if (parent) {
                 scheduleFolderRefreshRef.current(parent);
+            }
+            return;
+        }
+        // CL-P05: do not clear stars/listing on indeterminate / failed reconcile.
+        if (
+            favoriteNeedsReviewNotice({
+                reconcileSuggested: removal.reconcileSuggested,
+            }) ||
+            removal.status === 'failed'
+        ) {
+            const key = pathKey(file.path);
+            setFavoriteOverlay((current) =>
+                rollbackIndeterminateFavoriteOverlay(current, [key]),
+            );
+            if (
+                favoriteNeedsReviewNotice({
+                    reconcileSuggested: removal.reconcileSuggested,
+                })
+            ) {
+                setFileNotice(favoritesNeedsReviewNotice());
+            } else {
+                setFileNotice({
+                    tone: 'failed',
+                    text: removal.noticeCode
+                        ? formatInvokeError(removal.noticeCode)
+                        : t('selection.unfavoriteUnexpectedResponse'),
+                    details: [],
+                });
             }
             return;
         }

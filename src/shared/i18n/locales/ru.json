@@ -375,6 +375,8 @@
     "noticeFailed": "Ошибок: {{count}}",
     "noticeCancelled": "Отменено: {{count}}",
     "noticeAndMore": "И ещё {{count}} файлов",
+    "favoriteNeedsReview": "Избранное требует проверки — состояние на диске ещё не подтверждено полностью",
+    "favoritePartialSuccess": "Выполнено частично. Часть избранного ещё требует проверки",
     "favoriteReturned": "Копия возвращена в избранное",
     "favoriteReturnFailed": "Не удалось вернуть копию",
     "favoriteOriginMissingSaved": "Оригинал не найден. Изображение сохранено в текущей папке",

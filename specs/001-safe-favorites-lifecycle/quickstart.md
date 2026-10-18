@@ -94,3 +94,7 @@ Each implementation phase → `docs/refactoring/tasks/TASK-*.md` per `TASK_HANDO
 | `folder-changed` | `galleryPipelineEvents` (session match) → refresh + favorites callback | Listing refresh + same star refetch (CL-P02) |
 
 Remove/unfavorite completion is not BE post-op-hooked in P2; album-open + folder-changed refetch close that gap without a thin `commands/mod.rs` entry.
+
+## P3 CL-P05 notices (T024 architecture)
+
+**Deferred:** no `favorites_reconcile_status` IPC. UI uses optional DTO fields `reconcileSuggested` / `fr11Required` on `RemoveFavoriteCopyResult` plus `favorite_origin_paths` disk refetch. Incomplete journal / needs-reconciliation → needs-review notice, never false full success.

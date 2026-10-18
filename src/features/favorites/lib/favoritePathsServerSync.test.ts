@@ -5,8 +5,11 @@ import {
   beginFavoritePathsFetch,
   bumpFavoritePathsConfirmedRevision,
   buildFavoritePathsFetchTicket,
+  diskConfirmedFavoritePaths,
+  favoriteNeedsReviewNotice,
   needsFavoritePathsResyncAfterStaleReject,
   resolveFavoritePathsFetch,
+  shouldAnnounceFullFavoriteSuccess,
   shouldApplyFavoritePathsFetch,
   type FavoritePathsApplyGuardState,
   type FavoritePathsSyncCounters,
@@ -257,4 +260,42 @@ test("buildFavoritePathsFetchTicket normalizes directory key", () => {
   assert.equal(ticket.directoryKey, DIR_KEY);
   assert.equal(ticket.requestId, 3);
   assert.equal(ticket.revisionAtStart, 2);
+});
+
+test("T029 no full-success when journal incomplete or reconcileSuggested", () => {
+  assert.equal(shouldAnnounceFullFavoriteSuccess(true), true);
+  assert.equal(
+    shouldAnnounceFullFavoriteSuccess(true, { journalIncomplete: true }),
+    false,
+  );
+  assert.equal(
+    shouldAnnounceFullFavoriteSuccess(true, { needsReconciliation: true }),
+    false,
+  );
+  assert.equal(
+    shouldAnnounceFullFavoriteSuccess(true, { reconcileSuggested: true }),
+    false,
+  );
+  assert.equal(shouldAnnounceFullFavoriteSuccess(false), false);
+  assert.equal(
+    favoriteNeedsReviewNotice({ reconcileSuggested: true }),
+    true,
+  );
+  assert.equal(favoriteNeedsReviewNotice({}), false);
+});
+
+test("T026 diskConfirmedFavoritePaths merges server listing with overlay", () => {
+  const overlay = applyFavoriteOverlayPending(
+    new Map(),
+    "c:\\album\\a.jpg",
+    "op",
+    false,
+    1,
+  );
+  const confirmed = diskConfirmedFavoritePaths(
+    ["C:\\Album\\a.jpg", "C:\\Album\\b.jpg"],
+    overlay,
+  );
+  assert.equal(confirmed.has("c:\\album\\a.jpg"), false);
+  assert.equal(confirmed.has("c:\\album\\b.jpg"), true);
 });

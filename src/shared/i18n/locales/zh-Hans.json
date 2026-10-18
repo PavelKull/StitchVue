@@ -375,6 +375,8 @@
     "noticeFailed": "失败：{{count}}",
     "noticeCancelled": "已取消：{{count}}",
     "noticeAndMore": "以及另外 {{count}} 个文件",
+    "favoriteNeedsReview": "收藏需要复查 — 磁盘状态尚未完全确认",
+    "favoritePartialSuccess": "部分完成。部分收藏仍需复查",
     "favoriteReturned": "副本已放回收藏夹",
     "favoriteReturnFailed": "无法放回副本",
     "favoriteOriginMissingSaved": "找不到原文件，图像已保存到当前文件夹",

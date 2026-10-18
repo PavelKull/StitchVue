@@ -375,6 +375,8 @@
     "noticeFailed": "Fehler: {{count}}",
     "noticeCancelled": "Abgebrochen: {{count}}",
     "noticeAndMore": "Und {{count}} weitere Dateien",
+    "favoriteNeedsReview": "Favoriten müssen geprüft werden — der Status auf dem Datenträger ist noch nicht vollständig bestätigt",
+    "favoritePartialSuccess": "Teilweise abgeschlossen. Einige Favoriten müssen noch geprüft werden",
     "favoriteReturned": "Kopie zu Favoriten zurückgeführt",
     "favoriteReturnFailed": "Kopie konnte nicht zurückgeführt werden",
     "favoriteOriginMissingSaved": "Original nicht gefunden. Das Bild wurde im aktuellen Ordner gespeichert",

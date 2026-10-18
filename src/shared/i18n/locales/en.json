@@ -375,6 +375,8 @@
     "noticeFailed": "Failed: {{count}}",
     "noticeCancelled": "Cancelled: {{count}}",
     "noticeAndMore": "And {{count}} more files",
+    "favoriteNeedsReview": "Favorites need review — status on disk is not fully confirmed yet",
+    "favoritePartialSuccess": "Partially completed. Some favorites still need review",
     "favoriteReturned": "Copy returned to Favorites",
     "favoriteReturnFailed": "Could not return the copy",
     "favoriteOriginMissingSaved": "Original not found. The image was saved in the current folder",
