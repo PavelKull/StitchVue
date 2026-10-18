@@ -2432,6 +2432,7 @@ export function GalleryPage() {
     }
 
     async function undoFavoriteRemovals(ids: string[]) {
+        // FR-006: in-app undo — заглушка; восстановление через корзину Windows.
         const errors: string[] = [];
         for (const id of ids) {
             try {

@@ -19,8 +19,8 @@
 | I4 | Оптимистичное избранное и откат не теряют несвязанные пути | confirmed | `favoriteOptimisticOverlay.ts` и `*Optimistic*.test.ts`; `favoritePathsServerSync.ts` + `.test.ts` |
 | I5 | Пакетное снятие избранного и UI-гейты согласованы | confirmed | `removeFavoritesBatch.ts` + `.test.ts`; `unfavoriteGate.test.ts` |
 | I6 | `run_file_operation` использует claim/complete/abandon; Busy/Replay не маскируют параллельный успех | confirmed (механизм) | `commands::run_file_operation`; `file_ops::{claim,complete,abandon,Action}` |
-| I7 | Ошибки файловых операций не дают ложный успех в UI/БД по всем сценариям | UNVERIFIED | Требует подтверждения по затронутому модулю `src-tauri/src/file_ops/` на каждой high-risk задаче |
-| I8 | Оригиналы фото не удаляются/не перезаписываются вне явной user-операции | UNVERIFIED | `Action` сейчас: move→локальная корзина, copy→избранное (`file_ops/mod.rs`); полное «не трогать оригинал при copy» — подтверждать тестами задачи / `favorites_lifecycle.rs` |
+| I7 | Ошибки файловых операций не дают ложный успех в UI/БД по всем сценариям | confirmed (favorites lifecycle) | Safe Favorites P0–P5: identity gate / FR-11 dispatch / disk-truth / no false full-success (`p0_safe_favorites`, `p1_identity`, `p4_dispatch`, `p5_batch`, `favoritePathsServerSync`, `favoritesDiskTruthAfterIpc`). Остальной file_ops — по-прежнему per-task |
+| I8 | Оригиналы фото не удаляются/не перезаписываются вне явной user-операции | confirmed (favorites paths) | Copy-to-favorites + relocate identity gate (CL-00); T012/T014a/P4b choose_folder; no overwrite unrelated. Полный контур trash/other ops — см. прежние UNVERIFIED зоны вне favorites |
 | I9 | Очередь и приоритеты миниатюр сохраняют продуктовую семантику | UNVERIFIED | Реализация в `pipeline/mod.rs` (priority / workers); при изменении scheduler/prefetch — доказать сохранность |
 | I10 | Copy в избранное — копия, не удаление источника (намерение Action) | confirmed (тип действия) | `Action::CopyToLocalFavorites` / `"copy_to_local_favorites"`; frontend `FileAction` в `fileOperation.ts`. Полный ФС-контракт при коллизиях — см. I7/I8 |
 

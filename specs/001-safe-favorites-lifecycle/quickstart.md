@@ -98,3 +98,44 @@ Remove/unfavorite completion is not BE post-op-hooked in P2; album-open + folder
 ## P3 CL-P05 notices (T024 architecture)
 
 **Deferred:** no `favorites_reconcile_status` IPC. UI uses optional DTO fields `reconcileSuggested` / `fr11Required` on `RemoveFavoriteCopyResult` plus `favorite_origin_paths` disk refetch. Incomplete journal / needs-reconciliation → needs-review notice, never false full success.
+
+## Phase 6 — EC-01–EC-22 trace (T051)
+
+| EC | Coverage evidence (VERIFY-COND cites) |
+|----|--------------------------------------|
+| EC-01 | `p1_identity_t014a_missing_parent_no_mkdir` |
+| EC-02 | `p0_safe_favorites_t004`; `p2_reconcile` Unavailable no purge |
+| EC-03 | `p1_identity_t012_name_collision_no_overwrite` |
+| EC-05 | `p2_reconcile` T022a no invent link by basename |
+| EC-07 / EC-13 | `p1_identity_t013_cross_volume_fail_keeps_source` |
+| EC-08 | **cite** `favorites_copy_recovery` (T047 skip new) |
+| EC-09 | **cite** `reconcile_on_boot` / trash CP in `favorites_trash_lifecycle_final` (T048 skip new) |
+| EC-10 | `p5_batch` mixed missing-origin; FE `partitionFr11Required` / bucketUnfavoriteUiTargets |
+| EC-11 | **cite** `favorites_lifecycle.rs` + `favoritesCollectionLifecycle.test.ts` |
+| EC-12 / EC-22 | `p0_safe_favorites_t002` occupied origin |
+| EC-14 | `p1_identity_t014_permission_denied_keeps_copy` |
+| EC-16 | `directorySession.test.ts` EC-16 stale session |
+| EC-17 | P1 revalidate + P4 identity before FS |
+| EC-18 | `p4_dispatch` T033 in-flight |
+| EC-19 | `p1_identity_t014b` extended/Unicode/reparse |
+| EC-20 | `removeFavoritesBatch` T046 partial |
+| EC-21 | `p2_reconcile` T022b orphan not deleted |
+
+**T001:** GREEN after P4a T030 (`p0_safe_favorites_t001`).
+
+## Manual smoke checklist (T053 / SC-010)
+
+Fixtures / disposable albums only — never production libraries.
+
+1. Add favorite → original unchanged; star on after disk refetch.
+2. Batch add with partial fail → needs-review / partial notice, not false full success.
+3. Star off verified origin → recycle/relocate per plan; original kept.
+4. Missing origin → FR-11 A–D; cancel leaves copy; A relocates with identity; B choose folder; C keep.
+5. Explorer rename origin → no invented link; star truthful after refetch.
+6. Rapid folder switch → stale session does not apply previous favorites events (EC-16).
+7. Mass unfavorite mixed FR-11 + ready → per-bucket; IPC fail → disk-truth refetch.
+8. Cross-volume / permission failure → source copy retained.
+
+## FR-006 undo
+
+In-app `undo_favorite_removal` remains a stub: UI surfaces backend error and directs recovery via Windows Recycle Bin (GalleryPage `undoFavoriteRemovals`).

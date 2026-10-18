@@ -27,3 +27,18 @@ test("reopening the same folder does not accept the previous session", () => {
   assert.equal(eventSessionIsCurrent(11, 12), false);
   assert.deepEqual(keepCurrentSession([{ session: 11, path: "C:\\same\\a.jpg" }], 12), []);
 });
+
+/** EC-16: stale directory session must not apply favorites refetch / folder-changed side effects. */
+test("EC-16 stale session rejects folder-changed style favorites events", () => {
+  const liveSession = 20;
+  const staleFolderChanged = { folder: "C:\\Album", session: 19 };
+  assert.equal(
+    eventSessionIsCurrent(staleFolderChanged.session, liveSession),
+    false,
+  );
+  const staleFavoriteMeta = keepCurrentSession(
+    [{ session: 19, path: "C:\\Album\\Избранное\\a.jpg" }],
+    liveSession,
+  );
+  assert.deepEqual(staleFavoriteMeta, []);
+});
