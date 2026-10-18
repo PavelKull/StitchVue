@@ -87,8 +87,8 @@ fn pending_add(id: &str, source: &str, dest: Option<&str>) -> FileOpLog {
     }
 }
 
-/// T001 — documented defect: `unknown_origin` + `confirmed` without FR-11 resolution
-/// must not auto-relocate. Expected RED until T030.
+/// T001 — FR-011b: `unknown_origin` + `confirmed` without FR-11 resolution
+/// must not auto-relocate (GREEN после T030).
 #[test]
 fn p0_safe_favorites_t001_unknown_origin_confirmed_must_not_relocate() {
     let root = sandbox("t001");

@@ -9,6 +9,41 @@ fn held() -> &'static Mutex<HashSet<String>> {
     HELD.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+/// IPC-уровень: один in-flight unfavorite на путь копии (T033), отдельно от FS `try_lock_paths`.
+fn removal_claims() -> &'static Mutex<HashSet<String>> {
+    static CLAIMS: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    CLAIMS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+pub struct FavoriteRemovalGuard {
+    key: String,
+}
+
+impl Drop for FavoriteRemovalGuard {
+    fn drop(&mut self) {
+        let mut claims = removal_claims()
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        claims.remove(&self.key);
+    }
+}
+
+/// Запрещает параллельный повторный IPC снятия избранного для того же пути.
+pub fn try_claim_favorite_removal(path: &Path) -> Result<FavoriteRemovalGuard, String> {
+    let key = normalize_key(path).to_ascii_lowercase();
+    if key.is_empty() {
+        return Err("Нет пути для снятия избранного".to_string());
+    }
+    let mut claims = removal_claims()
+        .lock()
+        .unwrap_or_else(|err| err.into_inner());
+    if claims.contains(&key) {
+        return Err("Снятие избранного для этого файла уже выполняется".to_string());
+    }
+    claims.insert(key.clone());
+    Ok(FavoriteRemovalGuard { key })
+}
+
 pub struct PathLockGuard {
     keys: Vec<String>,
 }

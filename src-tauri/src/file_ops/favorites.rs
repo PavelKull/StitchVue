@@ -12,7 +12,8 @@ use super::p1_identity_gate::{assert_identity_allows_write, classify_origin_avai
 use super::recycle::{authorize_favorite_copy, recycle_path, RecycleStatus};
 use super::{
     active_favorites_folder, is_reparse, path_string_for_app, read_service_role,
-    restore_recorded_file, same_path, try_lock_paths, ServiceFolderLocation, ServiceRole,
+    restore_recorded_file, same_path, try_claim_favorite_removal, try_lock_paths,
+    ServiceFolderLocation, ServiceRole,
 };
 use crate::database::{self, FavoriteSnapshot};
 
@@ -424,6 +425,7 @@ pub(crate) fn remove_favorite_copy_distributed_with_scan(
     resolution: Option<&str>,
     scan_caches: Option<&mut BatchRemovalScanCaches>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
+    let _claim = try_claim_favorite_removal(Path::new(path))?;
     let ctx = with_db(db_mutex, |db| load_removal_context(db, path))?;
     let plan = match scan_caches {
         Some(caches) => plan_removal_with_scan(path, &ctx, Some(caches))?,
@@ -441,6 +443,7 @@ pub fn remove_favorite_copy(
     confirmed: bool,
     resolution: Option<&str>,
 ) -> Result<RemoveFavoriteCopyResult, String> {
+    let _claim = try_claim_favorite_removal(Path::new(path))?;
     let ctx = load_removal_context(db, path)?;
     let plan = plan_removal(path, &ctx)?;
     dispatch_removal_plan_on_conn(db, plan, confirmed, resolution)
@@ -454,6 +457,87 @@ fn with_db<R>(
     let guard = db_mutex.lock().unwrap_or_else(|err| err.into_inner());
     super::fav_metrics::record_db_lock_wait(wait_start.elapsed());
     f(&guard)
+}
+
+/// FR-11 (CL-P03): missing/unverified origin — нельзя auto-relocate/recycle без `resolution`.
+fn fr11_requires_resolution(kind: ConfirmKind) -> bool {
+    matches!(
+        kind,
+        ConfirmKind::UnknownOrigin | ConfirmKind::AmbiguousOrigin
+    )
+}
+
+/// Контракт строк `resolution` для FR-11 (P4a): A=`return_to_source`, C=`cancel`|`keep_copy`;
+/// B=`choose_folder` — stub до P4b; `recycle_copy` — явный destructive recycle последней копии.
+fn dispatch_fr11_needs_confirm_distributed(
+    db_mutex: &Mutex<rusqlite::Connection>,
+    kind: ConfirmKind,
+    copy: &Path,
+    parent: &Path,
+    snapshot: Option<&FavoriteSnapshot>,
+    resolution: Option<&str>,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    match resolution {
+        None => Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None)),
+        Some("return_to_source") => {
+            relocate_distributed(db_mutex, copy, parent, snapshot, notice_for(kind))
+        }
+        Some("cancel") | Some("keep_copy") => {
+            Ok(RemoveFavoriteCopyResult::skipped("cancelled"))
+        }
+        Some("choose_folder") => Err(
+            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
+        ),
+        Some(s) if s.starts_with("choose_folder:") => Err(
+            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
+        ),
+        Some("recycle_copy") => match snapshot {
+            Some(row) => recycle_copy_only_distributed(db_mutex, copy, row),
+            // EC-21: orphan без SQLite-ряда не удаляем «для починки» БД.
+            None => Err(
+                "Нет записи связи избранного: удаление orphan-копии запрещено.".to_string(),
+            ),
+        },
+        Some(_) => Err(
+            "Неизвестное разрешение FR-11. Выберите действие (return_to_source / cancel)."
+                .to_string(),
+        ),
+    }
+}
+
+fn dispatch_fr11_needs_confirm_on_conn(
+    db: &rusqlite::Connection,
+    kind: ConfirmKind,
+    copy: &Path,
+    parent: &Path,
+    snapshot: Option<&FavoriteSnapshot>,
+    resolution: Option<&str>,
+) -> Result<RemoveFavoriteCopyResult, String> {
+    match resolution {
+        None => Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None)),
+        Some("return_to_source") => {
+            execute_relocate(db, copy, parent, snapshot, notice_for(kind))
+        }
+        Some("cancel") | Some("keep_copy") => {
+            Ok(RemoveFavoriteCopyResult::skipped("cancelled"))
+        }
+        Some("choose_folder") => Err(
+            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
+        ),
+        Some(s) if s.starts_with("choose_folder:") => Err(
+            "Выбор папки назначения (FR-11 B) будет доступен в P4b.".to_string(),
+        ),
+        Some("recycle_copy") => match snapshot {
+            Some(row) => recycle_copy_only_on_conn(db, copy, row),
+            None => Err(
+                "Нет записи связи избранного: удаление orphan-копии запрещено.".to_string(),
+            ),
+        },
+        Some(_) => Err(
+            "Неизвестное разрешение FR-11. Выберите действие (return_to_source / cancel)."
+                .to_string(),
+        ),
+    }
 }
 
 fn dispatch_removal_plan(
@@ -472,9 +556,18 @@ fn dispatch_removal_plan(
             if !confirmed {
                 return Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None));
             }
-            if resolution.is_some() {
-                return Ok(RemoveFavoriteCopyResult::skipped("needs_confirm"));
+            // T030/FR-011b: UnknownOrigin/Ambiguous — не auto-relocate без resolution.
+            if fr11_requires_resolution(kind) {
+                return dispatch_fr11_needs_confirm_distributed(
+                    db_mutex,
+                    kind,
+                    &copy,
+                    &parent,
+                    snapshot.as_ref(),
+                    resolution,
+                );
             }
+            // origin_changed / copy_changed: стандартный confirm → relocate.
             relocate_distributed(
                 db_mutex,
                 &copy,
@@ -531,6 +624,16 @@ fn dispatch_removal_plan_on_conn(
         } => {
             if !confirmed {
                 return Ok(RemoveFavoriteCopyResult::needs_confirm(kind, None));
+            }
+            if fr11_requires_resolution(kind) {
+                return dispatch_fr11_needs_confirm_on_conn(
+                    db,
+                    kind,
+                    &copy,
+                    &parent,
+                    snapshot.as_ref(),
+                    resolution,
+                );
             }
             execute_relocate(db, &copy, &parent, snapshot.as_ref(), notice_for(kind))
         }
@@ -1055,6 +1158,10 @@ fn classify(
             .ok_or_else(|| "Нет родительской папки для «Избранное».".to_string())?
             .to_path_buf();
         let Some(snapshot) = snapshot else {
+            // Нет ряда и нет файла на диске — ошибка, не FR-11 (отличие от orphan-копии).
+            if !requested.is_file() {
+                return Err("Копия в избранном не найдена на диске.".to_string());
+            }
             return Ok(Plan::NeedsConfirm {
                 kind: ConfirmKind::UnknownOrigin,
                 copy: requested,
@@ -1467,6 +1574,8 @@ fn execute_recycle(
     origin: &Path,
     snapshot: &FavoriteSnapshot,
 ) -> Result<RemoveFavoriteCopyResult, String> {
+    // T032 / EC-17: identity + plan revalidate сразу перед destructive recycle.
+    revalidate_recycle_plan(copy, origin, snapshot)?;
     authorize_favorite_copy(copy, origin).map_err(|err| err.message)?;
     let _lock = try_lock_paths([copy, origin])?;
     let op_id = new_op_id("unfav");

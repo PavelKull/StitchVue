@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P4A-DISPATCH
 title: "P4a Safe Favorites — dispatch fix & FR-11 backend (T030–T033, T038)"
-status: approved
+status: verification
 risk: high
 responsible_agent: backend-executor
 base_commit: "aeefde1c95a400402d0390a509da17cba22490d1"
@@ -38,7 +38,7 @@ tests:
 | Поле | Значение |
 |------|----------|
 | ID | TASK-2026-FAV-P4A-DISPATCH |
-| Статус | draft |
+| Статус | verification |
 | Риск | high |
 | Ответственный | backend-executor |
 | SpecKit | T030, T031, T032, T033, T038 |
@@ -110,4 +110,33 @@ code-auditor → seal → backend-executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-(пусто)
+**STATUS:** verification — T030–T033, T038 done; T001 GREEN.
+
+### FR-11 `resolution` contract (backend P4a)
+
+| String | FR-11 | Behavior |
+|--------|-------|----------|
+| `return_to_source` | A | Relocate to stored parent; identity gate in `execute_relocate` / `relocate_distributed` |
+| `choose_folder` / `choose_folder:<path>` | B | Stub → error «будет в P4b» (picker = P4b) |
+| `cancel` / `keep_copy` | C | Non-destructive; `skipped` + `notice_code=cancelled`; copy stays |
+| `recycle_copy` | explicit destructive | Recycle copy only if SQLite snapshot exists; orphan → Err (EC-21) |
+| `None` + `confirmed` on UnknownOrigin/Ambiguous | — | `needs_confirm` / `fr11Required`; **no** auto-relocate/recycle |
+
+Standard `origin_changed` / `copy_changed` confirm still relocates on `confirmed` without FR-11 resolution.
+
+### Changed
+- `favorites.rs` — dispatch FR-11 guard; A/C (+ B stub, recycle_copy); T032 revalidate before `execute_recycle`; missing file≠orphan
+- `locks.rs` — `try_claim_favorite_removal` (T033)
+- `p4_dispatch.rs` — T038 + A/C/B/T033 tests
+- `p0_safe_favorites.rs` — T001 comment only
+- `mod.rs` — mod line
+
+### Tests
+- `p0_safe_favorites` PASS (T001 GREEN)
+- `p4_dispatch` PASS
+- `p1_identity` PASS
+- `favorites_copy_recovery` PASS
+- `favorites_trash_lifecycle_final` PASS
+
+### NEXT
+guardian + manual smoke (high); FE wires resolution strings.

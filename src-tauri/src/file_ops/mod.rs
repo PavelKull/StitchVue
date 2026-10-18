@@ -24,6 +24,8 @@ mod favorites_lifecycle;
 mod locks;
 #[cfg(test)]
 mod p0_safe_favorites;
+#[cfg(test)]
+mod p4_dispatch;
 mod p1_identity_gate;
 #[cfg(test)]
 mod p2_reconcile_scope;
@@ -35,7 +37,7 @@ pub use favorites::RemoveFavoriteCopyResult;
 pub use favorites_batch::{FavoriteBatchPathResult, FavoriteBatchRemoveItem, FavoriteCopyOrigin};
 // ServiceFolderCleanupResult is defined in this module.
 pub use content_hash::sha256_file;
-pub use locks::try_lock_paths;
+pub use locks::{try_claim_favorite_removal, try_lock_paths};
 pub(crate) use recycle::recycle_path;
 pub use recycle::RecycleStatus;
 
