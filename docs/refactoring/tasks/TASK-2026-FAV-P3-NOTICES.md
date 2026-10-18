@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-FAV-P3-NOTICES
 title: "P3 Safe Favorites — notices & no false success (T023–T029)"
-status: approved
+status: completed
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "a5ea1c0c99d51ec99e0a4e2a6102ac1073e46df7"
@@ -119,34 +119,15 @@ executor → guardian → strict
 
 ## 7. Отчёт исполнителя
 
-**STATUS: blocked** (strict FAIL — нужен re-seal)
+**STATUS: completed** — commit `7fb53c7` (reseal + impl).
 
-### Сделано в working tree (не закоммичено)
-
-| ID | Результат |
-|----|-----------|
-| T023 | `reconcileSuggested` / `fr11Required` на `RemoveFavoriteCopyResult`; `fr11` для UnknownOrigin/Ambiguous; `needs_reconciliation` при Ambiguous recycle |
+| ID | Result |
+|----|--------|
+| T023 | DTO `reconcileSuggested` / `fr11Required`; UnknownOrigin/Ambiguous → fr11Required |
 | T024 | quickstart: defer `favorites_reconcile_status` |
-| T025 | GalleryPage: needs-review / partial на `favorite_link` и `reconcileSuggested` |
-| T026/T029 | `diskConfirmedFavoritePaths` + `shouldAnnounceFullFavoriteSuccess`; тест T029 |
-| T027 | `rollbackIndeterminateFavoriteOverlay` + тест |
-| T028 | i18n keys en/ru (+ de/zh для parity) |
+| T025 | GalleryPage needs-review notice |
+| T026/T029 | `shouldAnnounceFullFavoriteSuccess` blocks incomplete journal |
+| T027 | `rollbackIndeterminateFavoriteOverlay` |
+| T028 | en/ru/de/zh-Hans i18n keys |
 
-### Проверки
-
-- `npm run typecheck` → OK
-- targeted favorites tests + full suite 429 → OK (после de/zh keys)
-- `p0_safe_favorites_t001` → **RED** (ожидаемо)
-
-### Blockers (strict)
-
-Вне `allowed_paths`, но **обязательны** для сборки/parity:
-
-1. `src-tauri/src/file_ops/favorites_batch.rs` — литерал `RemoveFavoriteCopyResult` без новых полей не компилируется; заменён на `::failed()`
-2. `src/shared/i18n/locales/de.json`, `zh-Hans.json` — i18n-check требует parity всех shipped locales
-
-**Нужен re-seal** с этими тремя путями, затем `--strict` + commit `feat(favorites): P3 notices and disk-confirmed stars`.
-
-### HEAD
-
-seal/re-seal: `a5ea1c0` (base_commit в YAML всё ещё `d6e1d2b`)
+**Tests:** typecheck PASS; favorites sync/overlay + i18n-check PASS; T001 **RED** (expected).
