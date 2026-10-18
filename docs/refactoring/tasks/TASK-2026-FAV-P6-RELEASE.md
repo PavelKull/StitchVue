@@ -4,12 +4,13 @@ title: "P6 Safe Favorites â€” integration docs, EC trace, smoke checklist (T047â
 status: approved
 risk: low
 responsible_agent: frontend-executor
-base_commit: "cc837fbd44045656809a3311b26f8708ccf7facb"
-approval_hash: 4ac44b45060ac584c2bf58e546045aa1da82c8587361758dd6df2a5c780f06cf
+base_commit: "fa618d2a8303518914ed21f1d6a77628e0f51258"
+approval_hash: c2e354ec10cabb111941b34420ca099e1d2f77cf6e6ed6998b4355bd1267959b
 allowed_paths:
   - specs/001-safe-favorites-lifecycle/quickstart.md
   - docs/INVARIANTS.md
-  - src/features/gallery/directorySession.test.ts
+  - src/features/gallery/lib/directory/directorySession.ts
+  - src/features/gallery/lib/directory/directorySession.test.ts
   - src/pages/gallery/GalleryPage.tsx
   - docs/refactoring/tasks/TASK-2026-FAV-P6-RELEASE.md
 forbidden_paths:
@@ -18,7 +19,7 @@ forbidden_paths:
   - specs/001-safe-favorites-lifecycle/tasks.md
 tests:
   - npm run typecheck
-  - npm test -- src/features/gallery/directorySession.test.ts
+  - npm test -- src/features/gallery/lib/directory/directorySession.test.ts
   - cargo test --manifest-path src-tauri/Cargo.toml favorites_copy_recovery --
   - cargo test --manifest-path src-tauri/Cargo.toml p0_safe_favorites --
 ---
