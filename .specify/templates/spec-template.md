@@ -2,6 +2,8 @@
 
 **Feature Branch**: `[###-feature-name]`
 
+**Working directory**: `C:\Users\Pavel\Desktop\ImageGrid` (ordinary branch; no worktree — `.cursor/rules/git-branch-workflow.mdc`)
+
 **Created**: [DATE]
 
 **Status**: Draft

@@ -12,8 +12,9 @@ All project docs live under `docs/`. Update a document only when it is now false
 | `docs/ARCHITECTURE.md` | Module boundaries, data flow (session, pipeline, file_ops, cache) |
 | `docs/INVARIANTS.md` | Confirmed vs UNVERIFIED business invariants; keep in sync with `.cursor/rules/business-invariants.mdc` (rule stays a short pointer + summary table) |
 | `docs/IPC.md` | Tauri commands, events, DTO locations |
-| `docs/DEVELOPMENT.md` | Scripts, directory layout, how to run targeted tests |
+| `docs/DEVELOPMENT.md` | Scripts, directory layout, how to run targeted tests, Git branch policy |
 | `docs/refactoring/TASK_HANDOFF.md` | Only if the agent handoff / gate process itself changes |
+| `.cursor/rules/git-branch-workflow.mdc` | Git working-directory / branch / worktree policy |
 | `README.md` | Only if the docs entry links are wrong |
 
 Do not resurrect `документация-проекта/`. Do not create `SESSION.md` as a second project-state file.

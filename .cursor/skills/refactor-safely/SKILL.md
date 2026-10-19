@@ -7,6 +7,8 @@ description: Refactors StitchVue code without mixing in features. Use when the u
 
 Do not mix a feature and a refactor in one change.
 
+Git: one checkout `ImageGrid`, ordinary branches only — `.cursor/rules/git-branch-workflow.mdc`. Do not create worktrees, clones, or extra project folders for isolation.
+
 1. State the current behavior in one short paragraph. Cite the spec section.
 2. Run the tests and typechecks that already exist. If they fail before the refactor, stop and report that.
 3. Define the exact goal (move, rename, split). Anything else is out of scope.

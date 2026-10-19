@@ -29,9 +29,13 @@ tests: []
 | Риск | `low` / `medium` / `high` — по **затронутым инвариантам**, не по числу файлов |
 | Ответственный агент | `frontend-executor` / `backend-executor` / read-only агент |
 | База Git | полный SHA `git rev-parse HEAD` в момент утверждения |
+| Рабочий каталог | `C:\Users\Pavel\Desktop\ImageGrid` (единственный; см. `git-branch-workflow.mdc`) |
+| Ветка исполнения | `feat/*` / `fix/*` / `refactor/*` / `chore/*` / `docs/*` — обычная ветка, не worktree |
 | Печать | `approval_hash` после `--seal`; пусто в `draft` |
 
 **Синхронизация:** YAML frontmatter должен совпадать с таблицей. Скрипт `node scripts/refactor-task-check.mjs` читает frontmatter.
+
+**Git:** работа только в указанном каталоге и ветке. Смена cwd/ветки после `--seal` — повторное согласование. Не создавать worktree/клоны без разрешения владельца (`.cursor/rules/git-branch-workflow.mdc`).
 
 ### Как выбрать риск
 

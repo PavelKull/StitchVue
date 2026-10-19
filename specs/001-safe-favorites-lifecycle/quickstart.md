@@ -38,7 +38,7 @@ npm test -- src/features/favorites/lib/favoriteOptimisticOverlay.test.ts
 
 ## Phase 0 gates (VERIFY)
 
-Sealed tasks (worktree branch `feat/safe-favorites-lifecycle`):
+Sealed tasks (историческая feature-ветка `feat/safe-favorites-lifecycle`; далее — обычные ветки в `ImageGrid`, см. `.cursor/rules/git-branch-workflow.mdc`):
 
 | SpecKit | Sealed task | Filter / entry |
 |---------|-------------|----------------|

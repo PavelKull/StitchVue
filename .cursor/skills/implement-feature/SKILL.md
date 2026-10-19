@@ -7,6 +7,8 @@ description: Implements one StitchVue feature as a small vertical slice. Use whe
 
 One task, one independently testable slice. Do not implement the whole app, the next stage, or unrelated files.
 
+Git: work only in `C:\Users\Pavel\Desktop\ImageGrid` on an ordinary task branch (`.cursor/rules/git-branch-workflow.mdc`). Never create worktrees or alternate checkouts unless the owner explicitly approves that exception.
+
 ## Scope limits
 
 - Source of truth order: `документация-проекта/PROJECT_SPEC.md` → `документация-проекта/ARCHITECTURE.md` / ADR → `документация-проекта/TODO.md` → skills → rules. Never silently override a higher level; name the conflict instead

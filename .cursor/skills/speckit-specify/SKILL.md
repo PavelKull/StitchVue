@@ -72,6 +72,8 @@ Given that feature description, do this:
 
 2. **Branch creation** (optional, via hook):
 
+   Spec-Kit runs in the **current** `ImageGrid` checkout. Create/switch an ordinary Git branch only — never `git worktree`, never a sibling project folder (`.cursor/rules/git-branch-workflow.mdc`). If the working tree is dirty, stop and ask the owner; do not auto-stash or open a second checkout.
+
    If a `before_specify` hook ran successfully in the Pre-Execution Checks above, it will have created/switched to a git branch and output JSON containing `BRANCH_NAME` and `FEATURE_NUM`. Note these values for reference, but the branch name does **not** dictate the spec directory name.
 
    If the user explicitly provided `GIT_BRANCH_NAME`, pass it through to the hook so the branch script uses the exact value as the branch name (bypassing all prefix/suffix generation).

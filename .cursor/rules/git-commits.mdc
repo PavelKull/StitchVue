@@ -7,6 +7,8 @@ alwaysApply: true
 
 Коммит только по явной просьбе пользователя. Правило обязательно для всех агентов (включая frontend-executor и backend-executor).
 
+Политика веток и запрет worktree: `.cursor/rules/git-branch-workflow.mdc`.
+
 ## Автор
 
 - Использовать текущие `user.name` и `user.email` из git config репозитория / окружения.

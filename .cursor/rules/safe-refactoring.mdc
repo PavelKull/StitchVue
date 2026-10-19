@@ -5,6 +5,7 @@ alwaysApply: true
 
 # Safe refactoring
 
+- Git: только ветки в `ImageGrid` — `.cursor/rules/git-branch-workflow.mdc`. Без worktree, клонов и смены рабочего каталога без разрешения владельца.
 - Один этап — один файл задачи `docs/refactoring/tasks/*.md` (`TASK_TEMPLATE.md`, маршруты в `TASK_HANDOFF.md`).
 - `approved` недостаточно: пользователь `--seal`, до записи `--preflight` (не из `in_progress`), перед Write `--auth`, после `--strict`. Промпт не блокирует инструменты.
 - `in_progress` без `approval_hash` не разрешение. Смена scope после печати — снова `approved` + `--seal`.

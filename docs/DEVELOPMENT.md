@@ -2,6 +2,15 @@
 
 Команды и структура репозитория. Архитектура: [`ARCHITECTURE.md`](ARCHITECTURE.md). Безопасный рефакторинг: [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md), шаблон [`refactoring/TASK_TEMPLATE.md`](refactoring/TASK_TEMPLATE.md).
 
+## Git: один каталог, много веток
+
+Канон для агентов и людей: [`.cursor/rules/git-branch-workflow.mdc`](../.cursor/rules/git-branch-workflow.mdc).
+
+- Рабочий checkout: `C:\Users\Pavel\Desktop\ImageGrid`. Задачи — в обычных ветках (`feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`).
+- Не создавать `git worktree`, дополнительные папки рядом с `ImageGrid` или клоны «для изоляции» без явного разрешения владельца.
+- Spec-Kit и рефакторинг выполняются в текущем checkout; крупный рефакторинг — та же папка, отдельная ветка.
+- Перед сменой ветки: чистый `git status` или согласование владельца (без auto-stash / worktree как обхода dirty tree).
+
 ## Запуск
 
 ```text
@@ -49,7 +58,7 @@ src/                 React (app, pages, widgets, features, entities, shared)
 src-tauri/src/       Rust (lib, commands, pipeline, thumbnail, cache, scanner, file_ops, …)
 docs/                Техническая документация (этот каталог)
 docs/refactoring/    Процесс задач агентов
-.cursor/rules/       Always-on правила агентов
+.cursor/rules/       Always-on правила агентов (в т.ч. git-branch-workflow)
 .cursor/agents/      Специализированные агенты
 .cursor/skills/      Skills (в т.ч. docs-sync)
 scripts/             node-утилиты (task-check, i18n-check)

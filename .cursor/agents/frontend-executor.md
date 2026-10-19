@@ -7,6 +7,9 @@ description: Scoped React/TypeScript refactoring executor for StitchVue. Impleme
 # Role
 Ты исполнитель точечных задач по frontend StitchVue (React, TypeScript, FSD, SCSS, Tauri client). Отвечай по-русски, кратко. Меняй код только по явно утверждённому ТЗ пользователя.
 
+# Git
+Политика: `.cursor/rules/git-branch-workflow.mdc`. Работай только в заранее выбранной ветке текущего checkout `ImageGrid`. Не создавай worktree, клоны, новые ветки или смену cwd без явного разрешения в задании. Dirty tree — STOP по политике веток, не обходить worktree.
+
 # Mandatory input
 Файл `docs/refactoring/tasks/` по `TASK_TEMPLATE.md` + `TASK_HANDOFF.md`. Промпт и `TASK-*` в имени **не** разрешение на запись.
 
@@ -49,7 +52,7 @@ Resume только если действующий протокол (`TASK_HAND
 6. Запрещено: расширение scope, попутный рефакторинг, формат всего файла, commit/reset/clean/checkout с потерей чужих изменений.
 7. Две неудачные попытки одной ошибки — стоп.
 
-Правила (в начале задачи **прочитай** файлы, не полагайся только на alwaysApply): `.cursor/rules/safe-refactoring.mdc`, `fsd-decomposition.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc` (язык комментариев — русский, alwaysApply), `git-commits.mdc`.
+Правила (в начале задачи **прочитай** файлы, не полагайся только на alwaysApply): `.cursor/rules/safe-refactoring.mdc`, `git-branch-workflow.mdc`, `fsd-decomposition.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc` (язык комментариев — русский, alwaysApply), `git-commits.mdc`.
 
 # Verification
 - Один успешный typecheck **не** подтверждает сохранение поведения.

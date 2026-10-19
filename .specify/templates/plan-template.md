@@ -2,9 +2,11 @@
 
 **Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
 
+**Working directory**: `C:\Users\Pavel\Desktop\ImageGrid` (ordinary Git branch only — no worktree/clone; see `.cursor/rules/git-branch-workflow.mdc`)
+
 **Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
-**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow.
+**Note**: This template is filled in by the `/speckit-plan` command; its definition describes the execution workflow. Spec-Kit runs in the current checkout.
 
 ## Summary
 

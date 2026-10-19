@@ -126,7 +126,7 @@ CP1 = pending до FS; CP2 = FS выполнен, SQLite ещё нет; CP3 = SQ
 
 1. Зафиксировать инвентаризацию: какие пути относятся к FIX-C1C2, lifecycle FINAL, TASK-015, прочим задачам.
 2. Уточнить `base_commit` для FINAL (не полагаться на `7aaa92d`, если он привязан к другой ветке/задаче).
-3. При необходимости — отдельный `git worktree` только с `allowed_paths` FINAL.
+3. При dirty tree — согласовать с владельцем WIP/stash или дождаться чистого дерева; продолжать в `ImageGrid` на обычной ветке задачи (не создавать worktree — см. `.cursor/rules/git-branch-workflow.mdc`).
 4. `--seal` → `--preflight` → `--auth` → `refactor-task-check --strict` на изолированном scope.
 5. Повторный [regression-guardian](227f7f1c-3c6d-4095-a7a9-3b3e87a00366) на чистом срезе.
 6. Ручной smoke (чеклист ниже) — **PASS только по вашему подтверждению**.

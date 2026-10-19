@@ -74,6 +74,19 @@ Rust follows functional modularity without inventing FSD segments in `src-tauri/
 **Rationale:** Gallery correctness (order, favorites, sessions, thumbnails) fails in
 ways compilers do not catch.
 
+### VI. One Working Directory — Branches Only
+
+Ordinary development (features, fixes, refactors, Spec-Kit) MUST use a single checkout
+at `C:\Users\Pavel\Desktop\ImageGrid` and ordinary Git branches
+(`feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`). Agents MUST NOT create
+`git worktree`s, sibling working directories, or repository clones for isolation unless
+the owner explicitly approves that exception for a named task. Dirty trees MUST NOT be
+bypassed via worktree, auto-stash, or destructive reset. Canon:
+`.cursor/rules/git-branch-workflow.mdc`.
+
+**Rationale:** Parallel checkouts caused owners to keep editing stale trees while
+`main`/GitHub advanced elsewhere.
+
 ## Architecture & Stack Constraints
 
 StitchVue is a Windows desktop gallery: Tauri 2, Rust backend, React/TypeScript UI.
@@ -104,6 +117,8 @@ StitchVue is a Windows desktop gallery: Tauri 2, Rust backend, React/TypeScript 
   SQLite, IPC, thumbnail scheduler = high), not file count.
 - Commits use Conventional Commits; create commits only when the user asks; no
   AI co-author trailers.
+- Spec-Kit and agent work run in the current `ImageGrid` checkout on a feature
+  branch; do not spawn worktrees or alternate project folders by default.
 - Do not launch specialized subagents without explicit user permission.
 - Manual smoke (folder switch, sort, scroll/thumbs, favorites original safety,
   delete/move selection, favorites-folder rename) is mandatory for high-risk work,
@@ -128,4 +143,4 @@ Compliance review expectations:
   SpecKit artifact such as feature `tasks.md` produced by `/speckit-tasks`).
   Broken or speculative links MUST NOT be introduced.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-17 | **Last Amended**: 2026-10-17
+**Version**: 1.2.0 | **Ratified**: 2026-10-17 | **Last Amended**: 2026-10-19
