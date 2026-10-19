@@ -72,6 +72,14 @@
     "origin_missing": "Der ursprüngliche Ordner ist nicht verfügbar"
   },
   "gallery": {
+    "opening": {
+      "title": "Wird geöffnet…",
+      "description": "Der Ordner wird geladen."
+    },
+    "openError": {
+      "title": "Ordner konnte nicht geöffnet werden",
+      "description": "Der Ordner konnte nicht geöffnet werden."
+    },
     "emptyFolder": {
       "title": "Ordner ist leer",
       "description": "Hier sind noch keine Dateien vorhanden."
@@ -84,8 +92,14 @@
       "title": "Keine Bilder",
       "description": "Wählen Sie einen Unterordner aus, um Fotos anzuzeigen."
     },
-    "emptyFavorites": "Noch keine Fotos in den Favoriten",
-    "emptyTrash": "Der Ordner „Gelöscht“ ist leer",
+    "emptyFavorites": {
+      "title": "Noch keine Fotos in den Favoriten",
+      "description": "Fügen Sie Fotos zu den Favoriten hinzu, um sie hier zu sehen."
+    },
+    "emptyTrash": {
+      "title": "Der Ordner „Gelöscht“ ist leer",
+      "description": "Gelöschte Fotos erscheinen hier."
+    },
     "bootLastFolderUnavailable": "Der zuletzt geöffnete Ordner ist nicht verfügbar",
     "bootLastFolderFailed": "Der zuletzt geöffnete Ordner konnte nicht geöffnet werden",
     "noDate": "Kein Datum",

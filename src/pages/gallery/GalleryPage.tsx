@@ -4689,15 +4689,6 @@ export function GalleryPage() {
                 ref={galleryLayerRef}
                 className={styles.galleryLayer}
             >
-                {status === 'error' && (
-                    <p className={styles.message}>{error}</p>
-                )}
-                {(status === 'scanning' &&
-                    view.folders.length === 0 &&
-                    view.images.length === 0) ||
-                geometryPending ? (
-                    <p className={styles.message}>{t('common.opening')}</p>
-                ) : null}
                 {galleryEmptyCopy ? (
                     <div
                         className={styles.emptyGallery}
@@ -4712,22 +4703,13 @@ export function GalleryPage() {
                             {t(galleryEmptyCopy.titleKey)}
                         </p>
                         <p className={styles.emptyGalleryDescription}>
-                            {t(galleryEmptyCopy.descriptionKey)}
+                            {/* openError: живой текст ошибки; полная i18n — C-002 */}
+                            {galleryEmptyKind === 'openError'
+                                ? error
+                                : t(galleryEmptyCopy.descriptionKey)}
                         </p>
                     </div>
                 ) : null}
-                {status === 'ready' &&
-                    view.images.length === 0 &&
-                    serviceRole === 'favorites' && (
-                        <p className={styles.message}>
-                            {t('gallery.emptyFavorites')}
-                        </p>
-                    )}
-                {status === 'ready' &&
-                    view.images.length === 0 &&
-                    serviceRole === 'trash' && (
-                        <p className={styles.message}>{t('gallery.emptyTrash')}</p>
-                    )}
                 {photos ?? folderTiles}
             </div>
 

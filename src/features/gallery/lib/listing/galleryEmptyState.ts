@@ -2,8 +2,13 @@ import type { ServiceRole } from '../../../../entities/folder/serviceFolder.ts';
 
 export type GalleryEmptyKind =
     | 'none'
+    | 'opening'
+    | 'openError'
     | 'emptyFolder'
-    | 'noSupportedFiles';
+    | 'noSupportedFiles'
+    | 'subfoldersOnly'
+    | 'emptyFavorites'
+    | 'emptyTrash';
 
 export type GalleryEmptyStateInput = {
     status: string;
@@ -19,22 +24,26 @@ export function resolveGalleryEmptyKind(
     input: GalleryEmptyStateInput,
 ): GalleryEmptyKind {
     if (input.status === 'error') {
-        return 'none';
+        return 'openError';
     }
-    if (input.status !== 'ready') {
-        return 'none';
-    }
-    if (input.folderListingBusy || input.geometryPending) {
-        return 'none';
-    }
-    if (input.serviceRole) {
-        return 'none';
+    if (
+        input.status !== 'ready' ||
+        input.folderListingBusy ||
+        input.geometryPending
+    ) {
+        return 'opening';
     }
     if (input.imageCount > 0) {
         return 'none';
     }
+    if (input.serviceRole === 'favorites') {
+        return 'emptyFavorites';
+    }
+    if (input.serviceRole === 'trash') {
+        return 'emptyTrash';
+    }
     if (input.folderCount > 0) {
-        return 'none';
+        return 'subfoldersOnly';
     }
     if (input.unsupportedFileCount > 0) {
         return 'noSupportedFiles';

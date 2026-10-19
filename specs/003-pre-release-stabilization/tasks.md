@@ -17,9 +17,9 @@
 
 **Purpose**: Planning artifacts exist; bind implementation to TASK_HANDOFF
 
-- [ ] T001 Confirm feature dir `specs/003-pre-release-stabilization/` and `.specify/feature.json` point at this feature
-- [ ] T002 Record owner-chosen implementation branch name (ordinary `feat/003-pre-release-stabilization` or per-package `fix/*`) without switching a dirty tree
-- [ ] T003 [P] For each package, create a TASK_HANDOFF file under `docs/refactoring/tasks/` only when that package starts (template `TASK_TEMPLATE.md`); do not pre-seal the whole 003
+- [x] T001 Confirm feature dir `specs/003-pre-release-stabilization/` and `.specify/feature.json` point at this feature
+- [x] T002 Record owner-chosen implementation branch name (ordinary `feat/003-pre-release-stabilization` or per-package `fix/*`) without switching a dirty tree
+- [x] T003 [P] For each package, create a TASK_HANDOFF file under `docs/refactoring/tasks/` only when that package starts (template `TASK_TEMPLATE.md`); do not pre-seal the whole 003
 
 ---
 
@@ -27,7 +27,7 @@
 
 **Purpose**: Cross-cutting constraints before any source package
 
-- [ ] T004 Freeze out-of-scope in every sealed task: no `pick_index` rewrite, no second cache, no updater plugin, no worktree, no user-photo fixtures
+- [x] T004 Freeze out-of-scope in every sealed task: no `pick_index` rewrite, no second cache, no updater plugin, no worktree, no user-photo fixtures
 - [ ] T005 Document viewer chain dependency in sealed tasks for US4–US6: B-007 then C-006 then remaining B-009 (`research.md` D-04)
 
 **Checkpoint**: Packages US1–US3 and US7–US9 may start in parallel after T004. US5 must not start before US4. US6 must not start before US5.
@@ -39,9 +39,9 @@
 **Goal**: One emptyGallery family  
 **Independent Test**: Opening / empty / unsupported / subfolders / favorites / trash / error share one layout
 
-- [ ] T006 [P] [US7] Extend `GalleryEmptyKind` in `src/features/gallery/lib/listing/galleryEmptyState.ts` (loading, error, subfoldersOnly, emptyFavorites, emptyTrash); stop returning `'none'` solely because `serviceRole` is set
-- [ ] T007 [P] [US7] Update `src/features/gallery/lib/listing/galleryEmptyState.test.ts` for each kind including `gallery.subfoldersOnly`
-- [ ] T008 [US7] Wire `src/pages/gallery/GalleryPage.tsx` to the shared `emptyGallery` layout; remove parallel `styles.message` branches for those kinds
+- [x] T006 [P] [US7] Extend `GalleryEmptyKind` in `src/features/gallery/lib/listing/galleryEmptyState.ts` (loading, error, subfoldersOnly, emptyFavorites, emptyTrash); stop returning `'none'` solely because `serviceRole` is set
+- [x] T007 [P] [US7] Update `src/features/gallery/lib/listing/galleryEmptyState.test.ts` for each kind including `gallery.subfoldersOnly`
+- [x] T008 [US7] Wire `src/pages/gallery/GalleryPage.tsx` to the shared `emptyGallery` layout; remove parallel `styles.message` branches for those kinds
 
 ---
 

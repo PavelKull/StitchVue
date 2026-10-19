@@ -72,6 +72,14 @@
     "origin_missing": "原文件夹不可用"
   },
   "gallery": {
+    "opening": {
+      "title": "正在打开…",
+      "description": "正在加载文件夹。"
+    },
+    "openError": {
+      "title": "无法打开文件夹",
+      "description": "未能打开该文件夹。"
+    },
     "emptyFolder": {
       "title": "文件夹为空",
       "description": "此处暂无文件。"
@@ -84,8 +92,14 @@
       "title": "没有图片",
       "description": "请选择子文件夹以查看照片。"
     },
-    "emptyFavorites": "收藏夹中还没有照片",
-    "emptyTrash": "“已删除”文件夹为空",
+    "emptyFavorites": {
+      "title": "收藏夹中还没有照片",
+      "description": "将照片添加到收藏夹后即可在此查看。"
+    },
+    "emptyTrash": {
+      "title": "“已删除”文件夹为空",
+      "description": "已删除的照片会出现在这里。"
+    },
     "bootLastFolderUnavailable": "上次打开的文件夹不可用",
     "bootLastFolderFailed": "无法打开上次使用的文件夹",
     "noDate": "无日期",

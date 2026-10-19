@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
     galleryEmptyI18nKeys,
     resolveGalleryEmptyKind,
+    type GalleryEmptyKind,
     type GalleryEmptyStateInput,
 } from './galleryEmptyState.ts';
 
@@ -32,16 +33,19 @@ test('T2 only unsupported files', () => {
     );
 });
 
-test('T3 only subfolders — no center warning', () => {
-    assert.equal(resolveGalleryEmptyKind(base({ folderCount: 2 })), 'none');
+test('T3 only subfolders — subfoldersOnly', () => {
+    assert.equal(
+        resolveGalleryEmptyKind(base({ folderCount: 2 })),
+        'subfoldersOnly',
+    );
 });
 
-test('T4 unsupported files with subfolders — no center warning', () => {
+test('T4 unsupported files with subfolders — subfoldersOnly', () => {
     assert.equal(
         resolveGalleryEmptyKind(
             base({ unsupportedFileCount: 1, folderCount: 1 }),
         ),
-        'none',
+        'subfoldersOnly',
     );
 });
 
@@ -62,45 +66,73 @@ test('T7 supported raw/heic counts as gallery', () => {
     assert.equal(resolveGalleryEmptyKind(base({ imageCount: 1 })), 'none');
 });
 
-test('T8 scanning or listing busy hides empty state', () => {
+test('T8 scanning or listing busy shows opening', () => {
     assert.equal(
         resolveGalleryEmptyKind(base({ status: 'scanning' })),
-        'none',
+        'opening',
     );
     assert.equal(
         resolveGalleryEmptyKind(base({ folderListingBusy: true })),
-        'none',
+        'opening',
     );
     assert.equal(
         resolveGalleryEmptyKind(base({ geometryPending: true })),
-        'none',
+        'opening',
     );
 });
 
-test('T9 error state is not empty folder', () => {
+test('T9 error state is openError', () => {
     assert.equal(
         resolveGalleryEmptyKind(base({ status: 'error' })),
-        'none',
+        'openError',
     );
 });
 
-test('T11 thumbs pending does not imply empty when images exist', () => {
+test('T11 geometryPending with images still opening', () => {
     assert.equal(
         resolveGalleryEmptyKind(
             base({ imageCount: 3, geometryPending: true }),
         ),
+        'opening',
+    );
+});
+
+test('empty favorites and trash kinds', () => {
+    assert.equal(
+        resolveGalleryEmptyKind(base({ serviceRole: 'favorites' })),
+        'emptyFavorites',
+    );
+    assert.equal(
+        resolveGalleryEmptyKind(base({ serviceRole: 'trash' })),
+        'emptyTrash',
+    );
+    assert.equal(
+        resolveGalleryEmptyKind(
+            base({ serviceRole: 'favorites', imageCount: 2 }),
+        ),
+        'none',
+    );
+    assert.equal(
+        resolveGalleryEmptyKind(base({ serviceRole: 'trash', imageCount: 1 })),
         'none',
     );
 });
 
 test('i18n keys for each empty kind', () => {
-    assert.deepEqual(galleryEmptyI18nKeys('emptyFolder'), {
-        titleKey: 'gallery.emptyFolder.title',
-        descriptionKey: 'gallery.emptyFolder.description',
-    });
-    assert.deepEqual(galleryEmptyI18nKeys('noSupportedFiles'), {
-        titleKey: 'gallery.noSupportedFiles.title',
-        descriptionKey: 'gallery.noSupportedFiles.description',
-    });
+    const kinds: GalleryEmptyKind[] = [
+        'opening',
+        'openError',
+        'emptyFolder',
+        'noSupportedFiles',
+        'subfoldersOnly',
+        'emptyFavorites',
+        'emptyTrash',
+    ];
+    for (const kind of kinds) {
+        assert.deepEqual(galleryEmptyI18nKeys(kind), {
+            titleKey: `gallery.${kind}.title`,
+            descriptionKey: `gallery.${kind}.description`,
+        });
+    }
     assert.equal(galleryEmptyI18nKeys('none'), null);
 });

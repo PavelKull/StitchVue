@@ -72,6 +72,14 @@
     "origin_missing": "The original folder is unavailable"
   },
   "gallery": {
+    "opening": {
+      "title": "Opening…",
+      "description": "The folder is being loaded."
+    },
+    "openError": {
+      "title": "Could not open folder",
+      "description": "The folder could not be opened."
+    },
     "emptyFolder": {
       "title": "Folder is empty",
       "description": "There are no files here yet."
@@ -84,8 +92,14 @@
       "title": "No images",
       "description": "Select a subfolder to view photos."
     },
-    "emptyFavorites": "No photos in Favorites yet",
-    "emptyTrash": "The Deleted folder is empty",
+    "emptyFavorites": {
+      "title": "No photos in Favorites yet",
+      "description": "Add photos to Favorites to see them here."
+    },
+    "emptyTrash": {
+      "title": "The Deleted folder is empty",
+      "description": "Deleted photos will appear here."
+    },
     "bootLastFolderUnavailable": "The last opened folder is unavailable",
     "bootLastFolderFailed": "Could not open the last folder",
     "noDate": "No date",
