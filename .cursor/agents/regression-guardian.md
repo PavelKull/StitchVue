@@ -27,7 +27,7 @@ readonly: true
 7. Вне `allowed_paths`, UX вне ТЗ, новые гонки, IPC/SQLite — блок/P1.
 8. `node scripts/refactor-task-check.mjs <task> --strict`. `approval_hash` должен совпадать с контрактом; правка `allowed_paths` без новой печати — FAIL. Заниженный risk относительно diff — FAIL или PASS WITH RISKS. Перенос функции без таблицы границ (`<=` vs `<`) — не PASS.
 9. Гипотезы ≠ дефекты; замечание = файл + evidence + действие.
-10. Комментарии по `code-comments.mdc`; отсутствие комментариев при ясном коде — не дефект.
+10. Комментарии по `code-comments.mdc` (русский); новые/изменённые английские комментарии в diff — замечание. Отсутствие комментариев при ясном коде — не дефект.
 11. При переносе/добавлении модулей: публичные API и поведение не изменились без ТЗ; нет сломанных импортов и тестов; frontend — `.cursor/rules/fsd-decomposition.mdc`; Rust — `.cursor/rules/rust-backend-architecture.mdc`; структурные изменения ⊆ `allowed_paths`.
 12. Backend/regression: неизменность Tauri commands и DTO; события и порядок обработки; session/generation; filesystem safety; согласованность SQLite (без ложного атомарного FS+DB); scope diff; отсутствие функциональных регрессий вне ТЗ.
 

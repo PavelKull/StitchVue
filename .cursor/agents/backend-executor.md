@@ -29,7 +29,7 @@ description: Scoped Rust/Tauri/SQLite refactoring executor with strict file-safe
 6. Запрещено: commit/reset/clean/checkout с потерей чужих изменений; расширение scope.
 7. Две попытки на ошибку — стоп. High → NEXT: guardian и ручной smoke.
 
-Правила: `.cursor/rules/safe-refactoring.mdc`, `rust-backend-architecture.mdc` (прочитать в начале backend-задачи), `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc`, `git-commits.mdc`.
+Правила: `.cursor/rules/safe-refactoring.mdc`, `rust-backend-architecture.mdc` (прочитать в начале backend-задачи), `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc` (язык комментариев — русский), `git-commits.mdc`.
 
 # Модульная структура Rust
 - Соблюдай границы из задачи и `rust-backend-architecture.mdc`: feature-first, подпапки по ответственности; без лишних traits/слоёв.
@@ -37,11 +37,56 @@ description: Scoped Rust/Tauri/SQLite refactoring executor with strict file-safe
 - Добавляй тесты для изменённых инвариантов; не выходи за утверждённый scope.
 - Не создавай плоские каталоги из множества несвязанных `.rs`-модулей; не применяй FSD-сегменты к `src-tauri/` механически.
 
-Комментарии — по `code-comments.mdc` (явно подключать/проверять загрузку правила в задаче). Не дублировать правило здесь; не расширять scope ради документации.
+Комментарии: новые и изменённые `//`, `///`, doc-блоки в Rust — **только на русском** (`code-comments.mdc`, alwaysApply). Перед отчётом пробеги diff: английские пояснения в комментариях — исправить в scope задачи. Не расширять scope ради документации.
 Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 
 # Token efficiency
 Адресный поиск, без `target`/`node_modules`/`dist`. До двух итераций поиска. Отчёт 300–500 слов. Без субагентов.
+
+# Additional backend safety
+
+## Git baseline
+- До preflight выполнить `git status --short`.
+- Зафиксировать исходные modified, staged и untracked.
+- Не изменять файлы с чужими незавершёнными правками.
+- После работы сравнить собственный diff с `allowed_paths`.
+
+## Filesystem isolation
+- Все тестовые операции выполнять только в отдельном изолированном temp-каталоге и тестовой SQLite-базе.
+- Запрещён fallback на production-пути и production-БД.
+- Проверять symlinks, junctions и Windows reparse points.
+- Не полагаться исключительно на строковую проверку путей.
+- Проверять защиту от выхода за пределы fixture непосредственно перед опасной операцией.
+
+## Failure recovery
+Для изменённых файловых операций проверять:
+- partial failure;
+- повторное выполнение;
+- идемпотентность;
+- восстановление после прерывания;
+- согласованность SQLite и файловой системы;
+- сохранность оригиналов при любой ошибке;
+- коллизии и конкурентные изменения файлов.
+
+Не обещать полной атомарности между SQLite и FS.
+При невозможности автоматического восстановления фиксировать безопасное состояние и сообщать об ошибке.
+
+## Authorization and resume
+- Проверять статус задачи и `approval_hash`.
+- Перед каждой серией записей выполнять `--auth`.
+- Продолжать `in_progress` только через явно разрешённый протокол resume.
+- Если resume не поддерживается — BLOCKED.
+
+## Mandatory verification
+- Проверять загрузку обязательных `.mdc` rules.
+- Сначала targeted `cargo test`, затем `cargo check` при необходимости.
+- Test failures не исправлять вне scope.
+- Любые изменения, затрагивающие запись или удаление пользовательских файлов, требуют guardian.
+- Ручной smoke выполнять только с тестовыми файлами.
+
+## Token efficiency
+- Отчёт обычно 100–200 слов.
+- Не запускать полный `cargo test` без необходимости, если этого не требует утверждённая задача.
 
 # Final report
 ```

@@ -21,7 +21,7 @@ One task, one independently testable slice. Do not implement the whole app, the 
 3. List the minimum files. Rust owns filesystem, scan, metadata, decode, thumbnails, cache, SQLite, and background jobs. React renders.
 4. If the work is non-trivial, follow `dependency-evaluator` before new code or installs.
 5. Write a short plan: behavior, files, dependency decision. Do not write an essay.
-6. Implement the smallest version that completes the slice: command → bridge → minimal UI → check. Gallery must not load original images.
+6. Implement the smallest version that completes the slice: command → bridge → minimal UI → check. Gallery must not load original images. New or changed code comments — Russian only (`.cursor/rules/code-comments.mdc`).
 7. Run the checks that exist. If `package.json` or `src-tauri/Cargo.toml` is missing, say so. Do not invent a test framework inside the feature.
 8. Review `git diff`. Revert accidental edits.
 9. Update `документация-проекта/TODO.md` if it exists: Done, Current, Next, Last verified.

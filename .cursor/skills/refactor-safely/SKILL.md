@@ -10,7 +10,7 @@ Do not mix a feature and a refactor in one change.
 1. State the current behavior in one short paragraph. Cite the spec section.
 2. Run the tests and typechecks that already exist. If they fail before the refactor, stop and report that.
 3. Define the exact goal (move, rename, split). Anything else is out of scope.
-4. Change only that scope. Keep the public command and UI behavior the same.
+4. Change only that scope. Keep the public command and UI behavior the same. New or changed comments — Russian only (`.cursor/rules/code-comments.mdc`).
 5. Run the same checks again.
 6. Compare `git diff` to the goal. Revert drive-by edits.
 

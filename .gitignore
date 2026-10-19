@@ -50,3 +50,6 @@ credentials.json
 # Python bytecode from icon helpers
 __pycache__/
 *.py[cod]
+
+# Rust / Tauri build output
+src-tauri/target/
