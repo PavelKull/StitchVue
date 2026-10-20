@@ -69,9 +69,9 @@
 **Goal**: `pendingScrollToEnd` follow-max  
 **Independent Test**: Down before ready reaches real end; up immediate; manual scroll cancels
 
-- [ ] T012 [US1] Add `pendingScrollToEnd` and re-stick on `scrollHeight` growth in `src/features/gallery/model/viewport/useGalleryScrollJump.ts` (`behavior: 'auto'` while flagged)
-- [ ] T013 [US1] Cover flag lifecycle in `src/features/gallery/model/viewport/useGalleryScrollJump.test.ts`
-- [ ] T014 [US1] Wire cancel on user scroll / up / folder change from `src/pages/gallery/GalleryPage.tsx` if the hook cannot see those events alone
+- [x] T012 [US1] Add `pendingScrollToEnd` and re-stick on `scrollHeight` growth in `src/features/gallery/model/viewport/useGalleryScrollJump.ts` (`behavior: 'auto'` while flagged)
+- [x] T013 [US1] Cover flag lifecycle in `src/features/gallery/model/viewport/useGalleryScrollJump.test.ts`
+- [x] T014 [US1] Wire cancel on user scroll / up / folder change from `src/pages/gallery/GalleryPage.tsx` if the hook cannot see those events alone
 
 ---
 

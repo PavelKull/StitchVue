@@ -1393,22 +1393,38 @@ export function GalleryPage() {
 
     const bottomOverlayReserve =
         useGalleryBottomOverlayReserve(bottomBarDockRef);
-    const { scrollJump, jumpGalleryScroll, commitScrollJump } =
-        useGalleryScrollJump({
-            viewportRef: photoGridViewportRef,
-            orderedImagesLength: orderedImages.length,
-            directoryKey: directoryKey ?? '',
-            layoutMode,
-            rowsPerScreen,
-            bottomOverlayReserve,
-        });
+    const {
+        scrollJump,
+        jumpGalleryScroll,
+        commitScrollJump,
+        notifyGalleryScrollTop,
+        clearPendingScrollToEnd,
+    } = useGalleryScrollJump({
+        viewportRef: photoGridViewportRef,
+        orderedImagesLength: orderedImages.length,
+        directoryKey: directoryKey ?? '',
+        layoutMode,
+        rowsPerScreen,
+        bottomOverlayReserve,
+        listingComplete: status === 'ready',
+    });
     const { reportScrollActivity, resetScrollActivityForFolderChange } =
         useGalleryScrollActivity({
             scrollTopRef,
             viewportRef: photoGridViewportRef,
             commitScrollJump,
         });
-    resetScrollActivityRef.current = resetScrollActivityForFolderChange;
+    const reportGalleryScrollActivity = useCallback(
+        (top: number) => {
+            notifyGalleryScrollTop(top, scrollTopRef.current);
+            reportScrollActivity(top);
+        },
+        [notifyGalleryScrollTop, reportScrollActivity, scrollTopRef],
+    );
+    resetScrollActivityRef.current = () => {
+        clearPendingScrollToEnd();
+        resetScrollActivityForFolderChange();
+    };
 
     orderedRef.current = orderedImages;
 
@@ -4484,7 +4500,7 @@ export function GalleryPage() {
                     viewportRef={photoGridViewportRef}
                     onVisible={reportVisible}
                     onGeometryRange={reportGeometry}
-                    onScrollActivity={reportScrollActivity}
+                    onScrollActivity={reportGalleryScrollActivity}
                     onOpen={(index) =>
                         setViewerIndex((current) =>
                             current === index ? null : index,
