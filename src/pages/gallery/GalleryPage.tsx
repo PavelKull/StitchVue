@@ -184,6 +184,7 @@ import {
     clearFavoriteOverlayIfGeneration,
     clearFavoriteOverlayKey,
     favoriteDisplayOn,
+    filterListingImagesForFavoriteOverlay,
     isFavoriteOverlayPending,
     mapSnapshotCopyOrigins,
     nextFavoriteOverlayGeneration,
@@ -1352,9 +1353,19 @@ export function GalleryPage() {
         [],
     );
 
+    const listingImages = useMemo(() => {
+        if (view.serviceRole !== 'favorites') {
+            return view.images;
+        }
+        return filterListingImagesForFavoriteOverlay(
+            view.images,
+            favoriteOverlay,
+        );
+    }, [view.images, view.serviceRole, favoriteOverlay]);
+
     const orderedImages = useMemo(
-        () => sortPhotos(view.images, gallerySort),
-        [view.images, gallerySort],
+        () => sortPhotos(listingImages, gallerySort),
+        [listingImages, gallerySort],
     );
     const orderStamp = useMemo(
         () => listingStamp(orderedImages, gallerySort),
@@ -1378,7 +1389,7 @@ export function GalleryPage() {
                 folderListingBusy,
                 geometryPending,
                 serviceRole: view.serviceRole,
-                imageCount: view.images.length,
+                imageCount: listingImages.length,
                 folderCount: view.folders.length,
                 unsupportedFileCount: view.unsupportedFileCount ?? 0,
             }),
@@ -1387,7 +1398,7 @@ export function GalleryPage() {
             folderListingBusy,
             geometryPending,
             view.serviceRole,
-            view.images.length,
+            listingImages.length,
             view.folders.length,
             view.unsupportedFileCount,
         ],
@@ -1484,7 +1495,12 @@ export function GalleryPage() {
         const next = orderedImages.findIndex(
             (file) => pathKey(file.path) === pathKey(path),
         );
-        if (next >= 0 && next !== viewerIndexRef.current) {
+        if (next < 0) {
+            setViewerIndex(null);
+            viewedPathRef.current = null;
+            return;
+        }
+        if (next !== viewerIndexRef.current) {
             setViewerIndex(next);
         }
     }, [orderStamp, orderedImages]);

@@ -91,9 +91,9 @@
 **Goal**: Filter listing; hide folder without extra listingReady wait when batch is complete  
 **Independent Test**: Mass/partial hide tiles+stars; originals remain; rollback on fail
 
-- [ ] T018 [US3] Filter Favorites `view.images` / viewer by pending `desired: false` using `src/features/favorites/lib/favoriteOptimisticOverlay.ts` from `src/pages/gallery/GalleryPage.tsx`
-- [ ] T019 [US3] Relax `shouldOptimisticallyHideFavoritesServiceFolder` in `src/features/favorites/lib/favoriteMassUnfavoriteOptimistic.ts` when the batch equals known listing files
-- [ ] T020 [P] [US3] Update `src/features/favorites/lib/favoriteMassUnfavoriteOptimistic.test.ts` and overlay tests; keep I4/I5/I8
+- [x] T018 [US3] Filter Favorites `view.images` / viewer by pending `desired: false` using `src/features/favorites/lib/favoriteOptimisticOverlay.ts` from `src/pages/gallery/GalleryPage.tsx`
+- [x] T019 [US3] Relax `shouldOptimisticallyHideFavoritesServiceFolder` in `src/features/favorites/lib/favoriteMassUnfavoriteOptimistic.ts` when the batch equals known listing files
+- [x] T020 [P] [US3] Update `src/features/favorites/lib/favoriteMassUnfavoriteOptimistic.test.ts` and overlay tests; keep I4/I5/I8
 
 ---
 

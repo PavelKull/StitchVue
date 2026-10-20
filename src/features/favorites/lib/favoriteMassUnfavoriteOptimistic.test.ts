@@ -67,7 +67,7 @@ test("partial removal does not hide favorites folder", () => {
   );
 });
 
-test("incomplete listing blocks optimistic folder hide", () => {
+test("full batch on known listing hides folder even when listing is not ready", () => {
   const fav = "C:\\Photos\\Избранное";
   const files = [img(`${fav}\\a.jpg`)];
   assert.equal(
@@ -75,6 +75,21 @@ test("incomplete listing blocks optimistic folder hide", () => {
       sessionPath: fav,
       targets: files,
       listingImages: files,
+      childFolderCount: 0,
+      listingReady: false,
+    }),
+    true,
+  );
+});
+
+test("partial removal does not hide folder while listing is still growing", () => {
+  const fav = "C:\\Photos\\Избранное";
+  const listed = [img(`${fav}\\a.jpg`), img(`${fav}\\b.jpg`)];
+  assert.equal(
+    shouldOptimisticallyHideFavoritesServiceFolder({
+      sessionPath: fav,
+      targets: [listed[0]],
+      listingImages: listed,
       childFolderCount: 0,
       listingReady: false,
     }),

@@ -19,6 +19,37 @@ export function isFavoriteOverlayPending(
   return overlay.get(key)?.status === "pending";
 }
 
+/** Pending unfavorite — hide copy from Favorites grid/viewer before IPC completes. */
+export function shouldHideFromFavoritesListing(
+  overlay: FavoriteOverlayMap,
+  key: string,
+): boolean {
+  const entry = overlay.get(key);
+  return entry?.status === "pending" && entry.desired === false;
+}
+
+export function filterListingImagesForFavoriteOverlay<T extends { path: string }>(
+  images: readonly T[],
+  overlay: FavoriteOverlayMap,
+): T[] {
+  if (overlay.size === 0) {
+    return images.slice();
+  }
+  let pendingOff = false;
+  for (const entry of overlay.values()) {
+    if (entry.status === "pending" && !entry.desired) {
+      pendingOff = true;
+      break;
+    }
+  }
+  if (!pendingOff) {
+    return images.slice();
+  }
+  return images.filter(
+    (file) => !shouldHideFromFavoritesListing(overlay, pathKey(file.path)),
+  );
+}
+
 export function favoriteDisplayOn(
   key: string,
   confirmedPaths: ReadonlySet<string>,

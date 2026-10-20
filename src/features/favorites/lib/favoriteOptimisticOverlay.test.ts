@@ -11,6 +11,8 @@ import {
   isFavoriteOverlayPending,
   nextFavoriteOverlayGeneration,
   rollbackIndeterminateFavoriteOverlay,
+  filterListingImagesForFavoriteOverlay,
+  shouldHideFromFavoritesListing,
 } from "./favoriteOptimisticOverlay.ts";
 
 test("isFavoriteOverlayPending reflects pending entries only", () => {
@@ -24,6 +26,24 @@ test("favoriteDisplayOn uses pending desired state over confirmed set", () => {
   const overlay = applyFavoriteOverlayPending(new Map(), "a", "op1", false, 1);
   assert.equal(favoriteDisplayOn("a", confirmed, overlay, false), false);
   assert.equal(favoriteDisplayOn("b", confirmed, overlay, false), false);
+});
+
+test("shouldHideFromFavoritesListing only for pending desired false", () => {
+  const overlay = applyFavoriteOverlayPending(new Map(), "a", "op1", false, 1);
+  assert.equal(shouldHideFromFavoritesListing(overlay, "a"), true);
+  assert.equal(shouldHideFromFavoritesListing(overlay, "b"), false);
+  const on = applyFavoriteOverlayPending(new Map(), "c", "op1", true, 1);
+  assert.equal(shouldHideFromFavoritesListing(on, "c"), false);
+});
+
+test("filterListingImagesForFavoriteOverlay drops pending-off copies", () => {
+  const files = [{ path: "C:\\Fav\\a.jpg" }, { path: "C:\\Fav\\b.jpg" }];
+  const overlay = applyFavoriteOverlayPendingBatch(new Map(), [
+    { key: "c:\\fav\\a.jpg", operationId: "op", desired: false, generation: 1 },
+  ]);
+  const next = filterListingImagesForFavoriteOverlay(files, overlay);
+  assert.equal(next.length, 1);
+  assert.equal(next[0].path, files[1].path);
 });
 
 test("favoriteDisplayOn in favorites folder defaults on unless pending off", () => {

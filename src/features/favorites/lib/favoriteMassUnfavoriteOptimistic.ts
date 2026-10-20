@@ -67,11 +67,9 @@ export function shouldOptimisticallyHideFavoritesServiceFolder(options: {
   targets: readonly ImageFile[];
   listingImages: readonly ImageFile[];
   childFolderCount: number;
+  /** When false, full-batch removal of the known listing still hides the folder (C-005). */
   listingReady: boolean;
 }): boolean {
-  if (!options.listingReady) {
-    return false;
-  }
   if (options.childFolderCount > 0) {
     return false;
   }
