@@ -28,15 +28,17 @@ export function resolveGalleryEmptyKind(
     if (input.status === 'error') {
         return 'openError';
     }
-    if (
-        input.status !== 'ready' ||
-        input.folderListingBusy ||
-        input.geometryPending
-    ) {
+    if (input.status !== 'ready') {
         return 'opening';
     }
     if (input.imageCount > 0) {
+        if (input.geometryPending) {
+            return 'opening';
+        }
         return 'none';
+    }
+    if (input.folderListingBusy || input.geometryPending) {
+        return 'opening';
     }
     if (input.serviceRole === 'favorites') {
         if (input.optimisticLeavingFavorites) {

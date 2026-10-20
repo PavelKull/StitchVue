@@ -50,6 +50,10 @@
         border-color: transparent;
         background: transparent;
     }
+
+    &[data-pending-create='true'] {
+        opacity: 0.82;
+    }
 }
 
 .tileLabel {

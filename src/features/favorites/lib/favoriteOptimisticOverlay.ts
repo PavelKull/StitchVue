@@ -19,6 +19,15 @@ export function isFavoriteOverlayPending(
   return overlay.get(key)?.status === "pending";
 }
 
+/** Блокирует повторный add, пока уже идёт optimistic «в избранное». */
+export function isFavoriteOverlayBlockingAdd(
+  overlay: FavoriteOverlayMap,
+  key: string,
+): boolean {
+  const entry = overlay.get(key);
+  return entry?.status === "pending" && entry.desired === true;
+}
+
 /** Pending unfavorite — hide copy from Favorites grid/viewer before IPC completes. */
 export function shouldHideFromFavoritesListing(
   overlay: FavoriteOverlayMap,

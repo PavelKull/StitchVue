@@ -78,6 +78,15 @@ test('T8 scanning or listing busy shows opening', () => {
     );
 });
 
+test('T11 refresh with photos does not show opening overlay', () => {
+    assert.equal(
+        resolveGalleryEmptyKind(
+            base({ imageCount: 3, folderListingBusy: true }),
+        ),
+        'none',
+    );
+});
+
 test('T9 error state is openError', () => {
     assert.equal(
         resolveGalleryEmptyKind(base({ status: 'error' })),

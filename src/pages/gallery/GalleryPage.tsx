@@ -185,6 +185,7 @@ import {
     favoriteDisplayOn,
     filterListingImagesForFavoriteOverlay,
     isFavoriteOverlayPending,
+    isFavoriteOverlayBlockingAdd,
     mapSnapshotCopyOrigins,
     nextFavoriteOverlayGeneration,
     rollbackIndeterminateFavoriteOverlay,
@@ -215,6 +216,40 @@ import {
     buildFavoriteOptimisticMemorySnapshot,
     installFavoriteOptimisticMemoryDiag,
 } from '../../features/favorites/lib/favoriteOptimisticMemoryDiag';
+import { logMassUnfavoriteDiag } from '../../features/favorites/lib/favoriteMassUnfavoriteDiag';
+import {
+    consumeFavoriteAddQueueWait,
+    installFavoritePerfDiag,
+    noteFavoriteAddQueued,
+    startFavoritePerfSession,
+    sumFileBytes,
+    type FavoritePerfSession,
+} from '../../features/favorites/lib/favoritePerfDiag';
+import {
+    filterFoldersForOptimisticServiceHide,
+    shouldRetainMassUnfavoriteGateOnLoad,
+    shouldSkipPostBatchServiceFolderNavigation,
+    shouldUseInstantParentNavAfterFavoritesClear,
+    type MassUnfavoriteOptimisticParentNav,
+} from '../../features/favorites/lib/massUnfavoriteNavigation';
+import {
+    createFavoritesOperationCoordinator,
+    isTemporaryFilesystemConflictMessage,
+    type FavoriteAddDrainResult,
+    type FavoriteAddExecutorResult,
+    type FavoriteAddIntent,
+} from '../../features/favorites/lib/favoritesOperationCoordinator';
+import {
+    filterMassUnfavoriteStarOverlayEntries,
+    shouldPreserveFavoritePathDuringMassUnfavorite,
+} from '../../features/favorites/lib/favoriteReaddGuards';
+import {
+    buildAlbumFolderTiles,
+    favoritesFolderTileIsPendingCreate,
+    predictFavoritesServiceFolderPath,
+    resolveFavoritesFolderVisibility,
+    type FavoritesFolderPendingCreate,
+} from '../../features/favorites/lib/favoritesFolderVisibility';
 import { createFavoritesReconcileScheduler } from '../../features/favorites/lib/favoritesReconcile';
 import { cleanupEmptyServiceFolder } from '../../features/folder/lib/folderMenu';
 import {
@@ -589,6 +624,11 @@ export function GalleryPage() {
         originGenerations: Map<string, number>;
         copyGenerations: Map<string, number>;
     } | null>(null);
+    const massUnfavoriteOptimisticParentNavRef =
+        useRef<MassUnfavoriteOptimisticParentNav | null>(null);
+    const favoritesCoordinatorRef = useRef(
+        createFavoritesOperationCoordinator(),
+    );
     const favoriteCopyOriginCacheRef = useRef(new Map<string, string>());
     const favoriteCopyOriginCacheScopeRef = useRef<string | null>(null);
     const favoriteOriginLookupPendingRef = useRef(0);
@@ -597,6 +637,10 @@ export function GalleryPage() {
     const favoritesFolderHideGenerationsRef = useRef(new Map<string, number>());
     const [optimisticHiddenFolderKeys, setOptimisticHiddenFolderKeys] =
         useState<ReadonlySet<string>>(() => new Set());
+    const [favoritesFolderPendingCreate, setFavoritesFolderPendingCreate] =
+        useState<FavoritesFolderPendingCreate | null>(null);
+    const [favoriteAddQueueRevision, setFavoriteAddQueueRevision] =
+        useState(0);
     const [massUnfavoriteExitingFavorites, setMassUnfavoriteExitingFavorites] =
         useState(false);
     const skipBatchUnfavoriteRef = useRef<(files: ImageFile[]) => void>(
@@ -612,9 +656,54 @@ export function GalleryPage() {
         setUnfavoriteBusy(next.busy);
     }
 
-    function releaseUnfavoriteGate() {
+    function bumpFavoriteAddQueueRevision() {
+        setFavoriteAddQueueRevision((value) => value + 1);
+    }
+
+    function syncFavoritesFolderPendingCreate(parentDirectory: string | null) {
+        if (!parentDirectory || viewRef.current.serviceRole) {
+            setFavoritesFolderPendingCreate(null);
+            return;
+        }
+        const hasFolder = viewRef.current.folders.some(
+            (folder) => folder.serviceRole === 'favorites',
+        );
+        const hasAdds =
+            favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                parentDirectory,
+            );
+        const copying =
+            fileOperationRef.current?.action === 'copy_to_local_favorites';
+        if ((hasAdds || copying) && !hasFolder) {
+            setFavoritesFolderPendingCreate({
+                parentDirectory,
+                folderPath: predictFavoritesServiceFolderPath(
+                    parentDirectory,
+                    optimisticFavoritesFolderHideRef.current,
+                ),
+            });
+            return;
+        }
+        if (hasFolder || (!hasAdds && !copying)) {
+            setFavoritesFolderPendingCreate(null);
+        }
+    }
+
+    function releaseUnfavoriteGate(reason = 'gate_release') {
         const sessionId = unfavoriteGateRef.current.sessionId;
-        if (sessionId) {
+        if (
+            sessionId &&
+            reason !== 'load' &&
+            !backgroundUnfavoriteRef.current
+        ) {
+            void coordinatorFinishFilesystemSession(sessionId);
+        }
+        if (sessionId && reason !== 'load' && reason !== 'gate_release') {
+            logMassUnfavoriteDiag({
+                stage: 'rollback',
+                operationId: sessionId,
+                reason,
+            });
             teardownMassUnfavoritePresentation(sessionId);
             massUnfavoriteOriginRef.current = null;
             const hide = optimisticFavoritesFolderHideRef.current;
@@ -623,6 +712,8 @@ export function GalleryPage() {
                 setOptimisticHiddenFolderKeys(new Set());
             }
         }
+        massUnfavoriteOptimisticParentNavRef.current = null;
+        setMassUnfavoriteExitingFavorites(false);
         setMassTrashUnfavoriteOpen(false);
         setMassTrashBatchCounts(null);
         setUnfavoriteGate(endUnfavorite());
@@ -815,6 +906,74 @@ export function GalleryPage() {
                 const cleared = selectionAfterMassUnfavorite(parentKey);
                 setSelectionMode(cleared.selectionMode);
                 setSelection(cleared.selection);
+                const hide = optimisticFavoritesFolderHideRef.current;
+                const instantParent =
+                    shouldUseInstantParentNavAfterFavoritesClear({
+                        currentPath: current.path,
+                        removedFolderPath: removed.folderPath,
+                        hide,
+                    });
+                if (instantParent && hide) {
+                    massUnfavoriteOptimisticParentNavRef.current = {
+                        sessionId: hide.operationId,
+                        parentDirectory: removed.parentDirectory,
+                    };
+                    window.clearTimeout(folderCollapseTimerRef.current);
+                    folderCollapseTimerRef.current = 0;
+                    setFolderExitingKey(null);
+                    setFolderHeaderMorph(false);
+                    const hot = recallHotFolder(removed.parentDirectory);
+                    if (hot) {
+                        setGallerySort(hot.sort);
+                        if (!preferencesRef.current.rememberZoom) {
+                            setRowsPerScreen(hot.rowsPerScreen);
+                        }
+                        metaRef.current = new Map(hot.meta);
+                        thumbsRef.current = new Map(hot.thumbs);
+                        failedRef.current = new Map();
+                        thumbSeen.current = hot.thumbs.length > 0;
+                        setMetaVersion((value) => value + 1);
+                        setThumbVersion((value) => value + 1);
+                        setFailedVersion((value) => value + 1);
+                        setView({
+                            title: hot.title,
+                            path: hot.path,
+                            parent: hot.parent,
+                            folders: filterFoldersForOptimisticServiceHide(
+                                hot.folders,
+                                hide,
+                                hot.path,
+                            ),
+                            images: hot.images,
+                            serviceRole: null,
+                        });
+                        setStatus('ready');
+                        logMassUnfavoriteDiag({
+                            stage: 'load_enter',
+                            operationId: hide.operationId,
+                            dataSource: 'hot_cache',
+                        });
+                    } else {
+                        setView((view) => ({
+                            ...view,
+                            path: removed.parentDirectory,
+                            serviceRole: null,
+                            images: [],
+                            folders: [],
+                            title: parentTitle,
+                        }));
+                        logMassUnfavoriteDiag({
+                            stage: 'load_enter',
+                            operationId: hide.operationId,
+                            dataSource: 'stub',
+                        });
+                    }
+                    void loadImplRef.current(
+                        removed.parentDirectory,
+                        false,
+                    );
+                    return;
+                }
                 beginFolderExitAnimation(
                     removedKey,
                     () => {
@@ -1089,7 +1248,22 @@ export function GalleryPage() {
         setConfirmMove(null);
         setUnfavoritePrompt(null);
         setFavoriteMissingOrigin(null);
-        releaseUnfavoriteGate();
+        const retainUnfavoriteGate = shouldRetainMassUnfavoriteGateOnLoad({
+            targetPath: path,
+            gateSessionId: unfavoriteGateRef.current.sessionId,
+            hide: optimisticFavoritesFolderHideRef.current,
+            backgroundUnfavorite: backgroundUnfavoriteRef.current,
+            optimisticParentNav: massUnfavoriteOptimisticParentNavRef.current,
+        });
+        logMassUnfavoriteDiag({
+            stage: retainUnfavoriteGate ? 'load_retain_gate' : 'load_release_gate',
+            operationId: unfavoriteGateRef.current.sessionId ?? undefined,
+            navigationSessionId: id,
+            retainGate: retainUnfavoriteGate,
+        });
+        if (!retainUnfavoriteGate) {
+            releaseUnfavoriteGate('load');
+        }
         setRestorePrompt(null);
         setFolderHeaderMorph(false);
         setFolderExitingKey(null);
@@ -1115,6 +1289,7 @@ export function GalleryPage() {
         scrollRestoreToken.current += 1;
         setScrollRestore({ token: scrollRestoreToken.current, top: 0 });
         const hot = path ? recallHotFolder(path) : null;
+        const loadHide = optimisticFavoritesFolderHideRef.current;
         if (hot) {
             setGallerySort(hot.sort);
             if (!preferencesRef.current.rememberZoom) {
@@ -1131,7 +1306,11 @@ export function GalleryPage() {
                 title: hot.title,
                 path: hot.path,
                 parent: hot.parent,
-                folders: hot.folders,
+                folders: filterFoldersForOptimisticServiceHide(
+                    hot.folders,
+                    loadHide,
+                    hot.path,
+                ),
                 images: hot.images,
                 serviceRole: null,
             });
@@ -1207,7 +1386,15 @@ export function GalleryPage() {
                         pathKey(folder.path) === pathKey(folderHide.folderPath),
                 )
             ) {
-                beginFolderExitAnimation(pathKey(folderHide.folderPath));
+                const gateSession = unfavoriteGateRef.current.sessionId;
+                if (
+                    gateSession &&
+                    folderHide.operationId === gateSession
+                ) {
+                    // Скрытие плитки уже применено — без повторной exit-анимации.
+                } else {
+                    beginFolderExitAnimation(pathKey(folderHide.folderPath));
+                }
             }
             if (record) {
                 recordHistory(next.path);
@@ -1350,6 +1537,13 @@ export function GalleryPage() {
                 ...current,
                 folders: insertServiceFolder(current.folders, folderPath, role),
             }));
+            if (role === 'favorites') {
+                const parent = viewRef.current.path;
+                if (parent) {
+                    syncFavoritesFolderPendingCreate(parent);
+                    bumpFavoriteAddQueueRevision();
+                }
+            }
         },
         [],
     );
@@ -1391,6 +1585,45 @@ export function GalleryPage() {
             ),
         [status, orderedImages, metaVersion, failedVersion],
     );
+    const albumFolderTiles = useMemo(() => {
+        const directory = view.path;
+        if (!directory) {
+            return [];
+        }
+        if (view.serviceRole) {
+            return orderFoldersForDisplay(view.folders).filter(
+                (folder) =>
+                    !optimisticHiddenFolderKeys.has(pathKey(folder.path)),
+            );
+        }
+        const hasActiveAdds =
+            favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                directory,
+            );
+        const visibility = resolveFavoritesFolderVisibility({
+            albumDirectory: directory,
+            pendingCreate: favoritesFolderPendingCreate,
+            hiddenFolderKeys: optimisticHiddenFolderKeys,
+            folders: view.folders,
+            hasActiveFavoriteAdds: hasActiveAdds,
+        });
+        return buildAlbumFolderTiles({
+            folders: view.folders,
+            visibility,
+            pendingCreate: favoritesFolderPendingCreate,
+            albumDirectory: directory,
+        });
+    }, [
+        view.folders,
+        view.path,
+        view.serviceRole,
+        optimisticHiddenFolderKeys,
+        favoritesFolderPendingCreate,
+        favoriteAddQueueRevision,
+        fileOperation,
+        favoriteOverlay,
+    ]);
+    const visibleFolderCount = albumFolderTiles.length;
     const galleryEmptyKind = useMemo(
         () =>
             resolveGalleryEmptyKind({
@@ -1399,7 +1632,7 @@ export function GalleryPage() {
                 geometryPending,
                 serviceRole: view.serviceRole,
                 imageCount: listingImages.length,
-                folderCount: view.folders.length,
+                folderCount: visibleFolderCount,
                 unsupportedFileCount: view.unsupportedFileCount ?? 0,
                 optimisticLeavingFavorites:
                     massUnfavoriteExitingFavorites ||
@@ -1412,7 +1645,7 @@ export function GalleryPage() {
             geometryPending,
             view.serviceRole,
             listingImages.length,
-            view.folders.length,
+            visibleFolderCount,
             view.unsupportedFileCount,
             optimisticHiddenFolderKeys,
             massUnfavoriteExitingFavorites,
@@ -1743,6 +1976,7 @@ export function GalleryPage() {
                 originLookupPending: favoriteOriginLookupPendingRef.current,
             }),
         );
+        installFavoritePerfDiag();
     }, [optimisticHiddenFolderKeys]);
     useEffect(() => {
         if (view.serviceRole !== 'favorites' && massUnfavoriteExitingFavorites) {
@@ -2005,13 +2239,35 @@ export function GalleryPage() {
         }
         const id = operationId();
         const directory = viewRef.current.path;
+        if (action === 'move_to_local_trash') {
+            const conflict =
+                favoritesCoordinatorRef.current.conflictForDirectory(
+                    directory,
+                );
+            if (conflict.status === 'busy') {
+                setFileNotice({
+                    tone: 'failed',
+                    text:
+                        'Дождитесь завершения операции с избранным, затем повторите.',
+                    details: [],
+                });
+                return;
+            }
+        }
         const silentFavorite =
             action === 'copy_to_local_favorites' && files.length === 1;
         const favoriteAddGenerations = new Map<string, number>();
         if (action === 'copy_to_local_favorites') {
+            if (tryQueueFavoriteAdds(files, directory)) {
+                syncFavoritesFolderPendingCreate(directory);
+                bumpFavoriteAddQueueRevision();
+                return;
+            }
+            syncFavoritesFolderPendingCreate(directory);
+            bumpFavoriteAddQueueRevision();
             if (
                 files.some((file) =>
-                    isFavoriteOverlayPending(
+                    isFavoriteOverlayBlockingAdd(
                         favoriteOverlayRef.current,
                         pathKey(file.path),
                     ),
@@ -2045,11 +2301,27 @@ export function GalleryPage() {
             );
         }
         fileOperationRef.current = { id, action };
+        if (action === 'copy_to_local_favorites') {
+            favoritesCoordinatorRef.current.beginFileOperation({
+                operationId: id,
+                albumDirectory: directory,
+            });
+        }
         if (!silentFavorite) {
             setFileOperation({ id, action });
             setFileProgress(null);
         }
         setFileNotice(null);
+        let favoritePerf: FavoritePerfSession | null = null;
+        if (action === 'copy_to_local_favorites') {
+            favoritePerf = startFavoritePerfSession({
+                operationId: id,
+                fileCount: files.length,
+                bytesTotal: sumFileBytes(files),
+                channel: files.length > 1 ? 'selection' : 'direct',
+            });
+            favoritePerf.markIpcStart();
+        }
         void invoke<FileOperationResult>('run_file_operation', {
             operationId: id,
             currentDirectory: directory,
@@ -2057,6 +2329,7 @@ export function GalleryPage() {
             paths: files.map((file) => file.path),
         })
             .then((result) => {
+                favoritePerf?.markIpcEnd();
                 if (
                     !viewRef.current.path ||
                     pathKey(viewRef.current.path) !== pathKey(result.directory)
@@ -2065,6 +2338,7 @@ export function GalleryPage() {
                         setFavoriteOverlay((current) =>
                             clearFavoriteOverlayForOperation(current, id),
                         );
+                        favoritePerf?.finish('skipped');
                     }
                     return;
                 }
@@ -2215,6 +2489,18 @@ export function GalleryPage() {
                             setFileNotice(operationNotice(action, summary));
                         }
                     }
+                    if (favoritePerf) {
+                        const summary = summarize(result.outcomes);
+                        const outcome =
+                            summary.failed > 0 &&
+                            summary.copied + summary.alreadyExists > 0
+                                ? 'partial'
+                                : summary.failed > 0
+                                  ? 'failed'
+                                  : 'completed';
+                        favoritePerf.finish(outcome);
+                        favoritePerf = null;
+                    }
                 } else if (action === 'move_to_local_trash') {
                     const summary = summarize(result.outcomes);
                     if (summary.failed !== 0) {
@@ -2248,6 +2534,7 @@ export function GalleryPage() {
                 }
             })
             .catch((error: unknown) => {
+                favoritePerf?.markIpcEnd();
                 if (action === 'copy_to_local_favorites') {
                     setFavoriteOverlay((current) =>
                         clearFavoriteOverlayForOperation(current, id),
@@ -2331,8 +2618,15 @@ export function GalleryPage() {
                     text: formatInvokeError(error),
                     details: [],
                 });
+                favoritePerf?.finish('failed');
+                favoritePerf = null;
             })
             .finally(() => {
+                if (action === 'copy_to_local_favorites') {
+                    favoritesCoordinatorRef.current.endFileOperation(id);
+                    syncFavoritesFolderPendingCreate(directory);
+                    bumpFavoriteAddQueueRevision();
+                }
                 if (fileOperationRef.current?.id === id) {
                     fileOperationRef.current = null;
                 }
@@ -2710,6 +3004,469 @@ export function GalleryPage() {
         return generations.get(key) ?? 0;
     }
 
+    async function coordinatorFinishFilesystemSession(sessionId: string) {
+        const scope =
+            favoritesCoordinatorRef.current.endMassUnfavorite(sessionId);
+        if (scope) {
+            await drainFavoriteAddQueue(scope);
+            syncFavoritesFolderPendingCreate(
+                viewRef.current.path &&
+                    viewRef.current.serviceRole !== 'favorites'
+                    ? viewRef.current.path
+                    : scope,
+            );
+            bumpFavoriteAddQueueRevision();
+        }
+    }
+
+    function resolveImageFileForIntent(photoKey: string): ImageFile | null {
+        const key = pathKey(photoKey);
+        const fromView = viewRef.current.images.find(
+            (file) => pathKey(file.path) === key,
+        );
+        if (fromView) {
+            return fromView;
+        }
+        const fromOrdered = orderedRef.current.find(
+            (file) => pathKey(file.path) === key,
+        );
+        return fromOrdered ?? null;
+    }
+
+    function resolveQueuedFavoriteAddGeneration(
+        intent: FavoriteAddIntent,
+    ): number | undefined {
+        let generation = favoriteOverlayGenerationsRef.current.get(
+            intent.photoKey,
+        );
+        if (
+            generation === undefined &&
+            !isFavoriteOverlayPending(
+                favoriteOverlayRef.current,
+                intent.photoKey,
+            )
+        ) {
+            generation = startFavoriteStarOverlay(
+                intent.photoKey,
+                true,
+                intent.overlayOperationId,
+            );
+        }
+        if (generation === undefined) {
+            const entry = favoriteOverlayRef.current.get(intent.photoKey);
+            generation = entry?.generation ?? 0;
+        }
+        return generation;
+    }
+
+    function favoriteOutcomeToExecutorResult(
+        status: string,
+        errorCode?: string | null,
+    ): FavoriteAddExecutorResult {
+        if (status === 'copied' || status === 'already_exists') {
+            if (
+                errorCode === 'favorite_link' ||
+                errorCode === 'needs_reconciliation' ||
+                errorCode === 'ST_NEEDS_RECONCILIATION'
+            ) {
+                return 'failed';
+            }
+            return 'completed';
+        }
+        if (status === 'cancelled') {
+            return 'skipped';
+        }
+        return 'failed';
+    }
+
+    async function applyQueuedFavoriteAddIpcSuccess(
+        result: FileOperationResult,
+        entries: ReadonlyArray<{
+            intent: FavoriteAddIntent;
+            file: ImageFile;
+            generation: number;
+        }>,
+    ): Promise<Record<string, FavoriteAddExecutorResult>> {
+        const directory = entries[0]?.intent.albumDirectory ?? result.directory;
+        const results: Record<string, FavoriteAddExecutorResult> = {};
+        if (
+            !viewRef.current.path ||
+            pathKey(viewRef.current.path) !== pathKey(result.directory)
+        ) {
+            for (const entry of entries) {
+                rollbackFavoriteStarOverlay(
+                    entry.intent.photoKey,
+                    entry.generation,
+                );
+                results[entry.intent.photoKey] = 'skipped';
+            }
+            return results;
+        }
+        if (result.destinationFolder && result.destinationRole) {
+            const destKey = pathKey(result.destinationFolder);
+            const missing = !viewRef.current.folders.some(
+                (folder) => pathKey(folder.path) === destKey,
+            );
+            if (result.destinationCreated || missing) {
+                addServiceFolderToView(
+                    result.destinationFolder,
+                    result.destinationRole,
+                );
+            }
+        }
+        const journalIncompleteOutcomes = result.outcomes.filter(
+            (item) =>
+                (item.status === 'copied' ||
+                    item.status === 'already_exists') &&
+                (item.errorCode === 'favorite_link' ||
+                    item.errorCode === 'needs_reconciliation' ||
+                    item.errorCode === 'ST_NEEDS_RECONCILIATION'),
+        );
+        const journalIncomplete = journalIncompleteOutcomes.length > 0;
+        const marked: string[] = [];
+        for (const item of result.outcomes) {
+            const key = pathKey(item.sourcePath);
+            const executorResult = favoriteOutcomeToExecutorResult(
+                item.status,
+                item.errorCode,
+            );
+            results[key] = executorResult;
+            if (executorResult === 'completed') {
+                marked.push(key);
+            }
+        }
+        for (const entry of entries) {
+            const key = entry.intent.photoKey;
+            if (!(key in results)) {
+                results[key] = 'failed';
+            }
+        }
+        if (marked.length > 0) {
+            noteFavoritePathsConfirmedLocalMutation();
+            setFavoritePaths((current) => {
+                const next = new Set(current);
+                for (const key of marked) {
+                    next.add(key);
+                }
+                return next;
+            });
+        }
+        if (journalIncomplete) {
+            setFavoriteOverlay((current) =>
+                rollbackIndeterminateFavoriteOverlay(
+                    current,
+                    journalIncompleteOutcomes.map((o) => o.sourcePath),
+                ),
+            );
+            if (directory) {
+                void fetchFavoriteOriginPaths(directory);
+            }
+        } else {
+            for (const entry of entries) {
+                const key = entry.intent.photoKey;
+                const item = result.outcomes.find(
+                    (row) => pathKey(row.sourcePath) === key,
+                );
+                if (!item) {
+                    continue;
+                }
+                const executorResult = results[key];
+                if (
+                    executorResult === 'completed' ||
+                    executorResult === 'failed'
+                ) {
+                    rollbackFavoriteStarOverlay(key, entry.generation);
+                }
+            }
+        }
+        const summary = summarize(result.outcomes);
+        if (
+            favoriteNeedsReviewNotice({
+                journalIncomplete,
+                needsReconciliation: journalIncomplete,
+            })
+        ) {
+            const anyDiskOk = marked.length > 0;
+            setFileNotice(
+                anyDiskOk
+                    ? favoritesPartialSuccessNotice()
+                    : favoritesNeedsReviewNotice(),
+            );
+        } else if (summary.failed > 0) {
+            setFileNotice(
+                operationNotice('copy_to_local_favorites', summary),
+            );
+        }
+        return results;
+    }
+
+    async function executeQueuedFavoriteAddDrain(
+        intents: readonly FavoriteAddIntent[],
+    ): Promise<FavoriteAddDrainResult> {
+        if (intents.length === 0) {
+            return { kind: 'ok', results: {} };
+        }
+        const directory = intents[0].albumDirectory;
+        if (
+            favoritesCoordinatorRef.current.conflictForDirectory(directory)
+                .status === 'busy'
+        ) {
+            const busyResults: Record<string, FavoriteAddExecutorResult> = {};
+            for (const intent of intents) {
+                busyResults[intent.photoKey] = 'retry_conflict';
+            }
+            return { kind: 'ok', results: busyResults };
+        }
+        const entries: {
+            intent: FavoriteAddIntent;
+            file: ImageFile;
+            generation: number;
+        }[] = [];
+        const skipped: Record<string, FavoriteAddExecutorResult> = {};
+        for (const intent of intents) {
+            const live = favoritesCoordinatorRef.current.getIntent(
+                intent.photoKey,
+            );
+            if (!live?.desired) {
+                skipped[intent.photoKey] = 'skipped';
+                continue;
+            }
+            const file = resolveImageFileForIntent(intent.photoKey);
+            if (!file) {
+                skipped[intent.photoKey] = 'skipped';
+                continue;
+            }
+            const generation = resolveQueuedFavoriteAddGeneration(intent);
+            if (generation === undefined) {
+                skipped[intent.photoKey] = 'skipped';
+                continue;
+            }
+            entries.push({ intent, file, generation });
+        }
+        if (entries.length === 0) {
+            return { kind: 'ok', results: skipped };
+        }
+        const batchOperationId = operationId();
+        let queueWaitMs = 0;
+        for (const entry of entries) {
+            queueWaitMs = Math.max(
+                queueWaitMs,
+                consumeFavoriteAddQueueWait(entry.intent.photoKey),
+            );
+        }
+        const favoritePerf = startFavoritePerfSession({
+            operationId: batchOperationId,
+            fileCount: entries.length,
+            bytesTotal: sumFileBytes(entries.map((entry) => entry.file)),
+            channel: 'queued',
+            queueWaitMs,
+        });
+        favoritesCoordinatorRef.current.beginFileOperation({
+            operationId: batchOperationId,
+            albumDirectory: directory,
+        });
+        try {
+            favoritePerf.markIpcStart();
+            const result = await invoke<FileOperationResult>(
+                'run_file_operation',
+                {
+                    operationId: batchOperationId,
+                    currentDirectory: directory,
+                    action: 'copy_to_local_favorites',
+                    paths: entries.map((entry) => entry.file.path),
+                },
+            );
+            favoritePerf.markIpcEnd();
+            const applied = await applyQueuedFavoriteAddIpcSuccess(
+                result,
+                entries,
+            );
+            const merged = { ...skipped, ...applied };
+            const summary = summarize(result.outcomes);
+            const outcome =
+                summary.failed > 0 &&
+                summary.copied + summary.alreadyExists > 0
+                    ? 'partial'
+                    : summary.failed > 0
+                      ? 'failed'
+                      : 'completed';
+            favoritePerf.finish(outcome);
+            return { kind: 'ok', results: merged };
+        } catch (error: unknown) {
+            favoritePerf.markIpcEnd();
+            const message = formatInvokeError(error);
+            if (isTemporaryFilesystemConflictMessage(message)) {
+                favoritePerf.finish('skipped');
+                if (entries.length === 1) {
+                    return {
+                        kind: 'ok',
+                        results: {
+                            [entries[0].intent.photoKey]: 'retry_conflict',
+                        },
+                    };
+                }
+                return { kind: 'pre_start_conflict' };
+            }
+            const truth = await refetchFavoriteOriginPathsAfterIpcFailure({
+                directory,
+                fetchOriginPaths: (dir) =>
+                    invoke<string[]>('favorite_origin_paths', {
+                        directory: dir,
+                    }),
+                isDirectorySessionCurrent: () =>
+                    !!viewRef.current.path &&
+                    pathKey(viewRef.current.path) === pathKey(directory) &&
+                    viewRef.current.serviceRole !== 'favorites',
+            });
+            const failedResults: Record<string, FavoriteAddExecutorResult> = {
+                ...skipped,
+            };
+            if (truth.status === 'ok') {
+                const classified = classifyAttemptedFavoriteAddsAgainstDisk(
+                    entries.map((entry) => entry.file.path),
+                    truth.originPaths,
+                );
+                const confirmed = new Set(
+                    classified.confirmedOnDisk.map((path) => pathKey(path)),
+                );
+                for (const entry of entries) {
+                    const key = entry.intent.photoKey;
+                    if (confirmed.has(key)) {
+                        noteFavoritePathsConfirmedLocalMutation();
+                        setFavoritePaths((current) => {
+                            const next = new Set(current);
+                            next.add(key);
+                            return next;
+                        });
+                        rollbackFavoriteStarOverlay(key, entry.generation);
+                        failedResults[key] = 'completed';
+                    } else {
+                        rollbackFavoriteStarOverlay(key, entry.generation);
+                        failedResults[key] = 'failed';
+                    }
+                }
+                const tone = batchAddNoticeToneAfterDiskTruth({
+                    attempted: entries.length,
+                    confirmedOnDisk: classified.confirmedOnDisk.length,
+                    diskTruthChecked: true,
+                });
+                if (tone === 'partial') {
+                    setFileNotice(favoritesPartialSuccessNotice());
+                } else if (tone === 'failed') {
+                    setFileNotice({
+                        tone: 'failed',
+                        text: message,
+                        details: [],
+                    });
+                }
+            } else {
+                for (const entry of entries) {
+                    rollbackFavoriteStarOverlay(
+                        entry.intent.photoKey,
+                        entry.generation,
+                    );
+                    failedResults[entry.intent.photoKey] = 'failed';
+                }
+                setFileNotice({
+                    tone: 'failed',
+                    text: message,
+                    details: [],
+                });
+            }
+            favoritePerf.finish('failed');
+            return { kind: 'ok', results: failedResults };
+        } finally {
+            favoritesCoordinatorRef.current.endFileOperation(batchOperationId);
+            syncFavoritesFolderPendingCreate(directory);
+            bumpFavoriteAddQueueRevision();
+        }
+    }
+
+    async function drainFavoriteAddQueue(albumScope: string) {
+        await favoritesCoordinatorRef.current.drainQueuedAdds(
+            albumScope,
+            (intents) => executeQueuedFavoriteAddDrain(intents),
+        );
+    }
+
+    function tryQueueFavoriteAdds(
+        files: readonly ImageFile[],
+        directory: string,
+    ): boolean {
+        if (
+            favoritesCoordinatorRef.current.conflictForDirectory(directory)
+                .status === 'free'
+        ) {
+            return false;
+        }
+        const overlayOperationId = operationId();
+        const pendingBatch: {
+            key: string;
+            operationId: string;
+            desired: boolean;
+            generation: number;
+        }[] = [];
+        for (const file of files) {
+            const key = pathKey(file.path);
+            if (
+                isFavoriteOverlayBlockingAdd(favoriteOverlayRef.current, key)
+            ) {
+                continue;
+            }
+            const generation = nextFavoriteOverlayGeneration(
+                favoriteOverlayGenerationsRef.current,
+                key,
+            );
+            favoriteOverlayGenerationsRef.current.set(key, generation);
+            pendingBatch.push({
+                key,
+                operationId: overlayOperationId,
+                desired: true,
+                generation,
+            });
+            favoritesCoordinatorRef.current.upsertAddIntent({
+                intentId: operationId(),
+                photoKey: key,
+                photoPath: file.path,
+                albumDirectory: directory,
+                overlayOperationId,
+                desired: true,
+            });
+            noteFavoriteAddQueued(key);
+        }
+        if (pendingBatch.length === 0) {
+            return false;
+        }
+        setFavoriteOverlay((current) =>
+            applyFavoriteOverlayPendingBatch(current, pendingBatch),
+        );
+        syncFavoritesFolderPendingCreate(directory);
+        bumpFavoriteAddQueueRevision();
+        return true;
+    }
+
+    function cancelQueuedFavoriteAdd(key: string) {
+        const intent = favoritesCoordinatorRef.current.getIntent(key);
+        if (!intent || intent.status !== 'queued') {
+            return false;
+        }
+        favoritesCoordinatorRef.current.upsertAddIntent({
+            intentId: operationId(),
+            photoKey: key,
+            photoPath: intent.photoPath,
+            albumDirectory: intent.albumDirectory,
+            overlayOperationId: intent.overlayOperationId,
+            desired: false,
+        });
+        setFavoriteOverlay((current) =>
+            clearFavoriteOverlayForOperation(
+                current,
+                intent.overlayOperationId,
+            ),
+        );
+        return true;
+    }
+
     function commitFavoriteStarOverlayBatch(
         entries: ReadonlyArray<{
             key: string;
@@ -2718,10 +3475,14 @@ export function GalleryPage() {
         }>,
     ): Map<string, number> {
         const generations = new Map<string, number>();
-        if (entries.length === 0) {
+        const filtered = filterMassUnfavoriteStarOverlayEntries(
+            favoriteOverlayRef.current,
+            entries,
+        );
+        if (filtered.length === 0) {
             return generations;
         }
-        const pendingBatch = entries.map(({ key, desired, operationId }) => {
+        const pendingBatch = filtered.map(({ key, desired, operationId }) => {
             const generation = nextFavoriteOverlayGeneration(
                 favoriteOverlayGenerationsRef.current,
                 key,
@@ -2830,11 +3591,30 @@ export function GalleryPage() {
         if (!session || session.sessionId !== sessionId) {
             return;
         }
+        const intents = favoritesCoordinatorRef.current.snapshotIntents();
         for (const [key, generation] of session.copyGenerations) {
+            if (
+                shouldPreserveFavoritePathDuringMassUnfavorite(
+                    key,
+                    favoriteOverlayRef.current,
+                    intents,
+                )
+            ) {
+                continue;
+            }
             rollbackFavoriteStarOverlay(key, generation);
         }
         session.copyGenerations.clear();
         for (const [key, generation] of session.originGenerations) {
+            if (
+                shouldPreserveFavoritePathDuringMassUnfavorite(
+                    key,
+                    favoriteOverlayRef.current,
+                    intents,
+                )
+            ) {
+                continue;
+            }
             rollbackFavoriteStarOverlay(key, generation);
         }
         session.originGenerations.clear();
@@ -2890,6 +3670,7 @@ export function GalleryPage() {
             });
         }
         if (originBatch.length > 0) {
+            const intents = favoritesCoordinatorRef.current.snapshotIntents();
             const generations = commitFavoriteStarOverlayBatch(originBatch);
             for (const entry of originBatch) {
                 const generation = generations.get(entry.key);
@@ -2900,6 +3681,15 @@ export function GalleryPage() {
             setFavoritePaths((current) => {
                 const next = new Set(current);
                 for (const entry of originBatch) {
+                    if (
+                        shouldPreserveFavoritePathDuringMassUnfavorite(
+                            entry.key,
+                            favoriteOverlayRef.current,
+                            intents,
+                        )
+                    ) {
+                        continue;
+                    }
                     next.delete(entry.key);
                 }
                 return next;
@@ -2932,6 +3722,7 @@ export function GalleryPage() {
                 session.copyGenerations.set(entry.key, generation);
             }
         }
+        const intents = favoritesCoordinatorRef.current.snapshotIntents();
         const pathsOff = new Set(copyBatch.map((entry) => entry.key));
         for (const row of rows) {
             if (!row.originPath) {
@@ -2943,6 +3734,15 @@ export function GalleryPage() {
             setFavoritePaths((current) => {
                 const next = new Set(current);
                 for (const key of pathsOff) {
+                    if (
+                        shouldPreserveFavoritePathDuringMassUnfavorite(
+                            key,
+                            favoriteOverlayRef.current,
+                            intents,
+                        )
+                    ) {
+                        continue;
+                    }
                     next.delete(key);
                 }
                 return next;
@@ -3010,10 +3810,32 @@ export function GalleryPage() {
         if (!hide || hide.operationId !== sessionId) {
             return;
         }
+        logMassUnfavoriteDiag({
+            stage: 'clear_optimistic_hide',
+            operationId: sessionId,
+        });
+        const current = viewRef.current;
+        const onParent =
+            current.path &&
+            pathKey(current.path) === pathKey(hide.parentDirectory);
         optimisticFavoritesFolderHideRef.current = null;
         setOptimisticHiddenFolderKeys(new Set());
         setMassUnfavoriteExitingFavorites(false);
+        massUnfavoriteOptimisticParentNavRef.current = null;
         cancelPendingFolderExitAnimation();
+        if (onParent) {
+            if (
+                favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                    hide.parentDirectory,
+                )
+            ) {
+                scheduleFolderRefreshRef.current(hide.parentDirectory);
+                syncFavoritesFolderPendingCreate(hide.parentDirectory);
+                return;
+            }
+            void loadImplRef.current(hide.folderPath, false);
+            return;
+        }
         scheduleFolderRefreshRef.current(hide.parentDirectory);
     }
 
@@ -3063,6 +3885,15 @@ export function GalleryPage() {
         if (!originKey || session.originGenerations.has(originKey)) {
             return;
         }
+        if (
+            shouldPreserveFavoritePathDuringMassUnfavorite(
+                originKey,
+                favoriteOverlayRef.current,
+                favoritesCoordinatorRef.current.snapshotIntents(),
+            )
+        ) {
+            return;
+        }
         const generation = startFavoriteStarOverlay(
             originKey,
             false,
@@ -3084,10 +3915,15 @@ export function GalleryPage() {
             inTrash ||
             busyPaths.has(key) ||
             fileOperationRef.current ||
-            isFavoriteOverlayPending(favoriteOverlayRef.current, key)
+            isFavoriteOverlayBlockingAdd(favoriteOverlayRef.current, key)
         ) {
             return;
         }
+        if (tryQueueFavoriteAdds([file], directory)) {
+            return;
+        }
+        syncFavoritesFolderPendingCreate(directory);
+        bumpFavoriteAddQueueRevision();
         markBusy([key], true);
         const id = operationId();
         const overlayGeneration = startFavoriteStarOverlay(key, true, id);
@@ -3148,33 +3984,47 @@ export function GalleryPage() {
             });
         } finally {
             markBusy([key], false);
+            syncFavoritesFolderPendingCreate(directory);
+            bumpFavoriteAddQueueRevision();
         }
+    }
+
+    function starOnFromQueuedAddOnly(key: string): boolean {
+        if (inFavorites || favoritePaths.has(key)) {
+            return false;
+        }
+        const intent = favoritesCoordinatorRef.current.getIntent(key);
+        return intent?.status === 'queued' && intent.desired;
     }
 
     async function toggleFavoriteFile(file: ImageFile, confirmed = false) {
         const key = pathKey(file.path);
-        if (
-            inTrash ||
-            busyPaths.has(key) ||
-            !viewRef.current.path ||
-            fileOperationRef.current ||
-            lockedUnfavoritePathsRef.current.has(key) ||
-            isFavoriteOverlayPending(favoriteOverlayRef.current, key)
-        ) {
-            return;
-        }
         const active = favoriteDisplayOn(
             key,
             favoritePaths,
             favoriteOverlayRef.current,
             inFavorites,
         );
+        if (
+            inTrash ||
+            busyPaths.has(key) ||
+            !viewRef.current.path ||
+            fileOperationRef.current ||
+            lockedUnfavoritePathsRef.current.has(key) ||
+            (!active &&
+                isFavoriteOverlayBlockingAdd(favoriteOverlayRef.current, key))
+        ) {
+            return;
+        }
         if (!active) {
             if (viewerShowsFile(file)) {
                 void copyToFavoritesFromViewer(file);
             } else {
                 runFileAction('copy_to_local_favorites', [file]);
             }
+            return;
+        }
+        if (starOnFromQueuedAddOnly(key) && cancelQueuedFavoriteAdd(key)) {
             return;
         }
         if (confirmed) {
@@ -3191,6 +4041,17 @@ export function GalleryPage() {
         } else if (!canStartUnfavorite(unfavoriteGateRef.current)) {
             // T037: любой in-flight / confirmPending блокирует новый старт.
             return;
+        }
+        const queuedIntent = favoritesCoordinatorRef.current.getIntent(key);
+        if (queuedIntent) {
+            favoritesCoordinatorRef.current.upsertAddIntent({
+                intentId: operationId(),
+                photoKey: key,
+                photoPath: file.path,
+                albumDirectory: viewRef.current.path,
+                overlayOperationId: queuedIntent.overlayOperationId,
+                desired: false,
+            });
         }
         const removeOpId = operationId();
         const overlayGeneration = startFavoriteStarOverlay(
@@ -3280,6 +4141,11 @@ export function GalleryPage() {
             return;
         }
         setUnfavoriteGate(beginUnfavorite(sessionId));
+        favoritesCoordinatorRef.current.beginMassUnfavorite({
+            operationId: sessionId,
+            parentDirectory,
+            sessionPath,
+        });
         beginMassUnfavoriteOriginSession(sessionId, sessionPath);
         const listingReady =
             status === 'ready' && !folderListingBusyRef.current;
@@ -3292,6 +4158,15 @@ export function GalleryPage() {
                 childFolderCount: viewRef.current.folders.length,
                 listingReady,
             });
+        logMassUnfavoriteDiag({
+            stage: 'start',
+            operationId: sessionId,
+            optimisticFullFavoritesClear: Boolean(optimisticFullFavoritesClear),
+            targetCount: targets.length,
+            listingImageCount: viewRef.current.images.length,
+            childFolderCount: viewRef.current.folders.length,
+            hasParentDirectory: Boolean(parentDirectory),
+        });
         if (optimisticFullFavoritesClear) {
             setMassUnfavoriteExitingFavorites(true);
             flushSync(() => {
@@ -3867,6 +4742,10 @@ export function GalleryPage() {
         parentDirectory: string | null;
         results: UnfavoriteBatchItemResult[];
     }) {
+        favoritesCoordinatorRef.current.setMassUnfavoritePhase(
+            options.sessionId,
+            'finalizing',
+        );
         const succeeded = options.results.filter(
             (item) => item.status === 'recycled' || item.status === 'relocated',
         );
@@ -3892,17 +4771,33 @@ export function GalleryPage() {
                         pathKey(item.path),
                     );
                     if (originKey) {
-                        favoritePathsConfirmedMutation = true;
-                        setFavoritePaths((current) => {
-                            const next = new Set(current);
-                            next.delete(originKey);
-                            return next;
-                        });
+                        const preserve =
+                            shouldPreserveFavoritePathDuringMassUnfavorite(
+                                originKey,
+                                favoriteOverlayRef.current,
+                                favoritesCoordinatorRef.current.snapshotIntents(),
+                            );
+                        if (!preserve) {
+                            favoritePathsConfirmedMutation = true;
+                            setFavoritePaths((current) => {
+                                const next = new Set(current);
+                                next.delete(originKey);
+                                return next;
+                            });
+                        }
                     }
                     const generation = originKey
                         ? session.originGenerations.get(originKey)
                         : undefined;
-                    if (originKey && generation !== undefined) {
+                    if (
+                        originKey &&
+                        generation !== undefined &&
+                        !shouldPreserveFavoritePathDuringMassUnfavorite(
+                            originKey,
+                            favoriteOverlayRef.current,
+                            favoritesCoordinatorRef.current.snapshotIntents(),
+                        )
+                    ) {
                         rollbackFavoriteStarOverlay(originKey, generation);
                         session.originGenerations.delete(originKey);
                     }
@@ -3942,6 +4837,8 @@ export function GalleryPage() {
         if (favoritePathsConfirmedMutation) {
             noteFavoritePathsConfirmedLocalMutation();
         }
+        // P1: batch FS уже завершён; снимаем coordinator busy и drain до cleanup/relist/refresh.
+        await coordinatorFinishFilesystemSession(options.sessionId);
         let cleanup: UnfavoriteCleanupOutcome = pickCleanupFromResults(
             options.results,
         );
@@ -3951,7 +4848,10 @@ export function GalleryPage() {
             cleanup.status !== 'not_empty' &&
             cleanup.status !== 'failed' &&
             succeeded.length > 0 &&
-            options.parentDirectory
+            options.parentDirectory &&
+            !favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                options.parentDirectory,
+            )
         ) {
             const fallback = await cleanupEmptyServiceFolder(
                 options.parentDirectory,
@@ -3961,7 +4861,26 @@ export function GalleryPage() {
         }
 
         if (cleanup.navigateLocation) {
-            applyRemovedServiceFolder(cleanup.navigateLocation);
+            const skipNav = shouldSkipPostBatchServiceFolderNavigation({
+                navigateLocation: cleanup.navigateLocation,
+                currentPath: viewRef.current.path,
+                batchSessionId: options.sessionId,
+                optimisticParentNav:
+                    massUnfavoriteOptimisticParentNavRef.current,
+            });
+            if (skipNav) {
+                logMassUnfavoriteDiag({
+                    stage: 'finish_skip_nav',
+                    operationId: options.sessionId,
+                    reason: 'already_on_parent',
+                });
+            } else {
+                logMassUnfavoriteDiag({
+                    stage: 'finish_apply_nav',
+                    operationId: options.sessionId,
+                });
+                applyRemovedServiceFolder(cleanup.navigateLocation);
+            }
         }
 
         const folderActuallyRemoved =
@@ -3987,6 +4906,7 @@ export function GalleryPage() {
             } else {
                 optimisticFavoritesFolderHideRef.current = null;
                 setOptimisticHiddenFolderKeys(new Set());
+                massUnfavoriteOptimisticParentNavRef.current = null;
             }
         }
 
@@ -4053,6 +4973,8 @@ export function GalleryPage() {
         } else if (notice.tone !== 'ok') {
             setFileNotice(notice);
         }
+        syncFavoritesFolderPendingCreate(options.parentDirectory);
+        bumpFavoriteAddQueueRevision();
     }
 
     async function resolveTrashUnfavorite(
@@ -4492,14 +5414,20 @@ export function GalleryPage() {
         !bottomToolbarForced
     );
 
-    const displayFolders = useMemo(
-        () =>
-            orderFoldersForDisplay(view.folders).filter(
-                (folder) =>
-                    !optimisticHiddenFolderKeys.has(pathKey(folder.path)),
-            ),
-        [view.folders, optimisticHiddenFolderKeys],
-    );
+    const displayFolders = albumFolderTiles;
+    const favoritesFolderVisibility =
+        view.path && !view.serviceRole
+            ? resolveFavoritesFolderVisibility({
+                  albumDirectory: view.path,
+                  pendingCreate: favoritesFolderPendingCreate,
+                  hiddenFolderKeys: optimisticHiddenFolderKeys,
+                  folders: view.folders,
+                  hasActiveFavoriteAdds:
+                      favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                          view.path,
+                      ),
+              })
+            : 'visible';
     useLayoutEffect(() => {
         const pending = folderFlipPendingRef.current;
         const grid = folderGridRef.current;
@@ -4521,6 +5449,16 @@ export function GalleryPage() {
                         key={pathKey(folder.path)}
                         folder={folder}
                         tipClassName={styles.folderTip}
+                        pendingCreate={
+                            view.path
+                                ? favoritesFolderTileIsPendingCreate(
+                                      folder,
+                                      favoritesFolderVisibility,
+                                      favoritesFolderPendingCreate,
+                                      view.path,
+                                  )
+                                : false
+                        }
                         entering={
                             folderEnteringKey !== null &&
                             pathKey(folder.path) === folderEnteringKey

@@ -11,6 +11,7 @@ type FolderViewTileProps = {
   tipClassName?: string;
   entering?: boolean;
   exiting?: boolean;
+  pendingCreate?: boolean;
   onOpen: (path: string) => void;
   onContextMenu?: (event: MouseEvent, folder: FolderShortcut) => void;
   onPointerEnter?: () => void;
@@ -27,6 +28,7 @@ export function FolderViewTile({
   tipClassName,
   entering = false,
   exiting = false,
+  pendingCreate = false,
   onOpen,
   onContextMenu,
   onPointerEnter,
@@ -68,7 +70,13 @@ export function FolderViewTile({
         data-folder-path={folder.path}
         data-enter={entering ? "true" : undefined}
         data-exit={exiting ? "true" : undefined}
-        onClick={() => onOpen(folder.path)}
+        data-pending-create={pendingCreate ? "true" : undefined}
+        onClick={() => {
+          if (pendingCreate) {
+            return;
+          }
+          onOpen(folder.path);
+        }}
         onContextMenu={(event) => onContextMenu?.(event, folder)}
         onPointerEnter={onPointerEnter}
         onPointerLeave={onPointerLeave}

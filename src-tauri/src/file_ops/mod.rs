@@ -10,6 +10,7 @@ use serde::Serialize;
 
 mod content_hash;
 pub(crate) mod fav_metrics;
+pub(crate) mod favorite_perf;
 pub(crate) mod favorites;
 pub(crate) mod favorites_batch;
 #[cfg(test)]

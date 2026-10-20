@@ -9,11 +9,21 @@ import {
   clearFavoriteOverlayIfGeneration,
   favoriteDisplayOn,
   isFavoriteOverlayPending,
+  isFavoriteOverlayBlockingAdd,
   nextFavoriteOverlayGeneration,
   rollbackIndeterminateFavoriteOverlay,
   filterListingImagesForFavoriteOverlay,
   shouldHideFromFavoritesListing,
 } from "./favoriteOptimisticOverlay.ts";
+
+test("isFavoriteOverlayBlockingAdd only when pending desired true", () => {
+  const overlay = new Map([
+    ["a", { operationId: "1", status: "pending", desired: false, generation: 1 }],
+    ["b", { operationId: "2", status: "pending", desired: true, generation: 1 }],
+  ]);
+  assert.equal(isFavoriteOverlayBlockingAdd(overlay, "a"), false);
+  assert.equal(isFavoriteOverlayBlockingAdd(overlay, "b"), true);
+});
 
 test("isFavoriteOverlayPending reflects pending entries only", () => {
   const overlay = applyFavoriteOverlayPending(new Map(), "a", "op1", true, 1);

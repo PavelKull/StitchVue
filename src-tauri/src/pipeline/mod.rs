@@ -1037,12 +1037,25 @@ impl Pipeline {
         cancel: &std::sync::atomic::AtomicBool,
         on_progress: &(dyn Fn(&crate::file_ops::FileOperationProgress) + Sync),
     ) -> Result<crate::file_ops::FileOperationResult, String> {
+        let trace_fav_add =
+            request.action == crate::file_ops::Action::CopyToLocalFavorites;
+        let mut fav_perf = if trace_fav_add {
+            crate::file_ops::favorite_perf::FavoriteAddPerf::begin(
+                &request.operation_id,
+                request.paths.len(),
+            )
+        } else {
+            None
+        };
         let dest_name = request.action.folder_name();
         let dest_folder = Path::new(&request.directory).join(dest_name);
         let mut lock_paths: Vec<PathBuf> = request.paths.iter().map(PathBuf::from).collect();
         lock_paths.push(PathBuf::from(&request.directory));
         lock_paths.push(dest_folder);
         let _lock = crate::file_ops::try_lock_paths(lock_paths)?;
+        if let Some(perf) = &mut fav_perf {
+            perf.mark_lock_acquired();
+        }
         {
             let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
             for path in &request.paths {
@@ -1074,6 +1087,9 @@ impl Pipeline {
                 crate::database::insert_pending_op(&db, &row)?;
             }
         }
+        if let Some(perf) = &mut fav_perf {
+            perf.mark_journal_done();
+        }
         let mut executed = if request.action == crate::file_ops::Action::CopyToLocalFavorites {
             let inner = Arc::clone(&self.inner);
             let favorites_journal = move |log_id: &str, destination: &str| {
@@ -1091,6 +1107,9 @@ impl Pipeline {
         } else {
             crate::file_ops::execute(gate, request, copy_slots, cancel, on_progress, None)
         };
+        if let Some(perf) = &mut fav_perf {
+            perf.mark_execute_done();
+        }
         match &mut executed {
             Ok(result) => self.record_operation_links(result),
             Err(message) => {
@@ -1112,10 +1131,21 @@ impl Pipeline {
                 }
             }
         }
+        if let Some(perf) = &mut fav_perf {
+            perf.mark_links_done();
+        }
         // CL-P01.2: post-op scoped reconcile after favorites file-op (Ok and Err).
         if request.action == crate::file_ops::Action::CopyToLocalFavorites {
             let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
             let _ = crate::file_ops::reconcile::reconcile_favorites_scope(&db, &request.directory);
+        }
+        if let Some(perf) = fav_perf {
+            let outcome = if executed.is_ok() {
+                "completed"
+            } else {
+                "failed"
+            };
+            perf.finish(std::time::Instant::now(), outcome);
         }
         executed
     }
