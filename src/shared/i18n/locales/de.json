@@ -262,6 +262,8 @@
       "cloudtipsButton": "Über CloudTips unterstützen",
       "boostyMeta": "Unterstützung mit verfügbaren internationalen Zahlungsmethoden.",
       "boostyButton": "Über Boosty unterstützen",
+      "githubMeta": "Geben Sie dem Repository auf GitHub einen Stern, damit StitchVue leichter gefunden wird.",
+      "githubStarButton": "Auf GitHub mit Stern markieren",
       "linkUnavailable": "Link nicht verfügbar",
       "openLinkFailed": "Der Link konnte nicht im Browser geöffnet werden.",
       "hideReminders": "Erinnerungen zur Unterstützung nicht anzeigen"

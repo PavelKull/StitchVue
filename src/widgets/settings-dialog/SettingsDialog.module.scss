@@ -420,6 +420,12 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   background: rgb(255 255 255 / 4%);
 }
 
+// Кнопки вкладки support: как aboutAction, но на всю ширину карточки.
+.supportAction {
+  width: 100%;
+  max-width: none;
+}
+
 .aboutHero {
   display: flex;
   gap: 14px;

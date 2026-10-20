@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-003-C004-support
 title: Вкладка «Поддержать» — звезда GitHub и иконки кнопок (C-004)
-status: approved
+status: completed
 risk: medium
 responsible_agent: frontend-executor
 base_commit: "dac9720728fbf5ff50cb4da5cc110795d17766b6"
@@ -36,7 +36,7 @@ tests:
 |------|----------|
 | ID | `TASK-2026-003-C004-support` |
 | Название | Вкладка «Поддержать» — звезда GitHub и иконки кнопок (C-004) |
-| Статус | `approved` |
+| Статус | `completed` |
 | Риск | `medium` — JSX `SupportPanel`, без IPC/ФС |
 | Ответственный агент | `frontend-executor` |
 | База Git | `dac9720728fbf5ff50cb4da5cc110795d17766b6` |
@@ -134,4 +134,14 @@ medium: executor → i18n-check → `--strict` → code-auditor → regression-g
 
 ## 7. Отчёт исполнителя (после работы)
 
-(заполняет executor)
+```
+TASK: TASK-2026-003-C004-support
+STATUS: completed
+CHANGED: SupportPanel + SupportLinkButton; github card; locales githubMeta/githubStarButton; .supportAction
+INVARIANTS: сохранены
+TESTS: i18n-check OK 406; catalog 461; typecheck OK
+GATES: preflight/auth/strict OK
+AUDITOR: PASS | GUARDIAN: PASS
+SMOKE: не выполнялся владельцем
+NEXT: C-002 или MVP B-001 по tasks.md
+```

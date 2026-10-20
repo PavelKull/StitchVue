@@ -262,6 +262,8 @@
       "cloudtipsButton": "Поддержать через CloudTips",
       "boostyMeta": "Поддержка доступными международными способами оплаты.",
       "boostyButton": "Поддержать через Boosty",
+      "githubMeta": "Поставьте звезду репозиторию на GitHub — так проще находят проект.",
+      "githubStarButton": "Поставить звезду на GitHub",
       "linkUnavailable": "Ссылка недоступна",
       "openLinkFailed": "Не удалось открыть ссылку в браузере.",
       "hideReminders": "Не показывать напоминания о поддержке"

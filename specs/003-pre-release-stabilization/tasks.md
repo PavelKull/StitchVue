@@ -59,8 +59,8 @@
 **Goal**: Star action + button icons on Support  
 **Independent Test**: Button opens `githubRepo`; hideReminders unchanged
 
-- [ ] T010 [US9] Add GitHub star card/action and `StitchVueIcon` buttons in `SupportPanel` inside `src/widgets/settings-dialog/SettingsDialog.tsx` using `openExternalLink("github_repo")`
-- [ ] T011 [P] [US9] Add i18n keys in `src/shared/i18n/locales/{ru,en,de,zh-Hans}.json`
+- [x] T010 [US9] Add GitHub star card/action and `StitchVueIcon` buttons in `SupportPanel` inside `src/widgets/settings-dialog/SettingsDialog.tsx` using `openExternalLink("github_repo")`
+- [x] T011 [P] [US9] Add i18n keys in `src/shared/i18n/locales/{ru,en,de,zh-Hans}.json`
 
 ---
 

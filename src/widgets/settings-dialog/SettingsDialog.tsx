@@ -572,6 +572,28 @@ function PerformancePanel({
   );
 }
 
+function SupportLinkButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: StitchVueIconName;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`${styles.aboutAction} ${styles.aboutActionAccent} ${styles.supportAction}`}
+      onClick={onClick}
+    >
+      <StitchVueIcon name={icon} className={styles.aboutActionIcon} />
+      <span className={styles.aboutActionLabel}>{label}</span>
+      <StitchVueIcon name="arrow-up-right" className={styles.aboutActionIcon} />
+    </button>
+  );
+}
+
 function SupportPanel() {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
@@ -579,7 +601,7 @@ function SupportPanel() {
     () => loadSupportReminderState().neverShowAgain,
   );
 
-  async function open(kind: "cloudtips" | "boosty") {
+  async function open(kind: "cloudtips" | "boosty" | "github_repo") {
     setError(null);
     try {
       await openExternalLink(kind);
@@ -597,9 +619,11 @@ function SupportPanel() {
         <h4>CloudTips</h4>
         <p className={styles.meta}>{t("settings.support.cloudtipsMeta")}</p>
         {CLOUDTIPS_URL ? (
-          <button type="button" className={styles.primaryAction} onClick={() => void open("cloudtips")}>
-            {t("settings.support.cloudtipsButton")}
-          </button>
+          <SupportLinkButton
+            icon="navigation-more"
+            label={t("settings.support.cloudtipsButton")}
+            onClick={() => void open("cloudtips")}
+          />
         ) : (
           <p className={styles.meta}>{t("settings.support.linkUnavailable")}</p>
         )}
@@ -608,9 +632,24 @@ function SupportPanel() {
         <h4>Boosty</h4>
         <p className={styles.meta}>{t("settings.support.boostyMeta")}</p>
         {BOOSTY_URL ? (
-          <button type="button" className={styles.primaryAction} onClick={() => void open("boosty")}>
-            {t("settings.support.boostyButton")}
-          </button>
+          <SupportLinkButton
+            icon="navigation-more"
+            label={t("settings.support.boostyButton")}
+            onClick={() => void open("boosty")}
+          />
+        ) : (
+          <p className={styles.meta}>{t("settings.support.linkUnavailable")}</p>
+        )}
+      </article>
+      <article className={styles.supportCard}>
+        <h4>GitHub</h4>
+        <p className={styles.meta}>{t("settings.support.githubMeta")}</p>
+        {GITHUB_REPO_URL ? (
+          <SupportLinkButton
+            icon="favorite"
+            label={t("settings.support.githubStarButton")}
+            onClick={() => void open("github_repo")}
+          />
         ) : (
           <p className={styles.meta}>{t("settings.support.linkUnavailable")}</p>
         )}
