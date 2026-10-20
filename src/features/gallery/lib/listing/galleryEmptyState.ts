@@ -40,7 +40,7 @@ export function resolveGalleryEmptyKind(
     }
     if (input.serviceRole === 'favorites') {
         if (input.optimisticLeavingFavorites) {
-            return 'opening';
+            return 'none';
         }
         return 'emptyFavorites';
     }

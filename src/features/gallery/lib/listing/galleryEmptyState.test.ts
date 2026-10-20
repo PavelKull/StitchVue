@@ -124,7 +124,7 @@ test('optimistic mass unfavorite does not flash empty favorites', () => {
                 optimisticLeavingFavorites: true,
             }),
         ),
-        'opening',
+        'none',
     );
 });
 

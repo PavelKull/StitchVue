@@ -597,6 +597,8 @@ export function GalleryPage() {
     const favoritesFolderHideGenerationsRef = useRef(new Map<string, number>());
     const [optimisticHiddenFolderKeys, setOptimisticHiddenFolderKeys] =
         useState<ReadonlySet<string>>(() => new Set());
+    const [massUnfavoriteExitingFavorites, setMassUnfavoriteExitingFavorites] =
+        useState(false);
     const skipBatchUnfavoriteRef = useRef<(files: ImageFile[]) => void>(
         () => undefined,
     );
@@ -1356,11 +1358,19 @@ export function GalleryPage() {
         if (view.serviceRole !== 'favorites') {
             return view.images;
         }
+        if (massUnfavoriteExitingFavorites) {
+            return view.images;
+        }
         return filterListingImagesForFavoriteOverlay(
             view.images,
             favoriteOverlay,
         );
-    }, [view.images, view.serviceRole, favoriteOverlay]);
+    }, [
+        view.images,
+        view.serviceRole,
+        favoriteOverlay,
+        massUnfavoriteExitingFavorites,
+    ]);
 
     const orderedImages = useMemo(
         () => sortPhotos(listingImages, gallerySort),
@@ -1392,8 +1402,9 @@ export function GalleryPage() {
                 folderCount: view.folders.length,
                 unsupportedFileCount: view.unsupportedFileCount ?? 0,
                 optimisticLeavingFavorites:
-                    optimisticHiddenFolderKeys.size > 0 &&
-                    view.serviceRole === 'favorites',
+                    massUnfavoriteExitingFavorites ||
+                    (optimisticHiddenFolderKeys.size > 0 &&
+                        view.serviceRole === 'favorites'),
             }),
         [
             status,
@@ -1404,6 +1415,7 @@ export function GalleryPage() {
             view.folders.length,
             view.unsupportedFileCount,
             optimisticHiddenFolderKeys,
+            massUnfavoriteExitingFavorites,
         ],
     );
     const galleryEmptyCopy = galleryEmptyI18nKeys(galleryEmptyKind);
@@ -1732,6 +1744,11 @@ export function GalleryPage() {
             }),
         );
     }, [optimisticHiddenFolderKeys]);
+    useEffect(() => {
+        if (view.serviceRole !== 'favorites' && massUnfavoriteExitingFavorites) {
+            setMassUnfavoriteExitingFavorites(false);
+        }
+    }, [view.serviceRole, massUnfavoriteExitingFavorites]);
     const folderContext = useFolderContextMenu({
         onRenamed: (event) => {
             const activity = favoritesActivityAfterRename(
@@ -2995,6 +3012,7 @@ export function GalleryPage() {
         }
         optimisticFavoritesFolderHideRef.current = null;
         setOptimisticHiddenFolderKeys(new Set());
+        setMassUnfavoriteExitingFavorites(false);
         cancelPendingFolderExitAnimation();
         scheduleFolderRefreshRef.current(hide.parentDirectory);
     }
@@ -3275,14 +3293,17 @@ export function GalleryPage() {
                 listingReady,
             });
         if (optimisticFullFavoritesClear) {
-            beginOptimisticFavoritesFolderHide(
-                sessionId,
-                sessionPath,
-                parentDirectory,
-            );
-            applyRemovedServiceFolder({
-                folderPath: sessionPath,
-                parentDirectory,
+            setMassUnfavoriteExitingFavorites(true);
+            flushSync(() => {
+                beginOptimisticFavoritesFolderHide(
+                    sessionId,
+                    sessionPath,
+                    parentDirectory,
+                );
+                applyRemovedServiceFolder({
+                    folderPath: sessionPath,
+                    parentDirectory,
+                });
             });
         }
         applyInstantMassUnfavoritePresentation(sessionId, targets);
