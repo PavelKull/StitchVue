@@ -100,6 +100,7 @@ fn add_photos(root: &Path, db: &Connection, count: usize) -> Vec<(PathBuf, PathB
         &AtomicBool::new(false),
         &|_| {},
         None,
+        None,
     )
     .unwrap();
     assert_eq!(result.state, "completed");
@@ -230,6 +231,7 @@ fn add_after_rename_creates_new_active_favorites() {
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
         None,
     )
     .unwrap();
@@ -373,6 +375,7 @@ fn stale_copy_key_after_rename_does_not_light_stars() {
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
         None,
     )
     .unwrap();

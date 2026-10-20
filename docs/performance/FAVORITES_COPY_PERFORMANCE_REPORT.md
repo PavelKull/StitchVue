@@ -259,7 +259,7 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 ## 9. P3 — reconcile и duplicate-check (Rust)
 
-**Статус:** P3.1 реализован (scoped SQL + touched paths после `run_file_operation`). P3.2 (duplicate IO) и DiskGate — без изменения семантики.
+**Статус:** P3.1 + P3.2 реализованы. DiskGate — без изменения семантики.
 
 ### 9.1 Что сделано (P3.1)
 
@@ -273,14 +273,11 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 **Ожидаемый эффект:** при batch ADD (P2, chunk 16) `reconcile_ms` ∝ 16 lookups, а не O(все избранные в альбоме / глобально). На альбомах с тысячами звёзд в SQLite — заметное снижение CPU/FS probe после каждого IPC.
 
-### 9.2 Отложено (P3.2) — duplicate `already_exists`
+### 9.2 P3.2 — duplicate `already_exists` (реализовано)
 
-`copy_one` при совпадении имени вызывает `files_identical` (полное чтение source + dest). Безопасное ускорение только с доказательством:
+Перед `files_identical` pipeline подгружает `favorite_duplicate_hints_for_paths` (snapshot + `content_sha256`). Если dest совпадает с зарегистрированным `copy_path`, origin size/mtime не изменились и dest size = source size — один gated SHA256 по **source**; при совпадении с SQLite → `already_exists` **без чтения копии**. Иначе — прежний `files_identical`.
 
-- Вариант A: один проход SHA256 по source + сравнение с `content_sha256` в SQLite при совпадении size/mtime origin — **без** чтения dest (нужен доступ к snapshot в `copy_one` / pipeline).
-- Вариант B: общий scan-cache внутри одного IPC (как `BatchRemovalScanCaches`) — только если профиль покажет повторный IO между файлами.
-
-**Не делать:** skip byte-compare по size+mtime без hash; ослаблять `sync_all` / SHA256 на новых копиях.
+**Не делано:** skip compare по size+mtime без hash; ослабление `sync_all` / SHA256 на новых копиях; scan-cache между файлами одного IPC.
 
 ### 9.3 DiskGate
 
@@ -289,5 +286,6 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 ### 9.4 Проверка
 
 - `cargo test load_favorite_snapshots_in_directory_scope_filters_other_albums`
+- `cargo test favorite_duplicate`
 - `cargo test p2_reconcile` (regression CL-P01)
 - B03/B07 с `STITCHVUE_FAV_PERF=1`: сравнить `reconcile_ms` до/после P3 на альбоме с большим числом избранных в БД.

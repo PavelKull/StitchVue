@@ -9,6 +9,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use serde::Serialize;
 
 mod content_hash;
+mod favorite_duplicate_hint;
 pub(crate) mod fav_metrics;
 pub(crate) mod favorite_perf;
 pub(crate) mod favorites;
@@ -40,6 +41,7 @@ pub use favorites::RemoveFavoriteCopyResult;
 pub use favorites_batch::{FavoriteBatchPathResult, FavoriteBatchRemoveItem, FavoriteCopyOrigin};
 // ServiceFolderCleanupResult is defined in this module.
 pub use content_hash::sha256_file;
+pub(crate) use favorite_duplicate_hint::favorite_duplicate_hints_for_paths;
 pub use locks::{try_claim_favorite_removal, try_lock_paths};
 pub(crate) use recycle::recycle_path;
 pub use recycle::RecycleStatus;
@@ -48,7 +50,7 @@ pub const LOCAL_TRASH: &str = "Удаленное";
 pub const LOCAL_FAVORITES: &str = "Избранное";
 pub const LOCAL_FAVORITES_ALT: &str = "Избранная";
 pub(crate) const ROLE_FILE: &str = ".stitchvue.role";
-const COPY_CHUNK: usize = 1024 * 1024;
+pub(crate) const COPY_CHUNK: usize = 1024 * 1024;
 const MAX_SUFFIX: u32 = 10_000;
 const RESULT_CACHE: usize = 32;
 
@@ -299,7 +301,7 @@ impl Emitter<'_> {
     }
 }
 
-struct Fail {
+pub(crate) struct Fail {
     code: &'static str,
     message: String,
 }
@@ -311,6 +313,9 @@ pub fn execute<G: IoGate>(
     cancel: &AtomicBool,
     on_progress: &(dyn Fn(&FileOperationProgress) + Sync),
     pending_destination_journal: Option<&PendingDestinationJournal>,
+    favorite_duplicate_hints: Option<
+        &std::collections::HashMap<String, favorite_duplicate_hint::FavoriteDuplicateHint>,
+    >,
 ) -> Result<FileOperationResult, String> {
     if request.paths.is_empty() {
         return Err("Нет выбранных файлов".to_string());
@@ -441,6 +446,7 @@ pub fn execute<G: IoGate>(
                             cancel,
                             pending_destination_journal,
                             &request.operation_id,
+                            favorite_duplicate_hints,
                         ),
                     }
                 };
@@ -615,7 +621,13 @@ fn copy_one<G: IoGate>(
     cancel: &AtomicBool,
     pending_destination_journal: Option<&PendingDestinationJournal>,
     operation_id: &str,
+    favorite_duplicate_hints: Option<
+        &std::collections::HashMap<String, favorite_duplicate_hint::FavoriteDuplicateHint>,
+    >,
 ) -> FileOutcome {
+    let duplicate_hint = favorite_duplicate_hints.and_then(|hints| {
+        hints.get(&normalize_key(Path::new(requested)).to_ascii_lowercase())
+    });
     if cancel.load(Ordering::Relaxed) {
         return cancelled_outcome(requested);
     }
@@ -636,6 +648,37 @@ fn copy_one<G: IoGate>(
         }
         if meta.is_file() {
             emitter.set_phase("running", "checking_duplicates", false);
+            if let Some(hint) = duplicate_hint {
+                match favorite_duplicate_hint::try_confirm_duplicate_via_hint(
+                    gate,
+                    source,
+                    &original,
+                    hint,
+                    cancel,
+                ) {
+                    Ok(Some(())) => {
+                        journal_copy_destination(
+                            pending_destination_journal,
+                            operation_id,
+                            requested,
+                            &original,
+                        );
+                        return FileOutcome {
+                            source_path: requested.to_string(),
+                            status: "already_exists".to_string(),
+                            destination_path: Some(path_string_for_app(&original)),
+                            renamed_due_to_collision: false,
+                            error_code: None,
+                            error_message: None,
+                            attribute_note: None,
+                            source_content_sha256: Some(hint.content_sha256.clone()),
+                        };
+                    }
+                    Ok(None) => {}
+                    Err(fail) if fail.code == "cancelled" => return cancelled_outcome(requested),
+                    Err(fail) => return failed_outcome(requested, fail),
+                }
+            }
             match files_identical(gate, source, &original, cancel) {
                 Ok(true) => {
                     journal_copy_destination(
@@ -652,7 +695,8 @@ fn copy_one<G: IoGate>(
                         error_code: None,
                         error_message: None,
                         attribute_note: None,
-                        source_content_sha256: None,
+                        source_content_sha256: duplicate_hint
+                            .map(|hint| hint.content_sha256.clone()),
                     };
                 }
                 Ok(false) => {}
@@ -714,7 +758,22 @@ fn copy_one<G: IoGate>(
                 );
             }
             Err(err) if is_already_exists(&err) => {
-                if files_identical(gate, source, &target, cancel).ok() == Some(true) {
+                let collision_is_duplicate = duplicate_hint
+                    .and_then(|hint| {
+                        favorite_duplicate_hint::try_confirm_duplicate_via_hint(
+                            gate,
+                            source,
+                            &target,
+                            hint,
+                            cancel,
+                        )
+                        .ok()
+                        .flatten()
+                        .map(|_| true)
+                    })
+                    .unwrap_or(false)
+                    || files_identical(gate, source, &target, cancel).ok() == Some(true);
+                if collision_is_duplicate {
                     journal_copy_destination(
                         pending_destination_journal,
                         operation_id,
@@ -881,7 +940,7 @@ fn read_full(file: &mut File, buffer: &mut [u8]) -> io::Result<usize> {
     Ok(filled)
 }
 
-fn open_regular(path: &Path) -> Result<File, Fail> {
+pub(crate) fn open_regular(path: &Path) -> Result<File, Fail> {
     let meta = fs::symlink_metadata(path).map_err(|err| io_fail(path, &err))?;
     if is_reparse(&meta) {
         return Err(fail(
@@ -1858,7 +1917,7 @@ pub fn error_code(err: &io::Error) -> &'static str {
     }
 }
 
-fn io_fail(path: &Path, err: &io::Error) -> Fail {
+pub(crate) fn io_fail(path: &Path, err: &io::Error) -> Fail {
     let code = error_code(err);
     let name = path
         .file_name()
@@ -1876,7 +1935,7 @@ fn io_fail(path: &Path, err: &io::Error) -> Fail {
     Fail { code, message }
 }
 
-fn fail(code: &'static str, message: impl Into<String>) -> Fail {
+pub(crate) fn fail(code: &'static str, message: impl Into<String>) -> Fail {
     Fail {
         code,
         message: message.into(),
@@ -2084,7 +2143,7 @@ mod tests {
             action,
             paths,
         };
-        execute(&DirectIo, &request, slots, cancel, &|_progress| {}, None).unwrap()
+        execute(&DirectIo, &request, slots, cancel, &|_progress| {}, None, None).unwrap()
     }
 
     #[test]
@@ -2099,9 +2158,9 @@ mod tests {
             paths: vec![source.display().to_string()],
         };
         let cancel = AtomicBool::new(false);
-        let first = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None).unwrap();
+        let first = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None, None).unwrap();
         assert_eq!(first.state, "completed");
-        let second = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None).unwrap();
+        let second = execute(&DirectIo, &request, 1, &cancel, &|_| {}, None, None).unwrap();
         assert_eq!(second.state, "completed");
         assert_eq!(second.outcomes.len(), first.outcomes.len());
         let _ = fs::remove_dir_all(&root);
@@ -2245,7 +2304,7 @@ mod tests {
             paths: vec![source.display().to_string()],
         };
         let cancel = AtomicBool::new(false);
-        let result = execute(&gate, &request, 1, &cancel, &|_| {}, None).unwrap();
+        let result = execute(&gate, &request, 1, &cancel, &|_| {}, None, None).unwrap();
         writer.join().unwrap();
         assert_eq!(result.outcomes[0].status, "copied");
         let hash = result.outcomes[0].source_content_sha256.as_deref().unwrap();
@@ -2436,6 +2495,7 @@ mod tests {
             &AtomicBool::new(false),
             &|_progress| {},
             None,
+            None,
         )
         .unwrap_err();
         assert!(error.contains("служебн"));
@@ -2561,7 +2621,7 @@ mod tests {
             action: Action::CopyToLocalFavorites,
             paths: vec![source.display().to_string()],
         };
-        let result = execute(&gate, &request, 1, &cancel, &|_progress| {}, None).unwrap();
+        let result = execute(&gate, &request, 1, &cancel, &|_progress| {}, None, None).unwrap();
         assert_eq!(result.outcomes[0].status, "cancelled");
         assert_eq!(fs::read(&source).unwrap(), b"abcdef");
         let favorites = root.join(LOCAL_FAVORITES);
@@ -2700,6 +2760,7 @@ mod tests {
                 1,
                 &AtomicBool::new(false),
                 &|_progress| {},
+                None,
                 None,
             )
             .unwrap_err();

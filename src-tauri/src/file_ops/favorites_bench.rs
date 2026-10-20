@@ -49,7 +49,7 @@ fn run_copy(
         action: Action::CopyToLocalFavorites,
         paths,
     };
-    execute(&DirectIo, &request, slots, cancel, &|_| {}, None).unwrap()
+    execute(&DirectIo, &request, slots, cancel, &|_| {}, None, None).unwrap()
 }
 
 const SIZES: &[(&str, usize)] = &[

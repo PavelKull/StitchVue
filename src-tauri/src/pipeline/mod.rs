@@ -1090,6 +1090,20 @@ impl Pipeline {
         if let Some(perf) = &mut fav_perf {
             perf.mark_journal_done();
         }
+        let favorite_duplicate_hints = if request.action
+            == crate::file_ops::Action::CopyToLocalFavorites
+        {
+            let db = self.inner.db.lock().unwrap_or_else(|err| err.into_inner());
+            let hints =
+                crate::file_ops::favorite_duplicate_hints_for_paths(&db, &request.paths);
+            if hints.is_empty() {
+                None
+            } else {
+                Some(hints)
+            }
+        } else {
+            None
+        };
         let mut executed = if request.action == crate::file_ops::Action::CopyToLocalFavorites {
             let inner = Arc::clone(&self.inner);
             let favorites_journal = move |log_id: &str, destination: &str| {
@@ -1103,9 +1117,18 @@ impl Pipeline {
                 cancel,
                 on_progress,
                 Some(&favorites_journal),
+                favorite_duplicate_hints.as_ref(),
             )
         } else {
-            crate::file_ops::execute(gate, request, copy_slots, cancel, on_progress, None)
+            crate::file_ops::execute(
+                gate,
+                request,
+                copy_slots,
+                cancel,
+                on_progress,
+                None,
+                None,
+            )
         };
         if let Some(perf) = &mut fav_perf {
             perf.mark_execute_done();

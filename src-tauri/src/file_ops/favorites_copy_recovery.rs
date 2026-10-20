@@ -101,6 +101,7 @@ fn t1_successful_add_journals_destination_before_copy() {
         &AtomicBool::new(false),
         &|_| {},
         Some(&journal),
+        None,
     )
     .unwrap();
     assert_eq!(result.outcomes[0].status, "copied");
@@ -202,6 +203,7 @@ fn t7_repeat_add_uses_already_exists_without_duplicate_files() {
         1,
         &AtomicBool::new(false),
         &|_| {},
+        None,
         None,
     )
     .unwrap();
