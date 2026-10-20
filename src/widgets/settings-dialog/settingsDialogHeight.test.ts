@@ -9,7 +9,9 @@ const scss = readFileSync(
     'utf8',
 );
 
-const SHELL_CAP = 'min(80vh, calc(100dvh - 32px))';
+const SHELL_HEIGHT = 'var(--settings-dialog-cap)';
+const SHELL_CAP_DECL =
+    'min(760px, 78vh, calc(100dvh - 32px))';
 
 function ruleBody(source: string, selector: string): string {
     const needle = `${selector} {`;
@@ -48,13 +50,15 @@ function declaration(body: string, property: string): string | null {
 
 test('.dialog shell height is pinned to max-height cap, not auto', () => {
     const dialog = ruleBody(scss, '.dialog');
+    const capVar = declaration(dialog, '--settings-dialog-cap');
     const height = declaration(dialog, 'height');
     const maxHeight = declaration(dialog, 'max-height');
     assert.ok(height, 'у .dialog должна быть height');
     assert.notEqual(height, 'auto');
     assert.doesNotMatch(topLevelText(dialog), /height\s*:\s*auto/);
-    assert.equal(height, SHELL_CAP);
-    assert.equal(maxHeight, SHELL_CAP);
+    assert.equal(capVar, SHELL_CAP_DECL);
+    assert.equal(height, SHELL_HEIGHT);
+    assert.equal(maxHeight, SHELL_HEIGHT);
     assert.equal(height, maxHeight);
 });
 

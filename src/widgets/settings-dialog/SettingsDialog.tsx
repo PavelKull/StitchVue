@@ -4,10 +4,6 @@ import { LAYOUT_MODES } from "../../entities/gallery/layoutMode";
 import { formatCacheSize } from "../../features/settings/lib/formatCacheSize";
 import { openExternalLink } from "../../features/settings/api/openExternalLink";
 import {
-  loadSupportReminderState,
-  setSupportReminderNeverShowAgain,
-} from "../../features/support-reminder/lib/supportReminderState";
-import {
   BUG_REPORT_SUBJECT,
   CONTACT_SUBJECT,
   resolveReportProblemRoute,
@@ -597,9 +593,6 @@ function SupportLinkButton({
 function SupportPanel() {
   const { t } = useTranslation();
   const [error, setError] = useState<string | null>(null);
-  const [hideReminders, setHideReminders] = useState(
-    () => loadSupportReminderState().neverShowAgain,
-  );
 
   async function open(kind: "cloudtips" | "boosty" | "github_repo") {
     setError(null);
@@ -620,7 +613,7 @@ function SupportPanel() {
         <p className={styles.meta}>{t("settings.support.cloudtipsMeta")}</p>
         {CLOUDTIPS_URL ? (
           <SupportLinkButton
-            icon="navigation-more"
+            icon="support-card"
             label={t("settings.support.cloudtipsButton")}
             onClick={() => void open("cloudtips")}
           />
@@ -633,7 +626,7 @@ function SupportPanel() {
         <p className={styles.meta}>{t("settings.support.boostyMeta")}</p>
         {BOOSTY_URL ? (
           <SupportLinkButton
-            icon="navigation-more"
+            icon="support-globe"
             label={t("settings.support.boostyButton")}
             onClick={() => void open("boosty")}
           />
@@ -654,18 +647,7 @@ function SupportPanel() {
           <p className={styles.meta}>{t("settings.support.linkUnavailable")}</p>
         )}
       </article>
-      <label className={styles.check}>
-        <input
-          type="checkbox"
-          checked={hideReminders}
-          onChange={(event) => {
-            const next = event.target.checked;
-            setHideReminders(next);
-            setSupportReminderNeverShowAgain(next);
-          }}
-        />
-        {t("settings.support.hideReminders")}
-      </label>
+      {/* Чекбокс отключён: лимит напоминаний задаётся milestone-логикой (3 показа), не настройкой. */}
     </>
   );
 }

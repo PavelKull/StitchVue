@@ -16,13 +16,14 @@
 }
 
 .dialog {
+  // Cap под вкладку «Поддержать»: три карточки без скролла pane; height = max-height — без скачков при смене локали.
+  --settings-dialog-cap: min(760px, 78vh, calc(100dvh - 32px));
   display: flex;
   flex-direction: column;
   @include modal.modal-dialog-motion;
   width: min(720px, calc(100vw - 32px));
-  // Высота равна cap max-height, иначе оболочка прыгает от длины строк локали.
-  height: min(80vh, calc(100dvh - 32px));
-  max-height: min(80vh, calc(100dvh - 32px));
+  height: var(--settings-dialog-cap);
+  max-height: var(--settings-dialog-cap);
   overflow: hidden;
   color: var(--pg-text-primary);
   @include panel.floating-panel-surface;
@@ -216,8 +217,8 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   grid-area: 1 / 1;
   min-width: 0;
   padding: 18px 22px;
-  // Same cap on every pane so stacked inactive tabs do not inflate dialog height.
-  max-height: min(calc(80vh - 8.5rem), calc(100dvh - 9.5rem));
+  // Тот же cap, что у .dialog, чтобы вкладки не раздували высоту окна.
+  max-height: min(calc(78vh - 8.5rem), calc(760px - 8.5rem), calc(100dvh - 9.5rem));
   visibility: hidden;
   pointer-events: none;
   overflow: hidden;
