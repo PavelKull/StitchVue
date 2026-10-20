@@ -178,7 +178,6 @@ import {
 } from '../../features/selection/lib/unfavoriteGate';
 import { mapRemovalToUiRoute } from '../../features/favorites/lib/mapRemovalToUiRoute';
 import {
-    applyFavoriteOverlayPending,
     applyFavoriteOverlayPendingBatch,
     clearFavoriteOverlayForOperation,
     clearFavoriteOverlayIfGeneration,
@@ -2684,21 +2683,36 @@ export function GalleryPage() {
         desired: boolean,
         opId: string,
     ): number {
-        const generation = nextFavoriteOverlayGeneration(
-            favoriteOverlayGenerationsRef.current,
-            key,
-        );
-        favoriteOverlayGenerationsRef.current.set(key, generation);
-        setFavoriteOverlay((current) =>
-            applyFavoriteOverlayPending(
-                current,
+        const generations = commitFavoriteStarOverlayBatch([
+            { key, desired, operationId: opId },
+        ]);
+        return generations.get(key) ?? 0;
+    }
+
+    function commitFavoriteStarOverlayBatch(
+        entries: ReadonlyArray<{
+            key: string;
+            desired: boolean;
+            operationId: string;
+        }>,
+    ): Map<string, number> {
+        const generations = new Map<string, number>();
+        if (entries.length === 0) {
+            return generations;
+        }
+        const pendingBatch = entries.map(({ key, desired, operationId }) => {
+            const generation = nextFavoriteOverlayGeneration(
+                favoriteOverlayGenerationsRef.current,
                 key,
-                opId,
-                desired,
-                generation,
-            ),
+            );
+            favoriteOverlayGenerationsRef.current.set(key, generation);
+            generations.set(key, generation);
+            return { key, operationId, desired, generation };
+        });
+        setFavoriteOverlay((current) =>
+            applyFavoriteOverlayPendingBatch(current, pendingBatch),
         );
-        return generation;
+        return generations;
     }
 
     function favoritePathsApplyGuardState() {
@@ -2838,17 +2852,37 @@ export function GalleryPage() {
         );
         mergeFavoriteCopyOriginCache(favoriteCopyOriginCacheRef.current, rows);
         const links = mapSnapshotCopyOrigins(rows);
+        const originBatch: {
+            key: string;
+            desired: boolean;
+            operationId: string;
+        }[] = [];
         for (const [copyKey, originKey] of links) {
             session.copyToOrigin.set(copyKey, originKey);
             if (session.originGenerations.has(originKey)) {
                 continue;
             }
-            const generation = startFavoriteStarOverlay(
-                originKey,
-                false,
-                sessionId,
-            );
-            session.originGenerations.set(originKey, generation);
+            originBatch.push({
+                key: originKey,
+                desired: false,
+                operationId: sessionId,
+            });
+        }
+        if (originBatch.length > 0) {
+            const generations = commitFavoriteStarOverlayBatch(originBatch);
+            for (const entry of originBatch) {
+                const generation = generations.get(entry.key);
+                if (generation !== undefined) {
+                    session.originGenerations.set(entry.key, generation);
+                }
+            }
+            setFavoritePaths((current) => {
+                const next = new Set(current);
+                for (const entry of originBatch) {
+                    next.delete(entry.key);
+                }
+                return next;
+            });
         }
     }
 
@@ -2865,14 +2899,33 @@ export function GalleryPage() {
             cache,
             targets.map((file) => file.path),
         );
-        for (const file of targets) {
-            const copyKey = pathKey(file.path);
-            const generation = startFavoriteStarOverlay(
-                copyKey,
-                false,
-                sessionId,
-            );
-            session.copyGenerations.set(copyKey, generation);
+        const copyBatch = targets.map((file) => ({
+            key: pathKey(file.path),
+            desired: false as const,
+            operationId: sessionId,
+        }));
+        const copyGenerations = commitFavoriteStarOverlayBatch(copyBatch);
+        for (const entry of copyBatch) {
+            const generation = copyGenerations.get(entry.key);
+            if (generation !== undefined) {
+                session.copyGenerations.set(entry.key, generation);
+            }
+        }
+        const pathsOff = new Set(copyBatch.map((entry) => entry.key));
+        for (const row of rows) {
+            if (!row.originPath) {
+                continue;
+            }
+            pathsOff.add(pathKey(row.originPath));
+        }
+        if (pathsOff.size > 0) {
+            setFavoritePaths((current) => {
+                const next = new Set(current);
+                for (const key of pathsOff) {
+                    next.delete(key);
+                }
+                return next;
+            });
         }
         applyMassUnfavoriteOriginOverlays(sessionId, rows);
         const missing = targets.filter(
@@ -3209,7 +3262,7 @@ export function GalleryPage() {
         applyInstantMassUnfavoritePresentation(sessionId, targets);
         const listingReady =
             status === 'ready' && !folderListingBusyRef.current;
-        if (
+        const optimisticFullFavoritesClear =
             parentDirectory &&
             shouldOptimisticallyHideFavoritesServiceFolder({
                 sessionPath,
@@ -3217,8 +3270,8 @@ export function GalleryPage() {
                 listingImages: viewRef.current.images,
                 childFolderCount: viewRef.current.folders.length,
                 listingReady,
-            })
-        ) {
+            });
+        if (optimisticFullFavoritesClear) {
             beginOptimisticFavoritesFolderHide(
                 sessionId,
                 sessionPath,
@@ -3235,8 +3288,11 @@ export function GalleryPage() {
             setSelectionMode(cleared.selectionMode);
             setSelection(cleared.selection);
         }
-        if (parentDirectory) {
-            void loadImplRef.current(parentDirectory, true);
+        if (optimisticFullFavoritesClear) {
+            applyRemovedServiceFolder({
+                folderPath: sessionPath,
+                parentDirectory,
+            });
         }
 
         void (async () => {
