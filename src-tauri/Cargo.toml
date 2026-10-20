@@ -3,6 +3,7 @@ name = "stitchvue"
 version = "0.1.0"
 description = "Fast photo gallery for large folders on Windows"
 authors = ["StitchVue"]
+license = "MIT"
 edition = "2021"
 
 [lib]

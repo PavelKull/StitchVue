@@ -2,7 +2,19 @@
 
 Desktop gallery for large photo folders on **Windows**. Built with Tauri 2, Rust, React, and TypeScript.
 
+![StitchVue mosaic view with sidebar and panels](docs/screenshots/mosaic.png)
+
 StitchVue is meant for browsing very large local image libraries: fast folder navigation, justified grid layout, background thumbnail generation with disk cache, favorites (copies under a service folder), a local trash for safe deletes, and a built-in image viewer. Your original photos stay where you put them; the app stores only cache and library metadata under its app data folder (see below).
+
+## Screenshots
+
+![Columns layout](docs/screenshots/Columns.jpg)
+
+![Multi-select in grid](docs/screenshots/select.jpg)
+
+![Image viewer](docs/screenshots/one-image.jpg)
+
+![Settings](docs/screenshots/settings.jpg)
 
 ## Features
 
@@ -63,5 +75,13 @@ Technical docs live under [`docs/`](./docs/DEVELOPMENT.md):
 - [`docs/IPC.md`](./docs/IPC.md) — Tauri commands and events
 - [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) — scripts, layout, tests
 - [`docs/refactoring/TASK_HANDOFF.md`](./docs/refactoring/TASK_HANDOFF.md) — safe refactoring handoff
+
+## License
+
+MIT — see [`LICENSE`](./LICENSE).
+
+## Releases (maintainers)
+
+Closed testing and public release steps: [`docs/release/RELEASING.md`](./docs/release/RELEASING.md).
 
 Repository: [https://github.com/PavelKull/StitchVue](https://github.com/PavelKull/StitchVue)
