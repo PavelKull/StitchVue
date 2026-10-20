@@ -1,17 +1,8 @@
 ---
-description: Экономия токенов при работе с репозиторием StitchVue и агентами
-alwaysApply: true
+description: Экономия токенов — см. stitchvue-core.mdc (раздел «Экономия контекста»)
+alwaysApply: false
 ---
 
 # Token efficiency
 
-- Сначала поиск символов (grep/glob), затем чтение минимальных диапазонов. Файлы ≫ 400 строк не читать целиком без обоснования.
-- Не читать `node_modules`, `target`, `dist`, `build`, сгенерированные артефакты.
-- Маршруты low/medium/high в `docs/refactoring/TASK_HANDOFF.md`: не запускать coordinator и auditor на каждую задачу. Low — без guardian, если diff локальный.
-- Использовать файлы задач в `docs/refactoring/`; не повторять полный аудит для локального этапа.
-- Не более двух итераций самостоятельного поиска первопричины; расширение scope — стоп.
-- Отчёты агентов 300–500 слов без P0/P1; не дублировать большие фрагменты кода.
-- Не запускать субагентов без явного разрешения пользователя.
-- Предпочитать `npm run typecheck`, `npm test -- …`, `cargo test …`, `node scripts/refactor-task-check.mjs` перечитыванию репозитория.
-- Не перезапускать успешные проверки без изменения затронутого кода.
-- Исполнителю — путь к задаче, не полный roadmap.
+Содержимое перенесено в [`stitchvue-core.mdc`](stitchvue-core.mdc). Детали маршрутов: [`docs/refactoring/TASK_HANDOFF.md`](../../docs/refactoring/TASK_HANDOFF.md) § «Бюджет исследования».

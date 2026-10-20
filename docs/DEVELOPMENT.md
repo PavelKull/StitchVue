@@ -25,7 +25,8 @@ npm run tauri dev
 | Команда | Назначение |
 |---------|------------|
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Все frontend unit-тесты из `package.json` → `scripts.test` |
+| `npm test` / `npm run test:full` | Все `src/**/*.test.ts` через `scripts/run-frontend-tests.mjs` |
+| `npm run test:critical` | Инварианты I1–I8 (список в скрипте) |
 | `npm run i18n-check` | Согласованность локалей |
 | `npm run task-check -- <path/to/TASK.md>` | Lint / гейты задачи рефакторинга |
 | `npm run task-check-test` | Тесты скрипта `refactor-task-check` |
@@ -35,16 +36,14 @@ Rust (из `src-tauri/`, пример): `cargo test`, `cargo check` — точе
 
 ## Адресные тесты
 
-Полный `npm test` гоняет фиксированный список файлов. Для одного файла:
+Полный `npm test` обнаруживает все `*.test.ts` под `src/`. Для одного файла:
 
 ```text
 node --experimental-strip-types --test path/to/file.test.ts
 ```
 
-или (если runner принимает путь через npm test argv в вашей среде):
-
 ```text
-npm test -- src/features/gallery/directorySession.test.ts
+node --experimental-strip-types --test src/features/gallery/lib/directory/directorySession.test.ts
 ```
 
 Примеры критичных тестов: `directorySession.test.ts`, `galleryOrder.test.ts`, `folderOrder.test.ts`, `favoriteOptimistic*.test.ts`, `removeFavoritesBatch.test.ts`.

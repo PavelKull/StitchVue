@@ -1,6 +1,6 @@
 ---
 name: "speckit-specify"
-description: "Create or update the feature specification from a natural language feature description."
+description: "SpecKit only (specs/): create or update feature spec. Not for docs/refactoring/tasks/ — use TASK_HANDOFF + executor."
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"

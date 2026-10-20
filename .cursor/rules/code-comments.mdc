@@ -1,7 +1,7 @@
 ---
 description: Осмысленные комментарии в TypeScript, TSX и Rust — причина, ограничение, неочевидное поведение
 globs: "**/*.{ts,tsx,rs}"
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Комментарии в коде

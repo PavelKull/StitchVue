@@ -1,6 +1,7 @@
 ---
 description: FSD 2.0 — организация подпапок при декомпозиции frontend StitchVue
-alwaysApply: true
+globs: "src/**/*.{ts,tsx,scss}"
+alwaysApply: false
 ---
 
 # FSD 2.0 — организация подпапок при декомпозиции

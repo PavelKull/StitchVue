@@ -1,6 +1,6 @@
 ---
 name: refactor-safely
-description: Refactors StitchVue code without mixing in features. Use when the user asks to restructure, rename, split a module, or clean up an existing path.
+description: Refactors StitchVue without mixing features. Use for restructure/rename/split. Not for SpecKit specs/ or sealed TASK from docs/refactoring/tasks/ (use HANDOFF + executor).
 ---
 
 # Refactor safely

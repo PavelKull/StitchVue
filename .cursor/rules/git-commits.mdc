@@ -1,6 +1,6 @@
 ---
-description: Оформление Git-коммитов — Conventional Commits, без AI-подписей и без смены git config
-alwaysApply: true
+description: Оформление Git-коммитов — Conventional Commits, без AI-подписей (перед commit)
+alwaysApply: false
 ---
 
 # Git commits

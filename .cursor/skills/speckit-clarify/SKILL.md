@@ -1,6 +1,6 @@
 ---
 name: "speckit-clarify"
-description: "Identify underspecified areas in the current feature spec by asking up to 5 highly targeted clarification questions and encoding answers back into the spec."
+description: "SpecKit only: clarify feature spec. Not for docs/refactoring/tasks/."
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"

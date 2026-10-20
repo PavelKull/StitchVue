@@ -1,6 +1,6 @@
 ---
 name: "speckit-constitution"
-description: "Create or update the project constitution from interactive or provided principle inputs."
+description: "SpecKit only: project constitution. Not for TASK refactors."
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"

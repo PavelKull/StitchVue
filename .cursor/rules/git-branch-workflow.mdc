@@ -1,6 +1,6 @@
 ---
 description: Единственный рабочий каталог ImageGrid — обычные Git-ветки, без worktree и копий репозитория
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Git branches only

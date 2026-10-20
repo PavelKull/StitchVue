@@ -1,6 +1,7 @@
 ---
-description: Безопасный поэтапный рефакторинг StitchVue
-alwaysApply: true
+description: Безопасный поэтапный рефакторинг StitchVue (TASK, гейты, риск)
+globs: "docs/refactoring/**"
+alwaysApply: false
 ---
 
 # Safe refactoring

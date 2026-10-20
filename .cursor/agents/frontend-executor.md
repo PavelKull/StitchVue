@@ -52,7 +52,8 @@ Resume только если действующий протокол (`TASK_HAND
 6. Запрещено: расширение scope, попутный рефакторинг, формат всего файла, commit/reset/clean/checkout с потерей чужих изменений.
 7. Две неудачные попытки одной ошибки — стоп.
 
-Правила (в начале задачи **прочитай** файлы, не полагайся только на alwaysApply): `.cursor/rules/safe-refactoring.mdc`, `git-branch-workflow.mdc`, `fsd-decomposition.mdc`, `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc` (язык комментариев — русский, alwaysApply), `git-commits.mdc`.
+# Контекст и правила
+`stitchvue-core.mdc` уже в сессии. Порядок: (1) файл TASK, (2) нужные § `TASK_HANDOFF.md`, (3) `allowed_paths`. Не перечитывать rules/HANDOFF/TASK с диска без причины (гейт, hash, отсутствующий §). Контекстные rules: TASK → `safe-refactoring`; FE → `fsd-decomposition`, `code-comments`; инварианты → `business-invariants` при работе в `src/`. Git: кратко в core; политика веток — `git-branch-workflow.mdc` при checkout/merge; commit — `git-commits.mdc`. Отчёты: `docs/refactoring/INDEX.md`; не читать `archive/` целиком.
 
 # Verification
 - Один успешный typecheck **не** подтверждает сохранение поведения.
@@ -66,7 +67,7 @@ Resume только если действующий протокол (`TASK_HAND
 - Не размещай новые файлы в корне feature/page, если для них предусмотрен подходящий сегмент или предметная подпапка.
 - Не создавай лишнюю вложенность и не переноси существующие файлы вне утверждённого `allowed_paths`.
 
-Комментарии: новые и изменённые `//`, JSDoc в `ts`/`tsx` — **только на русском** (`code-comments.mdc`, alwaysApply). Перед отчётом пробеги diff: английские пояснения в комментариях — исправить в scope задачи. Не расширять scope ради документации.
+Комментарии: новые и изменённые `//`, JSDoc в `ts`/`tsx` — **только на русском** (`code-comments.mdc`). Перед отчётом пробеги diff: английские пояснения в комментариях — исправить в scope задачи. Не расширять scope ради документации.
 Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 
 # Token budget

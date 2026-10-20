@@ -1,0 +1,45 @@
+---
+description: StitchVue — ядро безопасности, инварианты и экономия контекста (всегда)
+alwaysApply: true
+---
+
+# StitchVue — ядро
+
+## Данные пользователя
+
+- Не copy/move/delete/rename над каталогами пользователя и боевой SQLite из агентов и тестов; только fixture/temp.
+- Оригиналы фото не удалять и не перезаписывать вне явной user-операции в продукте.
+- Запрещены `git reset --hard`, `git clean`, force push; не перезаписывать чужие незакоммиченные изменения.
+
+## Git (кратко)
+
+- Один checkout: `C:\Users\Pavel\Desktop\ImageGrid`; ветки `feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`.
+- Без worktree, клонов и смены cwd без разрешения владельца. Dirty tree — не обходить worktree/auto-stash.
+- Коммит **только** по явной просьбе пользователя → полный текст: `.cursor/rules/git-commits.mdc`.
+
+## Инварианты I1–I8
+
+Канон: [`docs/INVARIANTS.md`](../../docs/INVARIANTS.md). Не ослаблять. I9 (очередь миниатюр) — UNVERIFIED до отдельных доказательств.
+
+Затронутый инвариант → риск не ниже medium; ФС / SQLite / IPC / сессии / миниатюры → high. `directorySession` не считать low.
+
+## TASK-рефакторинг
+
+При работе с `docs/refactoring/tasks/*.md`: [`TASK_HANDOFF.md`](../../docs/refactoring/TASK_HANDOFF.md) и `.cursor/rules/safe-refactoring.mdc`. `approved` + `--seal` + `--preflight` / `--auth` / `--strict`; не расширять `allowed_paths`.
+
+## Экономия контекста
+
+- Сначала grep/glob и символы, затем узкие диапазоны; файлы ≫400 строк не читать целиком без причины.
+- Не читать `node_modules`, `target`, `dist`, `build`; не сканировать весь репозиторий.
+- Не более **двух** широких итераций поиска; расширение scope — стоп.
+- Не перечитывать rule/HANDOFF/TASK с диска, если уже в контексте (исключение: гейт, новый раздел, проверка hash).
+- Не запускать субагентов без явной просьбы пользователя.
+- Low: без coordinator/auditor/guardian «на всякий случай». Не занижать риск ради экономии.
+- Проверки: предпочитать `npm run typecheck`, адресный `npm test`, `cargo test …`, `refactor-task-check.mjs`; не гонять успешные проверки повторно.
+- Отчёт исполнителя **100–200 слов**; coordinator/auditor **300–500** без больших вставок кода и полных логов PASS.
+
+## Индексы (читать вместо архива)
+
+- Рефакторинг: [`docs/refactoring/INDEX.md`](../../docs/refactoring/INDEX.md)
+- Skills: [`.cursor/skills/SKILLS_INDEX.md`](../skills/SKILLS_INDEX.md)
+- AI baseline: [`docs/ai-optimization/BASELINE.md`](../../docs/ai-optimization/BASELINE.md)

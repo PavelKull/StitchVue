@@ -108,7 +108,8 @@ tests: []
 Укажите в frontmatter `tests:` (примеры проекта):
 
 - `npm run typecheck`
-- `npm test -- path/to.test.ts`
+- `npm run test:critical` (инварианты I1–I8) или `npm test -- path/to.test.ts`
+- `npm run test:full` (перед релизом / по ТЗ)
 - `cargo test -p stitchvue module_name -- --nocapture`
 
 Для medium/high список `tests` не должен быть пустым.

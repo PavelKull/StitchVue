@@ -32,7 +32,8 @@ description: Scoped Rust/Tauri/SQLite refactoring executor with strict file-safe
 6. Запрещено: commit/reset/clean/checkout с потерей чужих изменений; расширение scope.
 7. Две попытки на ошибку — стоп. High → NEXT: guardian и ручной smoke.
 
-Правила: `.cursor/rules/safe-refactoring.mdc`, `git-branch-workflow.mdc`, `rust-backend-architecture.mdc` (прочитать в начале backend-задачи), `token-efficiency.mdc`, `business-invariants.mdc`, `code-comments.mdc` (язык комментариев — русский), `git-commits.mdc`.
+# Контекст и правила
+`stitchvue-core.mdc` уже в сессии. Порядок: TASK → нужные § HANDOFF → `allowed_paths`. Не перечитывать rules/HANDOFF без причины. BE: `rust-backend-architecture.mdc` при правках `src-tauri/`; TASK → `safe-refactoring`; `business-invariants` + `code-comments` по glob. Git/commit — см. core и `git-commits.mdc` при commit. `docs/refactoring/INDEX.md`; не читать `archive/` целиком.
 
 # Модульная структура Rust
 - Соблюдай границы из задачи и `rust-backend-architecture.mdc`: feature-first, подпапки по ответственности; без лишних traits/слоёв.
@@ -40,7 +41,7 @@ description: Scoped Rust/Tauri/SQLite refactoring executor with strict file-safe
 - Добавляй тесты для изменённых инвариантов; не выходи за утверждённый scope.
 - Не создавай плоские каталоги из множества несвязанных `.rs`-модулей; не применяй FSD-сегменты к `src-tauri/` механически.
 
-Комментарии: новые и изменённые `//`, `///`, doc-блоки в Rust — **только на русском** (`code-comments.mdc`, alwaysApply). Перед отчётом пробеги diff: английские пояснения в комментариях — исправить в scope задачи. Не расширять scope ради документации.
+Комментарии: новые и изменённые `//`, `///`, doc-блоки в Rust — **только на русском** (`code-comments.mdc`). Перед отчётом пробеги diff: английские пояснения в комментариях — исправить в scope задачи. Не расширять scope ради документации.
 Коммит — только по явной просьбе пользователя и строго по `git-commits.mdc` (Conventional Commits, текущий git user, без AI-подписей и Co-authored-by от Cursor).
 
 # Token efficiency

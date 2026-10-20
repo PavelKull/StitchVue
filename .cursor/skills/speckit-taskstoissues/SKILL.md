@@ -1,6 +1,6 @@
 ---
 name: "speckit-taskstoissues"
-description: "Deprecated: Convert existing tasks into actionable, dependency-ordered GitHub issues for the feature based on available design artifacts."
+description: "Deprecated SpecKit: tasks to GitHub issues. Not for TASK_HANDOFF."
 compatibility: "Requires spec-kit project structure with .specify/ directory"
 metadata:
   author: "github-spec-kit"

@@ -1,6 +1,7 @@
 ---
-description: Подтверждённые бизнес-инварианты StitchVue для рефакторинга
-alwaysApply: true
+description: Бизнес-инварианты StitchVue — таблица и smoke
+globs: "**/*.{ts,tsx,rs,md}"
+alwaysApply: false
 ---
 
 # Business invariants
