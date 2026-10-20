@@ -165,4 +165,56 @@ mod tests {
             "deadbeef"
         );
     }
+
+    #[test]
+    fn try_confirm_duplicate_via_hint_accepts_matching_source_hash() {
+        use crate::file_ops::content_hash::sha256_file;
+        use std::io::Write;
+        use std::sync::atomic::AtomicBool;
+
+        struct DirectIo;
+        impl super::super::IoGate for DirectIo {
+            fn wait_visible(&self, _: &AtomicBool) -> bool {
+                true
+            }
+            fn with_read<T>(&self, work: impl FnOnce() -> T) -> T {
+                work()
+            }
+        }
+
+        let root =
+            std::env::temp_dir().join(format!("sv-fav-hint-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("Избранное")).unwrap();
+        let source = root.join("photo.jpg");
+        let dest = root.join("Избранное").join("photo.jpg");
+        fs::File::create(&source)
+            .unwrap()
+            .write_all(b"stitchvue-hint-test")
+            .unwrap();
+        fs::copy(&source, &dest).unwrap();
+        let source_meta = fs::metadata(&source).unwrap();
+        let stamp = source_meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let hash = sha256_file(&source).unwrap();
+        let hint = FavoriteDuplicateHint {
+            copy_path_key: normalize_key(&dest).to_ascii_lowercase(),
+            origin_size: source_meta.len(),
+            origin_modified_at: stamp,
+            content_sha256: hash,
+        };
+        let cancel = AtomicBool::new(false);
+        assert!(
+            matches!(
+                try_confirm_duplicate_via_hint(&DirectIo, &source, &dest, &hint, &cancel),
+                Ok(Some(()))
+            ),
+            "expected hash-confirmed duplicate"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 }

@@ -1,6 +1,6 @@
 # Favorites copy performance (StitchVue)
 
-Статус документа: **P0 закрыт**; **P1 — реализован, ожидает проверки производительности (B06 на HDD)**. Commit P1 — после зафиксированных замеров.
+Статус документа: **P0–P3 код закрыт**; **B06 lite / B01–B08 медианы ⏳** (ручные замеры на HDD). DiskGate / P4+ — только после замеров.
 
 ## 1. Карта pipeline (ADD)
 
@@ -11,7 +11,7 @@
 | Optimistic | overlay + `beginFileOperation` | мгновенная звезда |
 | IPC | `invoke('run_file_operation', { paths })` | `commands::run_file_operation` → `Pipeline::execute_file_operation` |
 | Rust | `try_lock_paths` → journal `insert_pending_op` | `file_ops::execute` → `copy_one` (temp + `copy_bytes` + SHA256) |
-| SQLite | `record_favorite_copy`, `finish_op` | `reconcile_favorites_scope` (все snapshots в scope) |
+| SQLite | `record_favorite_copy`, `finish_op` | `reconcile_favorites_scope` (SQL scope + refresh по `request.paths`) |
 | UI confirm | `setFavoritePaths`, снятие overlay | без `favorite_origin_paths` на happy path |
 
 Контекстное меню папок **не** добавляет в избранное (только grid / viewer / selection).
@@ -20,13 +20,12 @@
 
 1. **Побайтовое копирование + SHA256 + `sync_all`** — `file_ops/mod.rs` (`copy_bytes`, `copy_one`). Доминирует на больших RAW/HDD.
 2. **`DiskGate::wait_visible`** — yield при скролле/приоритете превью (`pipeline/mod.rs`). ADD может стоять во время активного скролла.
-3. **`reconcile_favorites_scope` после каждого `run_file_operation`** — полный проход snapshots + FS probe (`reconcile.rs`).
+3. **`reconcile_favorites_scope` после каждого IPC** — было: full table + все строки scope; **P3:** SQL scope + refresh только touched origins (см. §9).
 
 Дополнительно (очередь / IPC):
 
 - После mass unfavorite ADD ждёт `coordinatorFinishFilesystemSession`, а не только Rust locks (`favoritesOperationCoordinator` + `GalleryPage`).
-- Очередь при конфликте: **1 IPC на фото** (`executeQueuedFavoriteAdd` с `paths: [one]`).
-- Batch ADD IPC **отсутствует** (есть только `remove_favorite_copies_batch`).
+- Очередь: **batch ADD** — `run_file_operation` с chunk 16 (P2); duplicate re-add — **P3.2** hash hint без чтения копии.
 
 ## 3. Baseline (B01–B08)
 
@@ -117,11 +116,11 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 | Этап | Фокус | Ожидаемый эффект |
 |------|--------|------------------|
-| **P1** | Ранний `coordinatorFinishFilesystemSession` в `finishBackgroundMassUnfavorite` | ↓ `queue_wait_ms`; **код ✅, B06 ⏳** |
-| **P2-audit** | §8 — coalesce на FE + существующий multi-path `run_file_operation` | ✅ аудит |
-| **P2** | Batch IPC ADD (chunk 16) + меньше reconcile на группу | ✅ FE; замеры ⏳ |
-| **P3** | Меньше лишних чтений (hash при copy, duplicate fast-path) | ↓ IO на дубликатах имён |
-| **P3** | Инкрементальный reconcile вместо full scope scan | ↓ `reconcile_ms` при большом избранном |
+| **P1** | Ранний `coordinatorFinishFilesystemSession` в `finishBackgroundMassUnfavorite` | ✅ код; **B06 ⏳** |
+| **P2-audit** | §8 — coalesce на FE + multi-path `run_file_operation` | ✅ |
+| **P2** | Batch IPC ADD (chunk 16) | ✅ FE; замеры ⏳ |
+| **P3.1** | Scoped SQL + reconcile по touched paths | ✅ Rust |
+| **P3.2** | Duplicate `already_exists` via stored SHA256 | ✅ Rust |
 | **P4** | Ограниченный параллелизм копий — только после замеров HDD/SSD | эксперимент |
 | **P5–P6** | Reconcile/UI и статусы queued/copying | воспринимаемая скорость |
 
@@ -132,6 +131,8 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 **P1:** `GalleryPage.tsx` — drain до `cleanupEmptyServiceFolder` / `relistParentAfterFavoritesMassUnfavorite` / `scheduleFolderRefresh`; тест T19.
 
 **Пустая «Избранное» после add:** `favoritesEmptyFolderAfterAdds.ts` + `tryCleanupEmptyFavoritesFolderAfterQueuedAdds` после drain и отмены queued intent (только если нет активных intent и нет copy in-flight).
+
+**P3 (Rust):** `database/mod.rs` (`load_favorite_snapshots_in_directory_scope`), `reconcile.rs` (touched paths), `favorite_duplicate_hint.rs`, `pipeline/mod.rs` (hints + post-op reconcile), `file_ops/mod.rs` (`copy_one`).
 
 ### Инварианты P1
 
@@ -154,13 +155,11 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 **Статус этапа P1:** реализован, **ожидает проверки производительности** — не закрыт до B06.
 
-## 7. Дорожная карта (после B06)
+## 7. Дорожная карта (актуально)
 
-1. **B06** на HDD — `queue_wait_ms`, `ipc_ms`, мерцание звёзд.
-2. При PASS → **commit P1** + обновлённый отчёт с медианами B06.
-3. **P2-audit** — см. §8 (готово).
-4. **P2-реализация** (после B06) + regression §8.5.
-5. P3+ (DiskGate, hash/sync) — только после замеров, без ослабления целостности.
+1. **B06 lite** (§3.2) + при возможности B03/B07 с `STITCHVUE_FAV_PERF=1` — заполнить §3, закрыть P1 gate по мерцанию.
+2. **Regression** §8.5 + `cargo test p2_reconcile favorite_duplicate` (Rust).
+3. **P4** (параллелизм копий) / **DiskGate** — только если замеры покажут узкое место; без ослабления SHA256/`sync_all`.
 
 **P2-принцип:** сбой копирования одной фотографии не отменяет успех остальных и не искажает их звёзды.
 
@@ -181,7 +180,7 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 | | IPC | reconcile (Rust) | Физическое копирование |
 |--|-----|------------------|-------------------------|
 | Сейчас (queued) | 32 | 32 | 32 файла |
-| После P2 | 2 (⌈32/16⌉) | 2 | 32 файла (без изменений) |
+| После P2+P3 | 2 (⌈32/16⌉) | 2 × O(chunk) metadata | 32 файла (без изменений) |
 
 Сокращаются round-trips и повторная сверка scope, не объём IO на диске.
 
@@ -255,7 +254,8 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 1. **B06 lite** (§3.2) → закрыть P1 → **отдельный commit P1** + отчёт.
 2. **P2 FE-only** (`run_file_operation`, chunk 16) + T20–T23.
 3. **Regression** (§8.5) + B03/B06 с `STITCHVUE_FAV_PERF=1` (сравнить число `rust …` / суммарный `reconcile_ms`).
-4. Отдельный commit P2 после замеров — откат по этапам без смешения с P1.
+4. P2/P3 коммиты в ветке stabilization; откат по этапам — по тегам коммитов.
+5. **P3** — §9; commit `perf(favorites): P3 duplicate hint…` + P3.1 в `reconcile`/`database`.
 
 ## 9. P3 — reconcile и duplicate-check (Rust)
 
