@@ -13,6 +13,7 @@ import {
   BOOSTY_URL,
   CLOUDTIPS_URL,
   GITHUB_REPO_URL,
+  LINKEDIN_URL,
   SUPPORT_EMAIL,
   githubIssuesUrl,
   supportMailtoUrl,
@@ -688,6 +689,18 @@ function AboutPanel() {
     }
   }
 
+  async function openLinkedIn() {
+    if (!LINKEDIN_URL) {
+      return;
+    }
+    setLinkError(null);
+    try {
+      await openExternalLink("linkedin");
+    } catch {
+      setLinkError(t("settings.about.openLinkedInFailed"));
+    }
+  }
+
   async function reportProblem() {
     setFeedbackError(null);
     const route = resolveReportProblemRoute(githubIssuesUrl(), SUPPORT_EMAIL);
@@ -753,7 +766,20 @@ function AboutPanel() {
           <h3 className={styles.aboutTitle}>StitchVue</h3>
           <p className={styles.meta}>{t("settings.about.version", { version: version ?? "—" })}</p>
           <p className={styles.hint}>{t("settings.about.tagline")}</p>
-          <p className={styles.meta}>{t("settings.about.developer")}</p>
+          <p className={`${styles.meta} ${styles.developerRow}`}>
+            <span>{t("settings.about.developer")}</span>
+            {LINKEDIN_URL ? (
+              <button
+                type="button"
+                className={styles.linkedinLink}
+                aria-label={t("settings.about.linkedinAria")}
+                onClick={() => void openLinkedIn()}
+              >
+                <StitchVueIcon name="linkedin" className={styles.linkedinIcon} />
+                <span>{t("settings.about.linkedin")}</span>
+              </button>
+            ) : null}
+          </p>
         </div>
       </div>
       {linkError ? <p className={styles.error}>{linkError}</p> : null}

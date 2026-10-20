@@ -306,6 +306,25 @@ pub(crate) fn load_all_favorite_snapshots(
         .map_err(|err| err.to_string())
 }
 
+/// Rows whose origin or copy path lies under `directory_prefix` (same rules as scoped reconcile).
+pub(crate) fn load_favorite_snapshots_in_directory_scope(
+    conn: &Connection,
+    directory_prefix: &str,
+) -> Result<Vec<FavoriteSnapshot>, String> {
+    let prefix = path_key(directory_prefix);
+    let like_pattern = format!("{}\\%", prefix);
+    let sql = format!(
+        "{SNAPSHOT_SELECT} WHERE origin_key = ?1 OR origin_key LIKE ?2
+         OR copy_key = ?1 OR copy_key LIKE ?2"
+    );
+    let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map([&prefix, &like_pattern], snapshot_row)
+        .map_err(|err| err.to_string())?;
+    rows.collect::<Result<Vec<_>, _>>()
+        .map_err(|err| err.to_string())
+}
+
 fn matches_path_key(stored: &str, requested: &str) -> bool {
     path_key(stored) == path_key(requested)
 }
@@ -920,6 +939,37 @@ mod tests {
     }
 
     #[test]
+    fn load_favorite_snapshots_in_directory_scope_filters_other_albums() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        record_favorite_copy(
+            &conn,
+            r"C:\Photos\album-a\a.jpg",
+            10,
+            100,
+            r"C:\Photos\album-a\Избранное\a.jpg",
+            10,
+            100,
+            None,
+        )
+        .unwrap();
+        record_favorite_copy(
+            &conn,
+            r"C:\Photos\album-b\b.jpg",
+            20,
+            200,
+            r"C:\Photos\album-b\Избранное\b.jpg",
+            20,
+            200,
+            None,
+        )
+        .unwrap();
+        let scoped = load_favorite_snapshots_in_directory_scope(&conn, r"C:\Photos\album-a")
+            .unwrap();
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].origin_path, r"C:\Photos\album-a\a.jpg");
+    }
+
     fn sync_favorite_keys_after_path_rewrite() {
         let conn = Connection::open_in_memory().unwrap();
         migrate(&conn).unwrap();

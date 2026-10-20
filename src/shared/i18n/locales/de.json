@@ -271,7 +271,10 @@
     "about": {
       "version": "Version {{version}}",
       "tagline": "Fotos schnell und ohne unnötige Elemente ansehen",
-      "developer": "Entwickler: Pavel Kulikov",
+      "developer": "Entwickler:",
+      "linkedin": "LinkedIn",
+      "linkedinAria": "Entwicklerprofil auf LinkedIn",
+      "openLinkedInFailed": "Das LinkedIn-Profil konnte nicht geöffnet werden.",
       "githubRepo": "GitHub-Repository",
       "feedbackTitle": "Feedback",
       "feedbackDescription": "Einen Fehler entdeckt? Melden Sie ihn, um StitchVue zu verbessern.",

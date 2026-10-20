@@ -446,6 +446,50 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   border-radius: 14px;
 }
 
+.developerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.linkedinLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pg-text-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--pg-icon-active);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pg-accent);
+    outline-offset: 2px;
+  }
+}
+
+.linkedinIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
 .aboutTitle {
   margin: 0 0 4px;
 }

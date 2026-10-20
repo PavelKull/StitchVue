@@ -107,7 +107,7 @@ fn p2_reconcile_t021_post_op_metadata_without_deleting_copies() {
     )
     .unwrap();
 
-    reconcile_favorites_scope(&conn, &directory).unwrap();
+    reconcile_favorites_scope(&conn, &directory, None).unwrap();
 
     assert!(origin.is_file(), "origin must survive scoped reconcile");
     assert!(copy.is_file(), "favorite copy must not be deleted");
@@ -165,7 +165,7 @@ fn p2_reconcile_t022_unavailable_origin_skips_favorite_copies_purge() {
     .unwrap();
     assert_eq!(favorite_row_count(&conn), 1);
 
-    reconcile_favorites_scope(&conn, &directory).unwrap();
+    reconcile_favorites_scope(&conn, &directory, None).unwrap();
 
     assert_eq!(
         favorite_row_count(&conn),
@@ -200,7 +200,7 @@ fn p2_reconcile_t022a_explorer_rename_does_not_invent_basename_link() {
     assert!(!origin.exists());
     assert!(renamed.is_file());
 
-    reconcile_favorites_scope(&conn, &directory).unwrap();
+    reconcile_favorites_scope(&conn, &directory, None).unwrap();
 
     assert_eq!(
         favorite_row_count(&conn),
@@ -244,7 +244,7 @@ fn p2_reconcile_t022b_orphan_copy_without_row_not_deleted() {
     let conn = memory_db();
     assert_eq!(favorite_row_count(&conn), 0);
 
-    reconcile_favorites_scope(&conn, &directory).unwrap();
+    reconcile_favorites_scope(&conn, &directory, None).unwrap();
 
     assert!(
         orphan.is_file(),

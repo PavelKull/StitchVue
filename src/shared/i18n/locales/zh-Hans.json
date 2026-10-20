@@ -271,7 +271,10 @@
     "about": {
       "version": "版本 {{version}}",
       "tagline": "简洁快速地浏览照片",
-      "developer": "开发者：Pavel Kulikov",
+      "developer": "开发者：",
+      "linkedin": "LinkedIn",
+      "linkedinAria": "开发者的 LinkedIn 主页",
+      "openLinkedInFailed": "无法打开 LinkedIn 主页。",
       "githubRepo": "GitHub 代码仓库",
       "feedbackTitle": "反馈",
       "feedbackDescription": "发现了程序错误？请向我们反馈，帮助改进 StitchVue。",

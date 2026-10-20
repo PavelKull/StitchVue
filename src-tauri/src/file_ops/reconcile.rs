@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
@@ -19,12 +20,21 @@ pub fn reconcile_on_boot(db: &Connection) {
 /// Light scoped favorites reconcile (CL-P01): unfinished journal + copy metadata only.
 /// Never unlinks user photos / orphan copies; never purges `favorite_copies` on Unavailable (CL-P04).
 /// Does not call `recover_legacy_undo` (boot-only; recycle side effects).
-pub fn reconcile_favorites_scope(db: &Connection, directory_prefix: &str) -> Result<(), String> {
+pub fn reconcile_favorites_scope(
+    db: &Connection,
+    directory_prefix: &str,
+    touched_origin_paths: Option<&[String]>,
+) -> Result<(), String> {
     if directory_prefix.trim().is_empty() {
         return Ok(());
     }
     finish_scoped_favorite_journal(db, directory_prefix);
-    refresh_scoped_favorite_metadata(db, directory_prefix)?;
+    match touched_origin_paths {
+        Some(paths) if !paths.is_empty() => {
+            refresh_touched_favorite_metadata(db, directory_prefix, paths)?;
+        }
+        _ => refresh_scoped_favorite_metadata(db, directory_prefix)?,
+    }
     // EC-21: orphan files under Избранное without a row are intentionally ignored (no invent, no delete).
     Ok(())
 }
@@ -86,43 +96,67 @@ fn refresh_scoped_favorite_metadata(
     db: &Connection,
     directory_prefix: &str,
 ) -> Result<(), String> {
-    let snapshots = database::load_all_favorite_snapshots(db)?;
+    let snapshots = database::load_favorite_snapshots_in_directory_scope(db, directory_prefix)?;
     for snap in snapshots {
-        if !path_in_directory_scope(&snap.origin_path, directory_prefix)
-            && !path_in_directory_scope(&snap.copy_path, directory_prefix)
-        {
-            continue;
-        }
-
-        // CL-P04: Unavailable must not trigger SQLite purge of favorite_copies.
-        match probe_origin_availability(Path::new(&snap.origin_path)) {
-            OriginAvailability::Unavailable | OriginAvailability::Missing => {
-                refresh_copy_stamps_keeping_origin(db, &snap)?;
-                continue;
-            }
-            OriginAvailability::Accessible => {}
-        }
-
-        let copy = Path::new(&snap.copy_path);
-        let Ok(copy_meta) = fs::metadata(copy) else {
-            // Copy gone → leave row (listing filters stars); never invent / never unlink others.
-            continue;
-        };
-        let Ok(origin_meta) = fs::metadata(Path::new(&snap.origin_path)) else {
-            refresh_copy_stamps_keeping_origin(db, &snap)?;
-            continue;
-        };
-        database::record_favorite_copy(
-            db,
-            &snap.origin_path,
-            origin_meta.len(),
-            stamp_ms(&origin_meta),
-            &snap.copy_path,
-            copy_meta.len(),
-            stamp_ms(&copy_meta),
-            snap.content_sha256.as_deref(),
-        )?;
+        refresh_favorite_snapshot_metadata(db, &snap)?;
     }
+    Ok(())
+}
+
+fn refresh_touched_favorite_metadata(
+    db: &Connection,
+    directory_prefix: &str,
+    touched_origin_paths: &[String],
+) -> Result<(), String> {
+    let mut seen = HashSet::new();
+    for origin in touched_origin_paths {
+        let key = scope_key(origin);
+        if !seen.insert(key) {
+            continue;
+        }
+        if !path_in_directory_scope(origin, directory_prefix) {
+            continue;
+        }
+        let snap = database::favorite_snapshot_for_origin(db, origin)?;
+        if let Some(snap) = snap {
+            refresh_favorite_snapshot_metadata(db, &snap)?;
+        }
+    }
+    Ok(())
+}
+
+fn refresh_favorite_snapshot_metadata(
+    db: &Connection,
+    snap: &database::FavoriteSnapshot,
+) -> Result<(), String> {
+    // CL-P04: Unavailable must not trigger SQLite purge of favorite_copies.
+    match probe_origin_availability(Path::new(&snap.origin_path)) {
+        OriginAvailability::Unavailable | OriginAvailability::Missing => {
+            refresh_copy_stamps_keeping_origin(db, snap)?;
+            return Ok(());
+        }
+        OriginAvailability::Accessible => {}
+    }
+
+    let copy = Path::new(&snap.copy_path);
+    let Ok(copy_meta) = fs::metadata(copy) else {
+        // Copy gone → leave row (listing filters stars); never invent / never unlink others.
+        return Ok(());
+    };
+    let Ok(origin_meta) = fs::metadata(Path::new(&snap.origin_path)) else {
+        refresh_copy_stamps_keeping_origin(db, snap)?;
+        return Ok(());
+    };
+    database::record_favorite_copy(
+        db,
+        &snap.origin_path,
+        origin_meta.len(),
+        stamp_ms(&origin_meta),
+        &snap.copy_path,
+        copy_meta.len(),
+        stamp_ms(&copy_meta),
+        snap.content_sha256.as_deref(),
+    )?;
     Ok(())
 }
 

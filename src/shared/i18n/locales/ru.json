@@ -271,7 +271,10 @@
     "about": {
       "version": "Версия {{version}}",
       "tagline": "Быстрый просмотр фотографий без лишних элементов",
-      "developer": "Разработчик: Pavel Kulikov",
+      "developer": "Разработчик:",
+      "linkedin": "LinkedIn",
+      "linkedinAria": "Профиль разработчика на LinkedIn",
+      "openLinkedInFailed": "Не удалось открыть профиль LinkedIn.",
       "githubRepo": "Репозиторий на GitHub",
       "feedbackTitle": "Обратная связь",
       "feedbackDescription": "Нашли ошибку в приложении? Сообщите о ней, чтобы помочь улучшить StitchVue.",

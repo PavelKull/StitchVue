@@ -256,3 +256,38 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 2. **P2 FE-only** (`run_file_operation`, chunk 16) + T20–T23.
 3. **Regression** (§8.5) + B03/B06 с `STITCHVUE_FAV_PERF=1` (сравнить число `rust …` / суммарный `reconcile_ms`).
 4. Отдельный commit P2 после замеров — откат по этапам без смешения с P1.
+
+## 9. P3 — reconcile и duplicate-check (Rust)
+
+**Статус:** P3.1 реализован (scoped SQL + touched paths после `run_file_operation`). P3.2 (duplicate IO) и DiskGate — без изменения семантики.
+
+### 9.1 Что сделано (P3.1)
+
+| Было | Стало |
+|------|--------|
+| `refresh_scoped_favorite_metadata` → `load_all_favorite_snapshots` + фильтр в Rust | `load_favorite_snapshots_in_directory_scope` (SQL по `origin_key` / `copy_key`) |
+| После каждого IPC — полный scoped refresh всех строк альбома | Post-op: `reconcile_favorites_scope(..., Some(&request.paths))` — refresh только snapshot по затронутым origin (после journal finish в scope) |
+| Boot / тесты без paths | `touched_origin_paths: None` → прежний scoped refresh (но через SQL, не full table) |
+
+**Инварианты:** CL-P01/P04 без изменений; journal `finish_scoped_favorite_journal` по-прежнему по unfinished ops в scope; orphan copies на диске не трогаем (EC-21).
+
+**Ожидаемый эффект:** при batch ADD (P2, chunk 16) `reconcile_ms` ∝ 16 lookups, а не O(все избранные в альбоме / глобально). На альбомах с тысячами звёзд в SQLite — заметное снижение CPU/FS probe после каждого IPC.
+
+### 9.2 Отложено (P3.2) — duplicate `already_exists`
+
+`copy_one` при совпадении имени вызывает `files_identical` (полное чтение source + dest). Безопасное ускорение только с доказательством:
+
+- Вариант A: один проход SHA256 по source + сравнение с `content_sha256` в SQLite при совпадении size/mtime origin — **без** чтения dest (нужен доступ к snapshot в `copy_one` / pipeline).
+- Вариант B: общий scan-cache внутри одного IPC (как `BatchRemovalScanCaches`) — только если профиль покажет повторный IO между файлами.
+
+**Не делать:** skip byte-compare по size+mtime без hash; ослаблять `sync_all` / SHA256 на новых копиях.
+
+### 9.3 DiskGate
+
+Измерение через `STITCHVUE_FAV_PERF` / `STITCHVUE_FAV_METRICS` уже есть. Изменение `wait_visible` (30 ms sleep при скролле) — только после B03/B06 с доказательством, что ADD не должен голодать превью.
+
+### 9.4 Проверка
+
+- `cargo test load_favorite_snapshots_in_directory_scope_filters_other_albums`
+- `cargo test p2_reconcile` (regression CL-P01)
+- B03/B07 с `STITCHVUE_FAV_PERF=1`: сравнить `reconcile_ms` до/после P3 на альбоме с большим числом избранных в БД.

@@ -7,6 +7,7 @@ export type ExternalLinkKind =
   | "boosty"
   | "github_repo"
   | "github_issues"
+  | "linkedin"
   | "support_email";
 
 export type OpenExternalLinkOptions = {

@@ -271,7 +271,10 @@
     "about": {
       "version": "Version {{version}}",
       "tagline": "Fast photo browsing without clutter",
-      "developer": "Developer: Pavel Kulikov",
+      "developer": "Developer:",
+      "linkedin": "LinkedIn",
+      "linkedinAria": "Developer profile on LinkedIn",
+      "openLinkedInFailed": "Could not open the LinkedIn profile.",
       "githubRepo": "GitHub repository",
       "feedbackTitle": "Feedback",
       "feedbackDescription": "Found a bug? Report it to help improve StitchVue.",
