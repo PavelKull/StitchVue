@@ -20,7 +20,8 @@
   flex-direction: column;
   @include modal.modal-dialog-motion;
   width: min(720px, calc(100vw - 32px));
-  height: auto;
+  // Высота равна cap max-height, иначе оболочка прыгает от длины строк локали.
+  height: min(80vh, calc(100dvh - 32px));
   max-height: min(80vh, calc(100dvh - 32px));
   overflow: hidden;
   color: var(--pg-text-primary);

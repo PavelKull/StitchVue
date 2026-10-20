@@ -1,7 +1,7 @@
 ---
 task_id: TASK-2026-003-B010-settings-height
 title: Стабильная высота диалога Настроек при смене языка (B-010)
-status: approved
+status: completed
 risk: low
 responsible_agent: frontend-executor
 base_commit: "5ca47fc2930ceb95d746eb4f8001e16173bebf16"
@@ -31,7 +31,7 @@ tests:
 |------|----------|
 | ID | `TASK-2026-003-B010-settings-height` |
 | Название | Стабильная высота диалога Настроек при смене языка (B-010) |
-| Статус | `approved` |
+| Статус | `completed` |
 | Риск | `low` — CSS шелла, без React state / IPC / ФС |
 | Ответственный агент | `frontend-executor` |
 | База Git | `5ca47fc2930ceb95d746eb4f8001e16173bebf16` |
@@ -133,4 +133,20 @@ low: executor → targeted test → `--strict`. По мастер-задаче 0
 
 ## 7. Отчёт исполнителя (после работы)
 
-(заполняет executor)
+```
+TASK: TASK-2026-003-B010-settings-height
+STATUS: completed
+CHANGED:
+  - SettingsDialog.module.scss — .dialog height = min(80vh, calc(100dvh - 32px)) вместо auto
+  - settingsDialogHeight.test.ts — контракт height/max-height и overflow-y pane
+INVARIANTS: сохранены (только CSS шелла)
+TESTS:
+  - node --experimental-strip-types --test src/widgets/settings-dialog/settingsDialogHeight.test.ts → PASS (2)
+GATES: preflight/auth OK; strict OK после stash src-tauri/src/file_ops/mod.rs (вне scope)
+DIFF: в scope
+SMOKE: N/A (§4)
+RISKS: low — шелл всегда на полном cap; ручная смена ru/en/de/zh-Hans не проверялась
+AUDITOR: PASS (P3 non-blocking)
+GUARDIAN: PASS по содержанию после чистого дерева
+NEXT: C-004 (T010–T011)
+```

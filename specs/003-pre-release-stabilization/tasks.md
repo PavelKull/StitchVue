@@ -50,7 +50,7 @@
 **Goal**: Stable dialog chrome on locale change  
 **Independent Test**: Cycle ru/en/de/zh-Hans; height does not jump
 
-- [ ] T009 [US8] Fix `.dialog` height in `src/widgets/settings-dialog/SettingsDialog.module.scss` (fixed/min height; pane already `overflow-y: auto`)
+- [x] T009 [US8] Fix `.dialog` height in `src/widgets/settings-dialog/SettingsDialog.module.scss` (fixed/min height; pane already `overflow-y: auto`)
 
 ---
 
