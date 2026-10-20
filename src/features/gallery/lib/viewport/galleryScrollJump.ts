@@ -31,6 +31,87 @@ export const SCROLL_END_BOTTOM_EPS = 2;
 /** Порог отмены follow-max при прокрутке вверх. */
 export const SCROLL_END_CANCEL_UP_EPS = 1;
 
+/** Быстрый плавный прыжок по кнопке (мс), не нативный smooth на всю дистанцию. */
+export const SCROLL_JUMP_ANIM_MIN_MS = 180;
+export const SCROLL_JUMP_ANIM_MAX_MS = 380;
+
+export function scrollJumpAnimationDurationMs(distancePx: number): number {
+    const ms = distancePx * 0.22;
+    return Math.min(
+        SCROLL_JUMP_ANIM_MAX_MS,
+        Math.max(SCROLL_JUMP_ANIM_MIN_MS, ms),
+    );
+}
+
+/** Синхронизировать React-виртуализацию галереи после программного scrollTop. */
+export function dispatchViewportScrollEvent(node: HTMLElement): void {
+    node.dispatchEvent(new Event('scroll', { bubbles: true }));
+}
+
+/** Показать кастомный скроллбар галереи (программный прыжок / follow-max). */
+export const GALLERY_VIEWPORT_SCROLL_REVEAL = 'stitchvue:gallery-scrollbar-reveal';
+
+export function dispatchViewportScrollReveal(node: HTMLElement): void {
+    node.dispatchEvent(
+        new Event(GALLERY_VIEWPORT_SCROLL_REVEAL, { bubbles: false }),
+    );
+    dispatchViewportScrollEvent(node);
+}
+
+export type AnimateElementScrollTopOptions = {
+    durationMs?: number;
+    /** Обновление виртуализации на каждом кадре (onScroll при rAF не всегда срабатывает). */
+    onFrame?: (scrollTop: number) => void;
+    onComplete?: () => void;
+};
+
+/** Плавная прокрутка viewport; возвращает отмену (для нового прыжка / смены папки). */
+export function animateElementScrollTop(
+    node: HTMLElement,
+    targetTop: number,
+    options?: AnimateElementScrollTopOptions,
+): () => void {
+    const startTop = node.scrollTop;
+    const delta = targetTop - startTop;
+    if (Math.abs(delta) < 1) {
+        node.scrollTop = targetTop;
+        options?.onFrame?.(targetTop);
+        dispatchViewportScrollReveal(node);
+        options?.onComplete?.();
+        return () => undefined;
+    }
+    const duration =
+        options?.durationMs ??
+        scrollJumpAnimationDurationMs(Math.abs(delta));
+    const started = performance.now();
+    let frame = 0;
+    let finished = false;
+    const finish = () => {
+        if (finished) {
+            return;
+        }
+        finished = true;
+        options?.onComplete?.();
+    };
+    const step = (now: number) => {
+        const t = Math.min(1, (now - started) / duration);
+        const eased = 1 - (1 - t) ** 3;
+        node.scrollTop = startTop + delta * eased;
+        options?.onFrame?.(node.scrollTop);
+        dispatchViewportScrollReveal(node);
+        if (t < 1) {
+            frame = requestAnimationFrame(step);
+        } else {
+            finish();
+        }
+    };
+    frame = requestAnimationFrame(step);
+    return () => {
+        cancelAnimationFrame(frame);
+        finish();
+    };
+}
+
 export function scrollMax(
     scrollHeight: number,
     clientHeight: number,

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import {
     computeScrollJumpState,
     isAtScrollBottom,
+    scrollJumpAnimationDurationMs,
+    SCROLL_JUMP_ANIM_MAX_MS,
+    SCROLL_JUMP_ANIM_MIN_MS,
     scrollJumpStatesEqual,
     scrollMax,
     shouldClearPendingScrollToEnd,
@@ -26,6 +29,12 @@ test('commitScrollJump equality matches hook helper', () => {
         scrollTop: 500,
     });
     assert.equal(scrollJumpStatesEqual(a, c), false);
+});
+
+test('scrollJumpAnimationDurationMs is fast and capped', () => {
+    assert.equal(scrollJumpAnimationDurationMs(0), SCROLL_JUMP_ANIM_MIN_MS);
+    assert.equal(scrollJumpAnimationDurationMs(50), SCROLL_JUMP_ANIM_MIN_MS);
+    assert.equal(scrollJumpAnimationDurationMs(10_000), SCROLL_JUMP_ANIM_MAX_MS);
 });
 
 test('scrollMax and isAtScrollBottom', () => {

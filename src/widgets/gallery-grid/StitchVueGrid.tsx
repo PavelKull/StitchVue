@@ -1,5 +1,5 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
 import { displayAspect, rotationQuarters, tilePhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
 import { photoDateLabel } from "../../features/gallery/lib/listing/galleryOrder";
@@ -84,6 +84,8 @@ type StitchVueGridProps = {
   /** First-screen header window. Must not wait for a published layout. */
   onGeometryRange?: (start: number, end: number) => void;
   onScrollActivity?: (scrollTop: number) => void;
+  /** Ref для программной прокрутки (прыжок): обновляет scrollTop виртуализации без onScroll. */
+  galleryViewportScrollSyncRef?: RefObject<((scrollTop: number) => void) | null>;
   onOpen: (index: number) => void;
   onHoverPhoto?: (index: number, inside: boolean) => void;
   onToggleSelect?: (index: number) => void;
@@ -151,6 +153,7 @@ export function StitchVueGrid({
   onVisible,
   onGeometryRange,
   onScrollActivity,
+  galleryViewportScrollSyncRef,
   onOpen,
   onHoverPhoto,
   onToggleSelect,
@@ -205,6 +208,19 @@ export function StitchVueGrid({
   const [builtKey, setBuiltKey] = useState("");
   const onScrollActivityRef = useRef(onScrollActivity);
   onScrollActivityRef.current = onScrollActivity;
+  const publishViewportScrollTop = useCallback((top: number) => {
+    setScrollTop(top);
+    onScrollActivityRef.current?.(top);
+  }, []);
+  useEffect(() => {
+    if (!galleryViewportScrollSyncRef) {
+      return;
+    }
+    galleryViewportScrollSyncRef.current = publishViewportScrollTop;
+    return () => {
+      galleryViewportScrollSyncRef.current = null;
+    };
+  }, [galleryViewportScrollSyncRef, publishViewportScrollTop]);
   const layoutMorphTimer = useRef(0);
   const layoutMorphReady = useRef(false);
   const [layoutMorph, setLayoutMorph] = useState(false);

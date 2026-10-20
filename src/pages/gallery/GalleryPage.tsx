@@ -393,6 +393,9 @@ export function GalleryPage() {
     const [propertiesPath, setPropertiesPath] = useState<string | null>(null);
     const shellRef = useRef<HTMLElement>(null);
     const photoGridViewportRef = useRef<HTMLDivElement>(null);
+    const galleryViewportScrollSyncRef = useRef<
+        ((scrollTop: number) => void) | null
+    >(null);
     const bottomBarDockRef = useRef<HTMLDivElement>(null);
     const [folderListingBusy, setFolderListingBusy] = useState(true);
     const folderListingBusyRef = useRef(true);
@@ -1401,6 +1404,7 @@ export function GalleryPage() {
         clearPendingScrollToEnd,
     } = useGalleryScrollJump({
         viewportRef: photoGridViewportRef,
+        syncViewportScrollTopRef: galleryViewportScrollSyncRef,
         orderedImagesLength: orderedImages.length,
         directoryKey: directoryKey ?? '',
         layoutMode,
@@ -4379,7 +4383,9 @@ export function GalleryPage() {
 
     const folderListingForLayout =
         orderedImages.length === 0 &&
-        (view.folders.length > 0 || folderExitingKey !== null);
+        (view.folders.length > 0 ||
+            folderExitingKey !== null ||
+            folderListingBusy);
     const photoGalleryActive = orderedImages.length > 0;
     const topNavPeekEnabled =
         photoGalleryActive && preferences.panelsPeekOnEdge;
@@ -4498,6 +4504,7 @@ export function GalleryPage() {
                         sidebarLayoutWidthFreeze !== null || sidebarLayoutMorph
                     }
                     viewportRef={photoGridViewportRef}
+                    galleryViewportScrollSyncRef={galleryViewportScrollSyncRef}
                     onVisible={reportVisible}
                     onGeometryRange={reportGeometry}
                     onScrollActivity={reportGalleryScrollActivity}

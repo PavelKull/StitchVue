@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { LayoutMode } from '../../../../entities/gallery/layoutMode.ts';
 import {
+    animateElementScrollTop,
     computeScrollJumpState,
+    dispatchViewportScrollReveal,
     emptyScrollJumpState,
     scrollJumpStatesEqual,
     scrollMax,
@@ -12,6 +14,8 @@ import {
 
 export type UseGalleryScrollJumpParams = {
     viewportRef: RefObject<HTMLElement | null>;
+    /** Синхронизация scrollTop в StitchVueGrid при программной прокрутке. */
+    syncViewportScrollTopRef?: RefObject<((scrollTop: number) => void) | null>;
     orderedImagesLength: number;
     directoryKey: string;
     layoutMode: LayoutMode;
@@ -20,12 +24,26 @@ export type UseGalleryScrollJumpParams = {
     listingComplete: boolean;
 };
 
-function stickScrollToEnd(node: HTMLElement): void {
+function publishViewportScrollTop(
+    node: HTMLElement,
+    sync: RefObject<((scrollTop: number) => void) | null> | undefined,
+): void {
+    const top = node.scrollTop;
+    sync?.current?.(top);
+    dispatchViewportScrollReveal(node);
+}
+
+function stickScrollToEnd(
+    node: HTMLElement,
+    sync: RefObject<((scrollTop: number) => void) | null> | undefined,
+): void {
     node.scrollTop = scrollMax(node.scrollHeight, node.clientHeight);
+    publishViewportScrollTop(node, sync);
 }
 
 export function useGalleryScrollJump({
     viewportRef,
+    syncViewportScrollTopRef,
     orderedImagesLength,
     directoryKey,
     layoutMode,
@@ -37,8 +55,21 @@ export function useGalleryScrollJump({
         emptyScrollJumpState,
     );
     const pendingScrollToEndRef = useRef(false);
+    const scrollJumpAnimatingRef = useRef(false);
+    const scrollJumpAnimCancelRef = useRef<(() => void) | null>(null);
+    const lastFollowScrollHeightRef = useRef(0);
     const listingCompleteRef = useRef(listingComplete);
     listingCompleteRef.current = listingComplete;
+
+    const endScrollJumpAnimation = useCallback(() => {
+        scrollJumpAnimatingRef.current = false;
+        scrollJumpAnimCancelRef.current = null;
+    }, []);
+
+    const cancelScrollJumpAnimation = useCallback(() => {
+        scrollJumpAnimCancelRef.current?.();
+        endScrollJumpAnimation();
+    }, [endScrollJumpAnimation]);
 
     const commitScrollJump = useCallback((next: ScrollJumpState) => {
         setScrollJump((current) =>
@@ -48,7 +79,26 @@ export function useGalleryScrollJump({
 
     const clearPendingScrollToEnd = useCallback(() => {
         pendingScrollToEndRef.current = false;
+        lastFollowScrollHeightRef.current = 0;
     }, []);
+
+    const followScrollGrowthIfNeeded = useCallback(
+        (node: HTMLElement) => {
+            if (
+                !pendingScrollToEndRef.current ||
+                scrollJumpAnimatingRef.current
+            ) {
+                return;
+            }
+            const height = node.scrollHeight;
+            if (height <= lastFollowScrollHeightRef.current) {
+                return;
+            }
+            lastFollowScrollHeightRef.current = height;
+            stickScrollToEnd(node, syncViewportScrollTopRef);
+        },
+        [syncViewportScrollTopRef],
+    );
 
     const syncScrollJump = useCallback(() => {
         const node = viewportRef.current;
@@ -60,9 +110,7 @@ export function useGalleryScrollJump({
             );
             return;
         }
-        if (pendingScrollToEndRef.current) {
-            stickScrollToEnd(node);
-        }
+        followScrollGrowthIfNeeded(node);
         commitScrollJump(
             computeScrollJumpState({
                 scrollHeight: node.scrollHeight,
@@ -70,7 +118,7 @@ export function useGalleryScrollJump({
                 scrollTop: node.scrollTop,
             }),
         );
-    }, [commitScrollJump, viewportRef]);
+    }, [commitScrollJump, followScrollGrowthIfNeeded, viewportRef]);
 
     const jumpGalleryScroll = useCallback(
         (toTop: boolean) => {
@@ -82,22 +130,35 @@ export function useGalleryScrollJump({
             if (max <= 2) {
                 return;
             }
+            cancelScrollJumpAnimation();
             if (toTop) {
                 pendingScrollToEndRef.current = false;
+                lastFollowScrollHeightRef.current = 0;
             } else {
                 pendingScrollToEndRef.current = true;
+                lastFollowScrollHeightRef.current = node.scrollHeight;
             }
             const reduceMotion = window.matchMedia(
                 '(prefers-reduced-motion: reduce)',
             ).matches;
-            const useAuto =
-                pendingScrollToEndRef.current || reduceMotion;
-            node.scrollTo({
-                top: toTop ? 0 : max,
-                behavior: useAuto ? 'auto' : 'smooth',
-            });
-            if (pendingScrollToEndRef.current) {
-                stickScrollToEnd(node);
+            const targetTop = toTop ? 0 : max;
+            const syncFrame = (top: number) => {
+                syncViewportScrollTopRef?.current?.(top);
+            };
+            if (reduceMotion) {
+                node.scrollTop = targetTop;
+                publishViewportScrollTop(node, syncViewportScrollTopRef);
+                endScrollJumpAnimation();
+            } else {
+                scrollJumpAnimatingRef.current = true;
+                scrollJumpAnimCancelRef.current = animateElementScrollTop(
+                    node,
+                    targetTop,
+                    {
+                        onFrame: syncFrame,
+                        onComplete: endScrollJumpAnimation,
+                    },
+                );
             }
             commitScrollJump(
                 computeScrollJumpState({
@@ -107,7 +168,13 @@ export function useGalleryScrollJump({
                 }),
             );
         },
-        [commitScrollJump, viewportRef],
+        [
+            cancelScrollJumpAnimation,
+            commitScrollJump,
+            endScrollJumpAnimation,
+            syncViewportScrollTopRef,
+            viewportRef,
+        ],
     );
 
     const notifyGalleryScrollTop = useCallback(
@@ -127,19 +194,24 @@ export function useGalleryScrollJump({
                 })
             ) {
                 pendingScrollToEndRef.current = false;
+                lastFollowScrollHeightRef.current = 0;
             }
         },
         [viewportRef],
     );
 
     useEffect(() => {
+        cancelScrollJumpAnimation();
         pendingScrollToEndRef.current = false;
-    }, [directoryKey]);
+        lastFollowScrollHeightRef.current = 0;
+    }, [directoryKey, cancelScrollJumpAnimation]);
 
     useEffect(() => {
         const node = viewportRef.current;
         if (!node || orderedImagesLength === 0) {
+            cancelScrollJumpAnimation();
             pendingScrollToEndRef.current = false;
+            lastFollowScrollHeightRef.current = 0;
             setScrollJump(emptyScrollJumpState());
             return;
         }
@@ -153,6 +225,7 @@ export function useGalleryScrollJump({
         layoutMode,
         rowsPerScreen,
         bottomOverlayReserve,
+        cancelScrollJumpAnimation,
         syncScrollJump,
         viewportRef,
     ]);

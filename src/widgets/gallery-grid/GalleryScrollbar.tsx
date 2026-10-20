@@ -1,4 +1,5 @@
 import { useEffect, useRef, type RefObject } from "react";
+import { GALLERY_VIEWPORT_SCROLL_REVEAL } from "../../features/gallery/lib/viewport/galleryScrollJump";
 import { pointerOverTopNavDock } from "../../features/gallery/lib/chrome/topNavDock";
 import { useTranslation } from "react-i18next";
 import {
@@ -11,6 +12,8 @@ import {
 import styles from "./GalleryScrollbar.module.scss";
 
 const TRACK_MS = 280;
+/** Показать ползунок при прокрутке (колёсико, прыжок) и скрыть после паузы. */
+const SCROLL_REVEAL_HIDE_MS = 900;
 
 type GalleryScrollbarProps = {
   viewportRef: RefObject<HTMLDivElement | null>;
@@ -51,6 +54,8 @@ export function GalleryScrollbar({ viewportRef, contentHeight, topOpen, bottomOp
   const nearRef = useRef(false);
   const pointerRef = useRef(0);
   const trackTimer = useRef(0);
+  const scrollRevealTimer = useRef(0);
+  const lastScrollTopRef = useRef(0);
   const frameRef = useRef(0);
 
   useEffect(() => {
@@ -138,11 +143,37 @@ export function GalleryScrollbar({ viewportRef, contentHeight, topOpen, bottomOp
       place();
     };
 
+    const hideAfterScrollReveal = () => {
+      window.clearTimeout(scrollRevealTimer.current);
+      scrollRevealTimer.current = window.setTimeout(() => {
+        if (!nearRef.current && !dragRef.current) {
+          thumb.dataset.shown = "false";
+        }
+      }, SCROLL_REVEAL_HIDE_MS);
+    };
+
+    const revealForScroll = () => {
+      if (dragRef.current || thumb.dataset.overflow !== "true") {
+        return;
+      }
+      thumb.dataset.shown = "true";
+      hideAfterScrollReveal();
+    };
+
     const onScroll = () => {
       delete thumb.dataset.trackAnimate;
-      if (!nearRef.current && !dragRef.current) {
-        thumb.dataset.shown = "false";
+      const top = viewport.scrollTop;
+      const moved = Math.abs(top - lastScrollTopRef.current) >= 1;
+      lastScrollTopRef.current = top;
+      if (!dragRef.current && moved) {
+        revealForScroll();
       }
+      schedule();
+    };
+
+    const onProgrammaticReveal = () => {
+      lastScrollTopRef.current = viewport.scrollTop;
+      revealForScroll();
       schedule();
     };
 
@@ -235,6 +266,7 @@ export function GalleryScrollbar({ viewportRef, contentHeight, topOpen, bottomOp
       viewport.scrollTop = Math.min(Math.max(0, cache.scrollHeight - cache.clientHeight), Math.max(0, next));
     };
 
+    lastScrollTopRef.current = viewport.scrollTop;
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(viewport);
@@ -245,6 +277,7 @@ export function GalleryScrollbar({ viewportRef, contentHeight, topOpen, bottomOp
       }
     }
     viewport.addEventListener("scroll", onScroll, { passive: true });
+    viewport.addEventListener(GALLERY_VIEWPORT_SCROLL_REVEAL, onProgrammaticReveal);
     window.addEventListener("mousemove", onMouseMove, { passive: true });
     thumb.addEventListener("pointerdown", onPointerDown);
     thumb.addEventListener("pointermove", onPointerMove);
@@ -254,8 +287,10 @@ export function GalleryScrollbar({ viewportRef, contentHeight, topOpen, bottomOp
     return () => {
       window.cancelAnimationFrame(frameRef.current);
       window.clearTimeout(trackTimer.current);
+      window.clearTimeout(scrollRevealTimer.current);
       observer.disconnect();
       viewport.removeEventListener("scroll", onScroll);
+      viewport.removeEventListener(GALLERY_VIEWPORT_SCROLL_REVEAL, onProgrammaticReveal);
       window.removeEventListener("mousemove", onMouseMove);
       thumb.removeEventListener("pointerdown", onPointerDown);
       thumb.removeEventListener("pointermove", onPointerMove);
