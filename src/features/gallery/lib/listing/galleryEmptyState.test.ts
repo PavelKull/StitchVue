@@ -33,19 +33,16 @@ test('T2 only unsupported files', () => {
     );
 });
 
-test('T3 only subfolders — subfoldersOnly', () => {
-    assert.equal(
-        resolveGalleryEmptyKind(base({ folderCount: 2 })),
-        'subfoldersOnly',
-    );
+test('T3 only subfolders — none (folder tiles visible)', () => {
+    assert.equal(resolveGalleryEmptyKind(base({ folderCount: 2 })), 'none');
 });
 
-test('T4 unsupported files with subfolders — subfoldersOnly', () => {
+test('T4 unsupported files with subfolders — none (folder tiles visible)', () => {
     assert.equal(
         resolveGalleryEmptyKind(
             base({ unsupportedFileCount: 1, folderCount: 1 }),
         ),
-        'subfoldersOnly',
+        'none',
     );
 });
 

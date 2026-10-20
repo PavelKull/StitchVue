@@ -43,7 +43,7 @@ export function resolveGalleryEmptyKind(
         return 'emptyTrash';
     }
     if (input.folderCount > 0) {
-        return 'subfoldersOnly';
+        return 'none';
     }
     if (input.unsupportedFileCount > 0) {
         return 'noSupportedFiles';
