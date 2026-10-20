@@ -1,3 +1,5 @@
+import { type MouseEvent } from "react";
+
 import { useTranslation } from "react-i18next";
 
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
@@ -38,6 +40,8 @@ type TopNavigationBarProps = {
 
   onOpenFolder: () => void;
 
+  onFolderContextMenu?: (event: MouseEvent, path: string | null) => void;
+
 };
 
 
@@ -69,6 +73,8 @@ export function TopNavigationBar({
   onTogglePin,
 
   onOpenFolder,
+
+  onFolderContextMenu,
 
 }: TopNavigationBarProps) {
 
@@ -126,7 +132,7 @@ export function TopNavigationBar({
 
 
 
-      <Breadcrumbs path={path} onNavigate={onNavigate} />
+      <Breadcrumbs path={path} onNavigate={onNavigate} onFolderContextMenu={onFolderContextMenu} />
 
 
 

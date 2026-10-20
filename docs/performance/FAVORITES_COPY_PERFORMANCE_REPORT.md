@@ -122,7 +122,8 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 | **P3.1** | Scoped SQL + reconcile по touched paths | ✅ Rust |
 | **P3.2** | Duplicate `already_exists` via stored SHA256 | ✅ Rust |
 | **P4** | Ограниченный параллелизм копий — только после замеров HDD/SSD | эксперимент |
-| **P5–P6** | Reconcile/UI и статусы queued/copying | воспринимаемая скорость |
+| **P5** | Прогресс `file-operation-progress` при queued batch drain + блок toggle в `executing` | ✅ FE |
+| **P6** | Дальнейший UX (индикатор «в очереди» без IPC) | ⏳ опционально |
 
 ## 5. Изменённые файлы
 
@@ -132,7 +133,9 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 **Пустая «Избранное» после add:** `favoritesEmptyFolderAfterAdds.ts` + `tryCleanupEmptyFavoritesFolderAfterQueuedAdds` после drain и отмены queued intent (только если нет активных intent и нет copy in-flight).
 
-**P3 (Rust):** `database/mod.rs` (`load_favorite_snapshots_in_directory_scope`), `reconcile.rs` (touched paths), `favorite_duplicate_hint.rs`, `pipeline/mod.rs` (hints + post-op reconcile), `file_ops/mod.rs` (`copy_one`).
+**P3 (Rust):** `database/mod.rs` (`load_favorite_snapshots_in_directory_scope`, batch origin lookup), `reconcile.rs` (touched paths), `favorite_duplicate_hint.rs`, `pipeline/mod.rs` (hints + post-op reconcile), `file_ops/mod.rs` (`copy_one`).
+
+**P5 (FE):** `executeQueuedFavoriteAddDrain` — `setFileOperation` / `fileOperationRef` на время batch IPC (прогресс «копирование»); `isFavoriteAddIntentExecuting` — не снимать звезду во время `executing`.
 
 ### Инварианты P1
 

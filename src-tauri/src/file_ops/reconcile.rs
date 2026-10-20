@@ -108,6 +108,7 @@ fn refresh_touched_favorite_metadata(
     directory_prefix: &str,
     touched_origin_paths: &[String],
 ) -> Result<(), String> {
+    let snapshots = database::favorite_snapshots_for_origin_paths(db, touched_origin_paths)?;
     let mut seen = HashSet::new();
     for origin in touched_origin_paths {
         let key = scope_key(origin);
@@ -117,9 +118,9 @@ fn refresh_touched_favorite_metadata(
         if !path_in_directory_scope(origin, directory_prefix) {
             continue;
         }
-        let snap = database::favorite_snapshot_for_origin(db, origin)?;
-        if let Some(snap) = snap {
-            refresh_favorite_snapshot_metadata(db, &snap)?;
+        let lookup = database::favorite_origin_lookup_key(origin);
+        if let Some(snap) = snapshots.get(&lookup) {
+            refresh_favorite_snapshot_metadata(db, snap)?;
         }
     }
     Ok(())

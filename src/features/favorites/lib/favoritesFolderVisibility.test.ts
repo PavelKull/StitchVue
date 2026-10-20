@@ -5,6 +5,7 @@ import type { FolderShortcut } from '../../../entities/folder/types.ts';
 import { pathKey } from '../../selection/lib/selection.ts';
 import {
     buildAlbumFolderTiles,
+    nextFavoritesFolderPendingCreate,
     predictFavoritesServiceFolderPath,
     resolveFavoritesFolderVisibility,
 } from './favoritesFolderVisibility.ts';
@@ -55,6 +56,65 @@ test('pending-create injects favorites tile when listing has no folder', () => {
     assert.equal(
         tiles.some((folder) => folder.serviceRole === 'favorites'),
         true,
+    );
+});
+
+test('stale pendingCreate does not disable a listed favorites folder', () => {
+    assert.equal(
+        resolveFavoritesFolderVisibility({
+            albumDirectory: parent,
+            pendingCreate: { parentDirectory: parent, folderPath: favPath },
+            hiddenFolderKeys: new Set(),
+            folders: [favoritesFolder()],
+            hasActiveFavoriteAdds: false,
+        }),
+        'visible',
+    );
+});
+
+test('pendingCreate without a listed folder stays pending-create', () => {
+    assert.equal(
+        resolveFavoritesFolderVisibility({
+            albumDirectory: parent,
+            pendingCreate: { parentDirectory: parent, folderPath: favPath },
+            hiddenFolderKeys: new Set(),
+            folders: [],
+            hasActiveFavoriteAdds: false,
+        }),
+        'pending-create',
+    );
+});
+
+test('nextFavoritesFolderPendingCreate ignores a copy that belongs to another album', () => {
+    assert.equal(
+        nextFavoritesFolderPendingCreate({
+            parentDirectory: parent,
+            folders: [],
+            hasActiveAddIntents: false,
+            copyInFlightForParent: false,
+            hideOverlay: null,
+        }),
+        null,
+    );
+    assert.equal(
+        nextFavoritesFolderPendingCreate({
+            parentDirectory: parent,
+            folders: [],
+            hasActiveAddIntents: false,
+            copyInFlightForParent: true,
+            hideOverlay: null,
+        })?.folderPath,
+        favPath,
+    );
+    assert.equal(
+        nextFavoritesFolderPendingCreate({
+            parentDirectory: parent,
+            folders: [favoritesFolder()],
+            hasActiveAddIntents: true,
+            copyInFlightForParent: true,
+            hideOverlay: null,
+        }),
+        null,
     );
 });
 

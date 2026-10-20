@@ -73,6 +73,9 @@ export function createGalleryHover(): HoverController {
     leavePhoto(path) {
       controller.leavePhoto(path);
     },
+    reservePhotoForOpen(file) {
+      controller.reservePhotoForOpen(file);
+    },
     dispose() {
       controller.dispose();
       pendingHover = null;

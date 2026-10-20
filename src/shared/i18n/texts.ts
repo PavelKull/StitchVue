@@ -19,6 +19,7 @@ export const selection = catalog.selection;
 export const folder = catalog.folder;
 export const trash = catalog.trash;
 export const supportReminder = catalog.supportReminder;
+export const appUpdate = catalog.appUpdate;
 
 /** Полный русский каталог (как в JSON). */
 export const ru = catalog;

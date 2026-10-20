@@ -204,10 +204,17 @@ export function rememberPreloaded(path: string, src: string, native: boolean, ti
 
 export function peekPreloaded(path: string): { src: string; native: boolean } | null {
   const entry = kept.get(path);
-  if (!entry || entry.image.naturalWidth <= 0) {
-    return null;
+  if (entry && entry.image.naturalWidth > 0) {
+    return { src: entry.image.src, native: entry.native };
   }
-  return { src: entry.image.src, native: entry.native };
+  if (entry?.src) {
+    return { src: entry.src, native: entry.native };
+  }
+  const pending = warmSrc.get(path);
+  if (pending) {
+    return { src: pending.src, native: pending.native };
+  }
+  return null;
 }
 
 /**
@@ -413,19 +420,20 @@ async function loadOne(job: NeighborJob, token: number) {
     return;
   }
   const thumb = latestThumbs.get(job.file.path);
-  if (!job.near && !thumb) {
+  const highPri = job.priority === "p1" || job.priority === "p2";
+  if (job.priority === "p3" && !thumb) {
     diagnostics.cacheMisses += 1;
     waiting.set(job.file.path, job);
     return;
   }
   let source: ViewerSource | null = null;
-  if (job.near || !thumb) {
+  if (highPri || !thumb) {
     try {
       source = await invoke<ViewerSource>("viewer_source", {
         path: job.file.path,
         size: job.file.size,
         modifiedAt: job.file.modifiedAt,
-        previewOnly: !job.near,
+        previewOnly: job.priority === "p3",
       });
     } catch {
       source = null;
@@ -434,7 +442,7 @@ async function loadOne(job: NeighborJob, token: number) {
       return;
     }
   }
-  const resolved = resolveNeighborSource({ near: job.near, thumb, source });
+  const resolved = resolveNeighborSource({ near: job.priority === "p1", thumb, source });
   if (resolved.status === "wait") {
     diagnostics.cacheMisses += 1;
     waiting.set(job.file.path, job);

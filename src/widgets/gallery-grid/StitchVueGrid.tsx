@@ -50,6 +50,7 @@ import {
   type PhotoFlipRequest,
 } from "./photoDeleteFlip";
 import { isModalMotionEnabled } from "../../shared/ui/modalMotion";
+import { dispatchViewportScrollMetrics } from "../../features/gallery/lib/viewport/galleryScrollJump";
 import { resolveBottomScrollPad } from "../../features/gallery/lib/viewport/bottomScrollPad";
 import styles from "./StitchVueGrid.module.scss";
 
@@ -63,6 +64,7 @@ type StitchVueGridProps = {
   meta: Map<string, ImageMeta>;
   thumbs: Map<string, ThumbInfo>;
   failed: Map<string, string>;
+  failedVersion?: number;
   rowsPerScreen: number;
   fit: number;
   layoutMode: import("./layout").LayoutMode;
@@ -141,6 +143,7 @@ export function StitchVueGrid({
   meta,
   thumbs,
   failed,
+  failedVersion = 0,
   rowsPerScreen,
   fit,
   layoutMode,
@@ -564,7 +567,7 @@ export function StitchVueGrid({
 
   let paintedLayout = layout;
   if (geometryPublished && sized) {
-    const mosaicInputKey = `${layoutMode}:${metaVersion}:${files.length}:${listingComplete ? 1 : 0}`;
+    const mosaicInputKey = `${layoutMode}:${metaVersion}:${files.length}:${listingComplete ? 1 : 0}:${failedVersion}`;
     const skipMosaic = !keyChanged && mosaicInputRef.current === mosaicInputKey;
     if (skipMosaic) {
       paintedLayout = layout;
@@ -833,6 +836,14 @@ export function StitchVueGrid({
   );
   const scrollContentHeight = photoContentHeight + bottomScrollPad;
 
+  useLayoutEffect(() => {
+    const node = viewportRef.current;
+    if (!node || files.length === 0) {
+      return;
+    }
+    dispatchViewportScrollMetrics(node);
+  }, [scrollContentHeight, layoutHeaderOffset, files.length, directoryKey]);
+
   const setViewportRef = (node: HTMLDivElement | null) => {
     viewportRef.current = node;
     if (viewportRefProp) {
@@ -892,6 +903,7 @@ export function StitchVueGrid({
         <div
           ref={folderHeaderShellRef}
           className={styles.folderHeader}
+          data-gallery-folder-header="true"
           data-morph={animateHeaderHeight ? "true" : undefined}
           style={{ maxHeight: clipHeaderHeight }}
           onTransitionEnd={(event) => {

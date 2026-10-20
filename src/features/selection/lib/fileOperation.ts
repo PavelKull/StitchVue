@@ -2,7 +2,35 @@ import { formatOutcomeError } from "../../../shared/i18n/errors.ts";
 import { formatFileSize } from "../../../shared/i18n/formatters.ts";
 import i18n from "../../../shared/i18n/i18n.ts";
 
+import { pathKey } from "./selection.ts";
+
 export type FileAction = "move_to_local_trash" | "copy_to_local_favorites";
+
+export type FileOperationState = {
+  id: string;
+  action: FileAction | "remove_from_favorites";
+  directory: string;
+};
+
+export function fileOperationIsActiveInDirectory(
+  operation: { directory?: string } | null | undefined,
+  directory: string | null | undefined,
+): boolean {
+  if (!operation?.directory || !directory) {
+    return false;
+  }
+  return pathKey(operation.directory) === pathKey(directory);
+}
+
+export function fileOperationIsCopyToFavoritesInDirectory(
+  operation: { action?: string; directory?: string } | null | undefined,
+  directory: string | null | undefined,
+): boolean {
+  return (
+    operation?.action === "copy_to_local_favorites" &&
+    fileOperationIsActiveInDirectory(operation, directory)
+  );
+}
 
 export type FileOutcome = {
   sourcePath: string;
@@ -225,16 +253,41 @@ export function commandAvailability(options: {
   };
 }
 
+function progressPhaseLabel(phase: FileOperationProgress["phase"]): string {
+  if (phase === "checking_duplicates") {
+    return i18n.t("selection.phaseCheckingDuplicates");
+  }
+  if (phase === "copying") {
+    return i18n.t("selection.phaseCopying");
+  }
+  if (phase === "moving") {
+    return i18n.t("selection.phaseMoving");
+  }
+  return i18n.t("selection.phaseProcessing");
+}
+
+/** Widest realistic progress string for toolbar width (locale-aware). */
+export function fileOperationProgressWidthSample(includeBytes: boolean): string {
+  const phase = i18n.t("selection.phaseCopying");
+  const count = i18n.t("selection.progressCount", {
+    phase,
+    processed: 9999,
+    total: 9999,
+  });
+  if (!includeBytes) {
+    return count;
+  }
+  const tenGb = 10 * 1024 * 1024 * 1024;
+  return i18n.t("selection.progressBytes", {
+    count,
+    done: formatBytes(Math.floor(tenGb * 0.999)),
+    total: formatBytes(tenGb),
+  });
+}
+
 export function progressLabel(progress: FileOperationProgress | null): string | null {
   if (!progress) return null;
-  const phase =
-    progress.phase === "checking_duplicates"
-      ? i18n.t("selection.phaseCheckingDuplicates")
-      : progress.phase === "copying"
-        ? i18n.t("selection.phaseCopying")
-        : progress.phase === "moving"
-          ? i18n.t("selection.phaseMoving")
-          : i18n.t("selection.phaseProcessing");
+  const phase = progressPhaseLabel(progress.phase);
   const count = i18n.t("selection.progressCount", {
     phase,
     processed: progress.processed,

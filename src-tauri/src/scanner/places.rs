@@ -60,10 +60,23 @@ fn user_folder(name: &str) -> Option<PathBuf> {
     onedrive.is_dir().then_some(onedrive)
 }
 
+/// Bitmask of present drive letters (`A` = bit 0). Used for hotplug detection.
+#[cfg(windows)]
+pub fn logical_drive_mask() -> u32 {
+    unsafe extern "system" {
+        fn GetLogicalDrives() -> u32;
+    }
+    unsafe { GetLogicalDrives() }
+}
+
+#[cfg(not(windows))]
+pub fn logical_drive_mask() -> u32 {
+    0
+}
+
 #[cfg(windows)]
 pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
     unsafe extern "system" {
-        fn GetLogicalDrives() -> u32;
         fn GetDriveTypeW(root: *const u16) -> u32;
         fn GetLastError() -> u32;
         fn SetLastError(code: u32);
@@ -76,7 +89,7 @@ pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
 
     let mask = unsafe {
         SetLastError(0);
-        GetLogicalDrives()
+        logical_drive_mask()
     };
     if mask == 0 {
         let code = unsafe { GetLastError() };

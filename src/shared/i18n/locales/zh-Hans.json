@@ -65,6 +65,10 @@
     "io_error": "读取或写入文件时出错",
     "not_image": "这不是图像文件",
     "destination": "无法准备目标文件夹",
+    "destination_unmarked": "已存在名为“收藏”的文件夹，但不是本应用创建的。请重命名或删除后重试",
+    "destination_exists_file": "有文件占用了“收藏”或“回收站”文件夹名称，请重命名或删除",
+    "destination_reparse": "目标路径是链接，操作已停止",
+    "destination_role_conflict": "服务文件夹已注册为其他角色",
     "favorite_link": "收藏项与原文件的关联已失效",
     "unsupported": "此系统不支持该操作",
     "state_changed": "文件夹内容已更改，请再次确认删除",
@@ -270,6 +274,7 @@
     },
     "about": {
       "version": "版本 {{version}}",
+      "checkUpdates": "检查更新",
       "tagline": "简洁快速地浏览照片",
       "developer": "开发者：",
       "linkedin": "LinkedIn",
@@ -294,6 +299,20 @@
       "licensesUnavailable": "此版本中无法查看许可证文本。",
       "openRepoFailed": "无法打开链接，请检查配置中的代码仓库地址。"
     }
+  },
+  "appUpdate": {
+    "mockBadge": "预览",
+    "title": "有可用更新",
+    "versionLine": "已安装 {{current}} · 可用 {{next}}",
+    "later": "稍后",
+    "update": "更新",
+    "retry": "重试",
+    "close": "关闭",
+    "blockedHint": "请等待当前文件操作或取消收藏完成。",
+    "networkError": "无法下载更新。请检查网络后重试。",
+    "readyMock": "下载完成（模拟）。正式版本将安装更新并重启 StitchVue。",
+    "downloading": "正在下载… {{percent}}%",
+    "previewErrorDev": "预览错误状态（开发）"
   },
   "properties": {
     "title": "属性",
@@ -443,6 +462,7 @@
   },
   "folder": {
     "menuAria": "文件夹操作",
+    "openInExplorer": "在资源管理器中打开",
     "rename": "重命名",
     "renameTitle": "重命名文件夹",
     "renameInputAria": "文件夹名称",

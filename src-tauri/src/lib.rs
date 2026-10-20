@@ -27,6 +27,7 @@ pub fn run() {
             let root = database::app_dir().join("cache");
             let _ = app.asset_protocol_scope().allow_directory(&root, true);
             app.manage(pipeline::Pipeline::start(app.handle().clone(), connection));
+            scanner::spawn_drive_monitor(app.handle().clone());
             app.manage(window_anim::WindowAnimState::default());
             Ok(())
         })
@@ -80,6 +81,7 @@ pub fn run() {
             commands::resolve_external_drop,
             commands::rotate_display_clockwise,
             commands::list_display_rotations,
+            commands::open_in_explorer,
             commands::open_external_link,
             commands::directory_accessible,
             commands::prototype_window_anim

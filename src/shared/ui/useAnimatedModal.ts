@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { isModalMotionEnabled, MODAL_MOTION_MS, type ModalMotionPhase } from "./modalMotion";
 
+/** C-002 modal channel: enter/exit lifecycle shared by dialog widgets (backdrop stays per-widget SCSS). */
 export function useAnimatedModal(open: boolean): { mounted: boolean; phase: ModalMotionPhase } {
   const [mounted, setMounted] = useState(open);
   const [phase, setPhase] = useState<ModalMotionPhase>(() => {

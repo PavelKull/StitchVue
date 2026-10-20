@@ -6,6 +6,8 @@ import {
     computeScrollJumpState,
     dispatchViewportScrollReveal,
     emptyScrollJumpState,
+    GALLERY_VIEWPORT_SCROLL_METRICS,
+    observeGalleryViewportScrollMetrics,
     scrollJumpStatesEqual,
     scrollMax,
     shouldClearPendingScrollToEnd,
@@ -127,7 +129,7 @@ export function useGalleryScrollJump({
                 return;
             }
             const max = scrollMax(node.scrollHeight, node.clientHeight);
-            if (max <= 2) {
+            if (max <= 0) {
                 return;
             }
             cancelScrollJumpAnimation();
@@ -216,9 +218,22 @@ export function useGalleryScrollJump({
             return;
         }
         syncScrollJump();
+        let rafAfterPaint = 0;
+        rafAfterPaint = requestAnimationFrame(() => {
+            syncScrollJump();
+        });
+        const onLayoutMetrics = () => syncScrollJump();
         const observer = new ResizeObserver(() => syncScrollJump());
-        observer.observe(node);
-        return () => observer.disconnect();
+        observeGalleryViewportScrollMetrics(node, observer);
+        node.addEventListener(GALLERY_VIEWPORT_SCROLL_METRICS, onLayoutMetrics);
+        return () => {
+            cancelAnimationFrame(rafAfterPaint);
+            observer.disconnect();
+            node.removeEventListener(
+                GALLERY_VIEWPORT_SCROLL_METRICS,
+                onLayoutMetrics,
+            );
+        };
     }, [
         orderedImagesLength,
         directoryKey,

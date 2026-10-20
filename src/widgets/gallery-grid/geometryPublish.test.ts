@@ -208,3 +208,43 @@ test("a later batch does not retract an already published last row", () => {
     assert.deepEqual(after.get(index), tile, `published tile ${index} moved after listing growth`);
   }
 });
+
+test("mosaic recomputes when trusted prefix grows past keepEnd (keepEnd === known)", () => {
+  const count = 80;
+  const waiting = layoutMosaicPublished(
+    Array.from({ length: count }, () => null),
+    WIDTH,
+    VIEWPORT,
+    ROWS,
+    FIT,
+  );
+  assert.equal(waiting.publishedEnd ?? 0, 0);
+  assert.ok(waiting.height > 0);
+
+  const readySlots: Array<number | null> = Array.from({ length: count }, (_, index) =>
+    index < 40 ? ESTIMATED_ASPECT : null,
+  );
+  assert.equal(trustedPrefixLength(readySlots), 40);
+  const ready = layoutMosaicPublished(readySlots, WIDTH, VIEWPORT, ROWS, FIT, waiting);
+  assert.notEqual(ready, waiting);
+  assert.ok((ready.publishedEnd ?? 0) > 0);
+  assert.notEqual(ready.height, waiting.height);
+});
+
+test("unknown mosaic tail estimate follows mean of trusted prefix", () => {
+  const prefixTall = Array.from({ length: 40 }, () => 0.5);
+  const prefixFlat = Array.from({ length: 40 }, () => ESTIMATED_ASPECT);
+  const shortTail = Array.from({ length: 20 }, () => null);
+  const longTail = Array.from({ length: 100 }, () => null);
+
+  const tallShort = layoutMosaicPublished(prefixTall.concat(shortTail), WIDTH, VIEWPORT, ROWS, FIT);
+  const tallLong = layoutMosaicPublished(prefixTall.concat(longTail), WIDTH, VIEWPORT, ROWS, FIT);
+  const flatShort = layoutMosaicPublished(prefixFlat.concat(shortTail), WIDTH, VIEWPORT, ROWS, FIT);
+  const flatLong = layoutMosaicPublished(prefixFlat.concat(longTail), WIDTH, VIEWPORT, ROWS, FIT);
+
+  const deltaTall = tallLong.height - tallShort.height;
+  const deltaFlat = flatLong.height - flatShort.height;
+  assert.ok(deltaTall > 0);
+  assert.ok(deltaFlat > 0);
+  assert.notEqual(deltaTall, deltaFlat);
+});

@@ -7,13 +7,32 @@ export function emptyScrollJumpState(): ScrollJumpState {
     return { canScroll: false, pointUp: false };
 }
 
+/** Spacer в StitchVueGrid — его высота задаёт scrollHeight viewport без resize самого viewport. */
+export const GALLERY_VIEWPORT_SPACER_SELECTOR = '[data-gallery-spacer="true"]';
+export const GALLERY_FOLDER_HEADER_SELECTOR = '[data-gallery-folder-header="true"]';
+
+export function observeGalleryViewportScrollMetrics(
+    viewport: HTMLElement,
+    observer: ResizeObserver,
+): void {
+    observer.observe(viewport);
+    const spacer = viewport.querySelector(GALLERY_VIEWPORT_SPACER_SELECTOR);
+    if (spacer instanceof Element) {
+        observer.observe(spacer);
+    }
+    const folderHeader = viewport.querySelector(GALLERY_FOLDER_HEADER_SELECTOR);
+    if (folderHeader instanceof Element) {
+        observer.observe(folderHeader);
+    }
+}
+
 export function computeScrollJumpState(metrics: {
     scrollHeight: number;
     clientHeight: number;
     scrollTop: number;
 }): ScrollJumpState {
     const max = Math.max(0, metrics.scrollHeight - metrics.clientHeight);
-    const canScroll = max > 2;
+    const canScroll = max > 0;
     const pointUp = canScroll && metrics.scrollTop > metrics.clientHeight;
     return { canScroll, pointUp };
 }
@@ -46,6 +65,16 @@ export function scrollJumpAnimationDurationMs(distancePx: number): number {
 /** Синхронизировать React-виртуализацию галереи после программного scrollTop. */
 export function dispatchViewportScrollEvent(node: HTMLElement): void {
     node.dispatchEvent(new Event('scroll', { bubbles: true }));
+}
+
+/** Пересчитать canScroll после смены высоты layout/pad без resize viewport. */
+export const GALLERY_VIEWPORT_SCROLL_METRICS =
+    'stitchvue:gallery-scroll-metrics';
+
+export function dispatchViewportScrollMetrics(node: HTMLElement): void {
+    node.dispatchEvent(
+        new Event(GALLERY_VIEWPORT_SCROLL_METRICS, { bubbles: false }),
+    );
 }
 
 /** Показать кастомный скроллбар галереи (программный прыжок / follow-max). */

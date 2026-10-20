@@ -1,13 +1,21 @@
 import { listen } from "@tauri-apps/api/event";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
 import { useAppFullscreen } from "../../features/app-fullscreen/model/useAppFullscreen";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import { ViewerControlBar } from "./ViewerControlBar";
 import { aspectFromMeta, computeViewerFrame } from "./viewerFrame";
-import { displayAspect, rotationQuarters, viewerPhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
+import { rotationQuarters, viewerPhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
 import { viewerBackgroundClick } from "../../features/gallery/lib/viewer/viewerNav";
 import {
   toolbarPeekDistanceFromBottom,
@@ -161,12 +169,11 @@ export function ImageViewer({
   const rotationQuartersRef = useRef(0);
 
   const syncDisplayAspect = (value: ImageMeta | undefined) => {
-    if (!value || value.height <= 0) {
-      displayAspectRef.current = aspectFromMeta(value);
-      return;
-    }
-    displayAspectRef.current = displayAspect(value.width, value.height, rotationQuarters(value));
+    displayAspectRef.current = aspectFromMeta(value);
   };
+
+  const metaAspectKnown = (value: ImageMeta | undefined) =>
+    Boolean(value && value.height > 0);
 
   const syncFrame = () => {
     const aspect = displayAspectRef.current;
@@ -222,6 +229,8 @@ export function ImageViewer({
 
   useEffect(() => {
     rotationQuartersRef.current = rotationQuarters(meta);
+    syncDisplayAspect(meta);
+    syncFrame();
     setZoomIndex(viewerZoomIndex(1));
     setPan({ x: 0, y: 0 });
     loadGen.current += 1;
@@ -230,6 +239,9 @@ export function ImageViewer({
     tokenRef.current = 0;
     markViewerOpened();
     promotePreloaded(file.path);
+    syncDisplayAspect(meta);
+    syncFrame();
+    const aspectKnown = metaAspectKnown(meta);
     const warm = peekPreloaded(file.path);
     if (warm?.native) {
       nativeHold.current = true;
@@ -244,19 +256,27 @@ export function ImageViewer({
       tierRef.current = 1024;
       setDisplaySrc(warm.src);
       markFirstFrame();
-      setOpening(true);
+      setOpening(!aspectKnown);
       return;
     }
     if (thumb) {
       tierRef.current = thumb.tier;
       setDisplaySrc(convertFileSrc(thumb.thumbnailPath));
       markFirstFrame();
-      setOpening(true);
+      setOpening(!aspectKnown);
       return;
     }
     setDisplaySrc(null);
-    setOpening(true);
+    setOpening(!aspectKnown);
   }, [file.path]);
+
+  useLayoutEffect(() => {
+    syncDisplayAspect(meta);
+    syncFrame();
+    if (displaySrcRef.current && metaAspectKnown(meta)) {
+      setOpening(false);
+    }
+  }, [file.path, meta?.width, meta?.height, meta?.rotationQuarters]);
 
   useEffect(() => {
     if (appFullscreen) {

@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, type RefObject } from 'react';
+import type { OperationNotice } from '../../../selection/lib/fileOperation';
+import { bootToastNotice } from '../../../../shared/ui/noticeChannels';
 import type { DeferredVoid } from '../../lib/viewport/galleryGeometryGate';
 import { resolveGalleryBootStartPath } from '../../lib/boot/galleryBootStartPath';
 import { loadGallerySessionMemory } from '../../../settings/lib/gallerySessionMemory';
@@ -10,7 +12,8 @@ export type UseGalleryBootOptions = {
     refreshDrives: (force?: boolean) => void;
     load: (path: string | null) => void | Promise<void>;
     pipelineListenersReady: RefObject<DeferredVoid>;
-    setBootNotice: (message: string | null) => void;
+    /** C-002 toast channel (OperationNoticeView), not a separate boot strip. */
+    showGalleryToast: (notice: OperationNotice) => void;
     translate: (key: string) => string;
     abandonInFlightDriveRequests: () => void;
 };
@@ -20,7 +23,7 @@ export function useGalleryBoot({
     refreshDrives,
     load,
     pipelineListenersReady,
-    setBootNotice,
+    showGalleryToast,
     translate,
     abandonInFlightDriveRequests,
 }: UseGalleryBootOptions) {
@@ -40,7 +43,7 @@ export function useGalleryBoot({
                     invoke<boolean>('directory_accessible', { path }),
             );
             if (!cancelled && noticeKey) {
-                setBootNotice(translate(noticeKey));
+                showGalleryToast(bootToastNotice(translate(noticeKey)));
             }
             await pipelineListenersReady.current.promise;
             if (!cancelled) {
@@ -58,7 +61,7 @@ export function useGalleryBoot({
         refreshDrives,
         load,
         pipelineListenersReady,
-        setBootNotice,
+        showGalleryToast,
         translate,
         abandonInFlightDriveRequests,
     ]);

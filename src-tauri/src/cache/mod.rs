@@ -294,8 +294,9 @@ pub fn cached_thumb(
     };
     if !std::path::Path::new(&thumb).is_file() {
         conn.execute(
-            "DELETE FROM thumbnail_cache WHERE thumbnail_path = ?1",
-            [&thumb],
+            "DELETE FROM thumbnail_cache
+             WHERE source_path = ?1 AND source_size = ?2 AND source_modified_at = ?3 AND tier = ?4",
+            params![path, size as i64, modified_at, tier],
         )
         .map_err(|err| format!("drop missing thumbnail: {err}"))?;
         return Ok(None);
@@ -489,6 +490,101 @@ pub fn discard_thumbnail_file(thumbnail_path: &str) {
     let _ = std::fs::remove_file(thumbnail_path);
 }
 
+/// B-005: reuse existing JPEG tiers from the origin listing on the favorites copy row (same byte size only).
+pub fn alias_thumbnails_from_origin(
+    conn: &Connection,
+    origin_path: &str,
+    origin_size: u64,
+    origin_modified_at: i64,
+    copy_path: &str,
+    copy_size: u64,
+    copy_modified_at: i64,
+) -> Result<usize, String> {
+    if origin_path.is_empty() || copy_path.is_empty() || origin_size != copy_size {
+        return Ok(0);
+    }
+    let mut statement = conn
+        .prepare(
+            "SELECT tier, width, height, orientation, thumbnail_path, thumbnail_size
+             FROM thumbnail_cache
+             WHERE source_path = ?1 AND source_size = ?2 AND source_modified_at = ?3",
+        )
+        .map_err(|err| format!("alias thumbs prepare: {err}"))?;
+    let rows = statement
+        .query_map(
+            params![origin_path, origin_size as i64, origin_modified_at],
+            |row| {
+                Ok((
+                    row.get::<_, u32>(0)?,
+                    row.get::<_, u32>(1)?,
+                    row.get::<_, u32>(2)?,
+                    row.get::<_, u8>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )
+        .map_err(|err| format!("alias thumbs query: {err}"))?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| format!("alias thumbs row: {err}"))?;
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    let mut aliased = 0usize;
+    for (tier, width, height, orientation, thumbnail_path, thumbnail_size) in rows {
+        if !std::path::Path::new(&thumbnail_path).is_file() {
+            continue;
+        }
+        let dest = crate::thumbnail::thumb_path(copy_path, copy_size, copy_modified_at, tier);
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|err| format!("alias thumb dir: {err}"))?;
+        }
+        std::fs::copy(&thumbnail_path, &dest)
+            .map_err(|err| format!("alias thumb copy tier {tier}: {err}"))?;
+        let dest_str = dest.to_string_lossy().into_owned();
+        save_thumb(
+            conn,
+            copy_path,
+            copy_size,
+            copy_modified_at,
+            width,
+            height,
+            orientation,
+            tier,
+            &dest_str,
+            thumbnail_size,
+        )?;
+        aliased += 1;
+    }
+    if aliased > 0 {
+        if let Some((width, height)) =
+            cached_meta(conn, origin_path, origin_size, origin_modified_at)?
+        {
+            let orientation: u8 = conn
+                .query_row(
+                    "SELECT orientation FROM image_meta
+                     WHERE source_path = ?1 AND source_size = ?2 AND source_modified_at = ?3",
+                    params![origin_path, origin_size as i64, origin_modified_at],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|err| format!("alias meta orient: {err}"))?
+                .unwrap_or(1);
+            save_meta(
+                conn,
+                copy_path,
+                copy_size,
+                copy_modified_at,
+                width,
+                height,
+                orientation,
+            )?;
+        }
+    }
+    Ok(aliased)
+}
+
 pub fn purge_thumbnail_temps() -> Result<(), String> {
     let dir = thumbnail_dir();
     if !dir.is_dir() {
@@ -508,6 +604,33 @@ pub fn purge_thumbnail_temps() -> Result<(), String> {
 
 fn thumbnail_dir() -> PathBuf {
     crate::database::app_dir().join("cache").join("thumbnails")
+}
+
+fn thumbnail_path_refcount(
+    conn: &Connection,
+    thumbnail_path: &str,
+    except_id: i64,
+) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT COUNT(*) FROM thumbnail_cache WHERE thumbnail_path = ?1 AND id != ?2",
+        params![thumbnail_path, except_id],
+        |row| row.get(0),
+    )
+    .map_err(|err| format!("thumbnail refcount: {err}"))
+}
+
+fn remove_thumbnail_file_if_unshared(
+    conn: &Connection,
+    thumbnail_path: &str,
+    except_id: i64,
+) -> Result<(), String> {
+    if thumbnail_path.is_empty() {
+        return Ok(());
+    }
+    if thumbnail_path_refcount(conn, thumbnail_path, except_id)? == 0 {
+        let _ = std::fs::remove_file(thumbnail_path);
+    }
+    Ok(())
 }
 
 fn evict(
@@ -549,7 +672,7 @@ fn evict(
         if used <= target {
             break;
         }
-        let _ = std::fs::remove_file(&path);
+        remove_thumbnail_file_if_unshared(conn, &path, id)?;
         conn.execute("DELETE FROM thumbnail_cache WHERE id = ?1", [id])
             .map_err(|err| format!("evict row: {err}"))?;
         used -= size;
@@ -644,6 +767,95 @@ mod publish_tests {
             )
             .unwrap();
         assert_eq!(stored, "C:\\cache\\a-256.jpg");
+    }
+
+    #[test]
+    fn alias_thumbnails_from_origin_copies_jpeg_per_copy_row_when_sizes_match() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::database::migrate(&conn).unwrap();
+        let cache_dir = std::env::temp_dir().join(format!(
+            "stitchvue-alias-thumb-test-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        let thumb_paths: Vec<String> = [256u32, 512]
+            .iter()
+            .map(|tier| {
+                let file = cache_dir.join(format!("o-{tier}.jpg"));
+                std::fs::write(&file, b"jpeg").unwrap();
+                file.to_string_lossy().into_owned()
+            })
+            .collect();
+        for (tier, path) in [(256, &thumb_paths[0]), (512, &thumb_paths[1])] {
+            publish_thumbnail(
+                &conn,
+                "C:\\album\\a.jpg",
+                100,
+                50,
+                800,
+                600,
+                1,
+                tier,
+                path,
+                1000,
+                true,
+            )
+            .unwrap();
+        }
+        let count = alias_thumbnails_from_origin(
+            &conn,
+            "C:\\album\\a.jpg",
+            100,
+            50,
+            "C:\\fav\\a.jpg",
+            100,
+            99,
+        )
+        .unwrap();
+        assert_eq!(count, 2);
+        let origin = cached_thumb(&conn, "C:\\album\\a.jpg", 100, 50, 512).unwrap();
+        let copy = cached_thumb(&conn, "C:\\fav\\a.jpg", 100, 99, 512).unwrap();
+        assert_ne!(origin, copy);
+        assert_eq!(origin.as_deref(), Some(thumb_paths[1].as_str()));
+        assert!(std::path::Path::new(copy.as_deref().unwrap()).is_file());
+        assert_eq!(
+            cached_meta(&conn, "C:\\fav\\a.jpg", 100, 99).unwrap(),
+            Some((800, 600))
+        );
+        let _ = std::fs::remove_dir_all(&cache_dir);
+    }
+
+    #[test]
+    fn alias_thumbnails_skips_when_copy_size_differs() {
+        let conn = Connection::open_in_memory().unwrap();
+        crate::database::migrate(&conn).unwrap();
+        publish_thumbnail(
+            &conn,
+            "C:\\album\\a.jpg",
+            100,
+            50,
+            800,
+            600,
+            1,
+            256,
+            "C:\\cache\\o-256.jpg",
+            1000,
+            true,
+        )
+        .unwrap();
+        assert_eq!(
+            alias_thumbnails_from_origin(
+                &conn,
+                "C:\\album\\a.jpg",
+                100,
+                50,
+                "C:\\fav\\a.jpg",
+                101,
+                99,
+            )
+            .unwrap(),
+            0
+        );
     }
 
     #[test]

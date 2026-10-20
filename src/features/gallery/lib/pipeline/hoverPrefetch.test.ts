@@ -97,3 +97,32 @@ test("one screen of rows stays inside the hover window", () => {
   assert.ok(hoverWindow(20).first <= 48);
   assert.ok(hoverWindow(20).first + hoverWindow(20).extra <= 96);
 });
+
+test("opening a photo reserves prefetch and skips leave cancel", () => {
+  let state = initialHoverState();
+  state = at(state, { type: "enter-photo", path: "C:\\a.jpg", size: 4, modifiedAt: 9 }, 0).state;
+  state = at(state, { type: "tick" }, PHOTO_DELAY_MS).state;
+  const reserved = at(
+    state,
+    { type: "reserve-photo-open", path: "C:\\a.jpg", size: 4, modifiedAt: 9 },
+    200,
+  );
+  assert.equal(reserved.effects.length, 0);
+  state = reserved.state;
+  state = at(state, { type: "leave-photo", path: "C:\\a.jpg" }, 210).state;
+  assert.equal(state.photoCancelDue, null);
+  const cancelled = at(state, { type: "tick" }, 210 + LEAVE_GRACE_MS);
+  assert.deepEqual(cancelled.effects, []);
+  assert.equal(cancelled.state.photoSent, "C:\\a.jpg");
+});
+
+test("reserve on click starts prefetch when hover delay did not fire", () => {
+  let state = initialHoverState();
+  const fired = at(
+    state,
+    { type: "reserve-photo-open", path: "C:\\fast.jpg", size: 1, modifiedAt: 1 },
+    0,
+  );
+  assert.equal(fired.effects.length, 1);
+  assert.equal(fired.effects[0].type, "prefetch-photo");
+});

@@ -10,6 +10,7 @@ use serde::Serialize;
 
 mod content_hash;
 mod favorite_duplicate_hint;
+mod open_explorer;
 pub(crate) mod fav_metrics;
 pub(crate) mod favorite_perf;
 pub(crate) mod favorites;
@@ -39,6 +40,7 @@ pub(crate) mod trash_folder;
 
 pub use favorites::RemoveFavoriteCopyResult;
 pub use favorites_batch::{FavoriteBatchPathResult, FavoriteBatchRemoveItem, FavoriteCopyOrigin};
+pub use open_explorer::open_folder_in_explorer;
 // ServiceFolderCleanupResult is defined in this module.
 pub use content_hash::sha256_file;
 pub(crate) use favorite_duplicate_hint::favorite_duplicate_hints_for_paths;
@@ -301,6 +303,7 @@ impl Emitter<'_> {
     }
 }
 
+#[derive(Clone)]
 pub(crate) struct Fail {
     code: &'static str,
     message: String,
@@ -377,22 +380,15 @@ pub fn execute<G: IoGate>(
         return Ok(finish(request, outcomes, None));
     }
 
-    let (destination, created) = match prepare_destination(
+    let (destination, created) = match prepare_action_destination(
         &directory,
-        request.action.folder_name(),
-        request.action.role(),
+        request.action,
     ) {
         Ok(value) => value,
-        Err(message) => {
+        Err(fail) => {
             let mut outcomes = early;
             for job in jobs {
-                outcomes.push(failed_outcome(
-                    &job.requested,
-                    Fail {
-                        code: "destination",
-                        message: message.clone(),
-                    },
-                ));
+                outcomes.push(failed_outcome(&job.requested, fail.clone()));
             }
             emitter.set_phase("failed", "validating", true);
             return Ok(finish(request, outcomes, None));
@@ -705,6 +701,9 @@ fn copy_one<G: IoGate>(
             }
         }
     }
+
+    // Duplicate probe sets phase to checking_duplicates; restore before byte progress.
+    emitter.set_phase("running", "copying", true);
 
     let claimed = {
         let mut planner = names.lock().unwrap_or_else(|err| err.into_inner());
@@ -1116,58 +1115,129 @@ fn hide_marker(path: &Path) {
     }
 }
 
+/// Empty or Windows-only debris — safe to mark as a StitchVue service folder.
+fn service_folder_adoptable(dir: &Path) -> bool {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let lossy = name.to_string_lossy();
+        if lossy.eq_ignore_ascii_case("desktop.ini")
+            || lossy.eq_ignore_ascii_case("thumbs.db")
+        {
+            continue;
+        }
+        return false;
+    }
+    true
+}
+
 fn prepare_destination(
     directory: &Path,
     folder_name: &str,
     role: ServiceRole,
-) -> Result<(PathBuf, bool), String> {
+) -> Result<(PathBuf, bool), Fail> {
     let dest = directory.join(folder_name);
     match fs::symlink_metadata(&dest) {
         Ok(meta) => {
             if is_reparse(&meta) {
-                return Err(format!(
-                    "«{folder_name}» является ссылкой. Операция остановлена."
+                return Err(fail(
+                    "destination_reparse",
+                    format!("«{folder_name}» является ссылкой. Операция остановлена."),
                 ));
             }
             if !meta.is_dir() {
-                return Err(format!("«{folder_name}» существует и это не папка."));
+                return Err(fail(
+                    "destination_exists_file",
+                    format!("«{folder_name}» существует и это не папка."),
+                ));
             }
-            let canonical = fs::canonicalize(&dest)
-                .map_err(|err| format!("Не удалось открыть «{folder_name}»: {err}"))?;
+            let canonical = fs::canonicalize(&dest).map_err(|err| {
+                fail("destination", format!("Не удалось открыть «{folder_name}»: {err}"))
+            })?;
             if canonical
                 .parent()
                 .is_none_or(|parent| !same_path(parent, directory))
             {
-                return Err(format!(
-                    "«{folder_name}» выходит за пределы открытой папки."
+                return Err(fail(
+                    "destination",
+                    format!("«{folder_name}» выходит за пределы открытой папки."),
                 ));
             }
             match read_service_role(&canonical) {
                 Some(existing) if existing == role => Ok((canonical, false)),
-                Some(_) => Err(format!(
-                    "«{folder_name}» уже зарегистрирована с другой ролью. Операция остановлена."
+                Some(_) => Err(fail(
+                    "destination_role_conflict",
+                    format!(
+                        "«{folder_name}» уже зарегистрирована с другой ролью. Операция остановлена."
+                    ),
                 )),
-                None => Err(format!(
-                    "unmarked_conflict: папка «{folder_name}» уже существует и не является служебной. Операция остановлена."
-                )),
+                None => {
+                    if service_folder_adoptable(&canonical) {
+                        write_service_role(&canonical, role)
+                            .map_err(|message| fail("destination", message))?;
+                        return Ok((canonical, false));
+                    }
+                    Err(fail(
+                        "destination_unmarked",
+                        format!(
+                            "unmarked_conflict: папка «{folder_name}» уже существует и не является служебной. Операция остановлена."
+                        ),
+                    ))
+                }
             }
         }
         Err(err) if err.kind() == io::ErrorKind::NotFound => match fs::create_dir(&dest) {
             Ok(()) => {
                 if let Err(mark) = write_service_role(&dest, role) {
                     let _ = fs::remove_dir(&dest);
-                    return Err(mark);
+                    return Err(fail("destination", mark));
                 }
-                let canonical = fs::canonicalize(&dest)
-                    .map_err(|err| format!("Не удалось открыть «{folder_name}»: {err}"))?;
+                let canonical = fs::canonicalize(&dest).map_err(|err| {
+                    fail("destination", format!("Не удалось открыть «{folder_name}»: {err}"))
+                })?;
                 Ok((canonical, true))
             }
             Err(create_err) if create_err.kind() == io::ErrorKind::AlreadyExists => {
                 prepare_destination(directory, folder_name, role)
             }
-            Err(create_err) => Err(format!("Не удалось создать «{folder_name}»: {create_err}")),
+            Err(create_err) => Err(fail(
+                "destination",
+                format!("Не удалось создать «{folder_name}»: {create_err}"),
+            )),
         },
-        Err(err) => Err(format!("Не удалось открыть «{folder_name}»: {err}")),
+        Err(err) => Err(fail(
+            "destination",
+            format!("Не удалось открыть «{folder_name}»: {err}"),
+        )),
+    }
+}
+
+fn prepare_action_destination(
+    directory: &Path,
+    action: Action,
+) -> Result<(PathBuf, bool), Fail> {
+    let role = action.role();
+    let primary = action.folder_name();
+    match prepare_destination(directory, primary, role) {
+        Ok(value) => Ok(value),
+        Err(primary_fail)
+            if action == Action::CopyToLocalFavorites
+                && primary_fail.code == "destination_unmarked" =>
+        {
+            match prepare_destination(directory, LOCAL_FAVORITES_ALT, role) {
+                Ok(value) => Ok(value),
+                Err(alt_fail) if alt_fail.code == "destination_unmarked" => Err(fail(
+                    "destination_unmarked",
+                    format!(
+                        "unmarked_conflict: папки «{LOCAL_FAVORITES}» и «{LOCAL_FAVORITES_ALT}» уже заняты."
+                    ),
+                )),
+                Err(other) => Err(other),
+            }
+        }
+        Err(other) => Err(other),
     }
 }
 
@@ -1831,7 +1901,7 @@ fn service_folder_empty_for_delete(dir: &Path) -> Result<bool, String> {
 
 /// Rejects empty/NUL paths, ADS (`file:stream`), device namespace (`\\.\`), and other non-drive colons.
 /// Allows ordinary, extended-length (`\\?\C:\…`), UNC, and extended UNC (`\\?\UNC\…`) paths.
-fn has_disallowed_path_syntax(value: &str) -> bool {
+pub(crate) fn has_disallowed_path_syntax(value: &str) -> bool {
     if value.is_empty() || value.contains('\0') {
         return true;
     }
@@ -2646,6 +2716,47 @@ mod tests {
     }
 
     #[test]
+    fn empty_unmarked_favorites_folder_is_adopted() {
+        let root = sandbox();
+        let named = root.join(LOCAL_FAVORITES);
+        fs::create_dir(&named).unwrap();
+        write_image(&root.join("a.jpg"), b"origin");
+        let result = run(
+            &root,
+            Action::CopyToLocalFavorites,
+            vec![root.join("a.jpg").display().to_string()],
+            1,
+            &AtomicBool::new(false),
+        );
+        assert_eq!(result.outcomes[0].status, "copied");
+        assert_eq!(read_service_role(&named), Some(ServiceRole::Favorites));
+        assert!(!result.destination_created);
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn favorites_uses_alternate_name_when_primary_is_occupied() {
+        let root = sandbox();
+        let blocked = root.join(LOCAL_FAVORITES);
+        fs::create_dir(&blocked).unwrap();
+        write_image(&blocked.join("keep.jpg"), b"keep");
+        write_image(&root.join("a.jpg"), b"fav");
+        let result = run(
+            &root,
+            Action::CopyToLocalFavorites,
+            vec![root.join("a.jpg").display().to_string()],
+            1,
+            &AtomicBool::new(false),
+        );
+        assert_eq!(result.outcomes[0].status, "copied");
+        assert!(read_service_role(&blocked).is_none());
+        let alt = root.join(LOCAL_FAVORITES_ALT);
+        assert_eq!(read_service_role(&alt), Some(ServiceRole::Favorites));
+        assert_eq!(fs::read(alt.join("a.jpg")).unwrap(), b"fav");
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
     fn unmarked_existing_folder_is_not_claimed() {
         let root = sandbox();
         let named = root.join(LOCAL_TRASH);
@@ -2660,6 +2771,10 @@ mod tests {
             &AtomicBool::new(false),
         );
         assert_eq!(result.outcomes[0].status, "failed");
+        assert_eq!(
+            result.outcomes[0].error_code.as_deref(),
+            Some("destination_unmarked")
+        );
         assert!(result.outcomes[0]
             .error_message
             .as_deref()

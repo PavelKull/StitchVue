@@ -65,6 +65,10 @@
     "io_error": "A file read or write error occurred",
     "not_image": "This is not an image file",
     "destination": "The destination folder could not be prepared",
+    "destination_unmarked": "A folder named Favorites already exists but was not created by the app. Rename or remove it and try again",
+    "destination_exists_file": "A file blocks the Favorites or Trash folder name — rename or remove it",
+    "destination_reparse": "The destination path is a link — operation stopped",
+    "destination_role_conflict": "The service folder is registered with a different role",
     "favorite_link": "The Favorites link is broken",
     "unsupported": "This operation is not available on this system",
     "state_changed": "The folder contents changed. Confirm deletion again",
@@ -270,6 +274,7 @@
     },
     "about": {
       "version": "Version {{version}}",
+      "checkUpdates": "Check for updates",
       "tagline": "Fast photo browsing without clutter",
       "developer": "Developer:",
       "linkedin": "LinkedIn",
@@ -294,6 +299,20 @@
       "licensesUnavailable": "License text is unavailable in this build.",
       "openRepoFailed": "Could not open the link. Check the repository URL in the configuration."
     }
+  },
+  "appUpdate": {
+    "mockBadge": "Preview",
+    "title": "Update available",
+    "versionLine": "Installed {{current}} · Available {{next}}",
+    "later": "Later",
+    "update": "Update",
+    "retry": "Try again",
+    "close": "Close",
+    "blockedHint": "Wait until the current file operation or unfavorite finishes.",
+    "networkError": "Could not download the update. Check your connection and try again.",
+    "readyMock": "Download complete (mock). A real build would install and restart StitchVue.",
+    "downloading": "Downloading… {{percent}}%",
+    "previewErrorDev": "Preview error state"
   },
   "properties": {
     "title": "Properties",
@@ -443,6 +462,7 @@
   },
   "folder": {
     "menuAria": "Folder actions",
+    "openInExplorer": "Open in Explorer",
     "rename": "Rename",
     "renameTitle": "Rename folder",
     "renameInputAria": "Folder name",

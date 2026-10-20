@@ -50,6 +50,8 @@ type SettingsDialogProps = {
   onCacheTtl: (preset: string) => Promise<CacheUsage>;
   ttlPreset: string;
   returnFocusRef?: RefObject<HTMLElement | null>;
+  /** C-003: opens mock update dialog (real check lives in feature 002). */
+  onCheckForUpdates?: () => void;
 };
 
 const CACHE_LIMITS = [
@@ -71,6 +73,7 @@ export function SettingsDialog({
   onCacheTtl,
   ttlPreset,
   returnFocusRef,
+  onCheckForUpdates,
 }: SettingsDialogProps) {
   const { t } = useTranslation();
   const tabs: { id: SettingsTab; label: string; icon: StitchVueIconName }[] = [
@@ -309,7 +312,7 @@ export function SettingsDialog({
                   <SupportPanel />
                 </div>
                 <div className={styles.panelPane} data-active={tab === "about"} aria-hidden={tab !== "about"}>
-                  <AboutPanel />
+                  <AboutPanel onCheckForUpdates={onCheckForUpdates} />
                 </div>
               </div>
             </div>
@@ -653,7 +656,7 @@ function SupportPanel() {
   );
 }
 
-function AboutPanel() {
+function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
   const { t } = useTranslation();
   const [version, setVersion] = useState<string | null>(null);
   const [licenseOpen, setLicenseOpen] = useState(false);
@@ -765,6 +768,16 @@ function AboutPanel() {
         <div>
           <h3 className={styles.aboutTitle}>StitchVue</h3>
           <p className={styles.meta}>{t("settings.about.version", { version: version ?? "—" })}</p>
+          {onCheckForUpdates ? (
+            <button
+              type="button"
+              className={`${styles.aboutAction} ${styles.aboutActionNeutral}`}
+              onClick={onCheckForUpdates}
+            >
+              <StitchVueIcon name="navigation-refresh" className={styles.aboutActionIcon} />
+              <span className={styles.aboutActionLabel}>{t("settings.about.checkUpdates")}</span>
+            </button>
+          ) : null}
           <p className={styles.hint}>{t("settings.about.tagline")}</p>
           <p className={`${styles.meta} ${styles.developerRow}`}>
             <span>{t("settings.about.developer")}</span>

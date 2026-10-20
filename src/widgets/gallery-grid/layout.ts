@@ -117,7 +117,19 @@ export function layoutGallery(
   breaks.forEach((count, rowIndex) => {
     const last = galleryTail && rowIndex === breaks.length - 1;
     const slice = aspects.slice(cursor, cursor + count);
-    const row = placeRow(slice, cursor + indexOffset, width, top, hTarget, viewportHeight, fit, last);
+    // Единственный кадр папки: высота идёт за зумом, не шире ряда и не выше экрана.
+    const followZoom = aspects.length === 1;
+    const row = placeRow(
+      slice,
+      cursor + indexOffset,
+      width,
+      top,
+      hTarget,
+      viewportHeight,
+      fit,
+      last,
+      followZoom,
+    );
     rows.push(row);
     top += row.height + (rowIndex < breaks.length - 1 ? TILE_GAP : 0);
     cursor += count;
@@ -251,18 +263,32 @@ export function mosaicLayoutKey(
   return `${width}|${viewportHeight}|${rowsPerScreen}|${fit}`;
 }
 
+function meanTrustedAspect(slots: Array<number | null>, known: number): number {
+  if (known <= 0) {
+    return ESTIMATED_ASPECT;
+  }
+  let sum = 0;
+  for (let index = 0; index < known; index += 1) {
+    sum += slots[index] as number;
+  }
+  return sum / known;
+}
+
 function estimateUniformTail(
   count: number,
   width: number,
   viewportHeight: number,
   rowsPerScreen: number,
   fit: number,
+  sampleAspect = ESTIMATED_ASPECT,
 ): number {
   if (count <= 0) {
     return 0;
   }
+  const aspect =
+    Number.isFinite(sampleAspect) && sampleAspect > 0 ? sampleAspect : ESTIMATED_ASPECT;
   const span = Math.min(SEGMENT_SIZE, count);
-  const sample = Array.from({ length: span }, () => ESTIMATED_ASPECT);
+  const sample = Array.from({ length: span }, () => aspect);
   const full = layoutGallery(sample, width, viewportHeight, rowsPerScreen, fit, "mosaic", 0, span === count);
   if (span === count) {
     return full.height;
@@ -404,6 +430,7 @@ export function layoutMosaicPublished(
     version &&
     version.publishedEnd === committedEnd &&
     keepEnd === committedEnd &&
+    keepEnd === known &&
     version.usedAspects.length === used.length &&
     sameAspects(version.usedAspects, used) &&
     !(closed && known === slots.length && commitUntil > keepEnd)
@@ -450,6 +477,7 @@ export function layoutMosaicPublished(
     viewportHeight,
     rowsPerScreen,
     fit,
+    meanTrustedAspect(slots, known),
   );
   const publishedHeight =
     rows.length > 0 ? rows[rows.length - 1].top + rows[rows.length - 1].height : 0;
@@ -546,7 +574,12 @@ export function layoutColumnsPublished(
 
   const publishedEnd = known;
   const publishedHeight = maxHeight(heights);
-  const height = estimateColumnCanvasHeight(heights, slots.length - known, tileWidth);
+  const height = estimateColumnCanvasHeight(
+    heights,
+    slots.length - known,
+    tileWidth,
+    meanTrustedAspect(slots, known),
+  );
   const segment = {
     start: 0,
     end: publishedEnd,
@@ -1111,6 +1144,7 @@ function placeRow(
   viewportHeight: number,
   fit: number,
   last: boolean,
+  followZoom = false,
 ): GalleryRow {
   const sum = aspects.reduce((total, aspect) => total + aspect, 0);
   const gapTotal = TILE_GAP * Math.max(0, aspects.length - 1);
@@ -1118,7 +1152,10 @@ function placeRow(
   const natural = rowWidth / sum;
   let height = chosenHeight(natural, hTarget, viewportHeight, fit);
   let stretch = true;
-  if (last && (natural > viewportHeight || natural < hTarget * 0.5)) {
+  if (followZoom) {
+    height = Math.min(hTarget, viewportHeight, natural);
+    stretch = false;
+  } else if (last && (natural > viewportHeight || natural < hTarget * 0.5)) {
     height = Math.min(hTarget, viewportHeight);
     stretch = false;
   }
@@ -1171,12 +1208,19 @@ function maxHeight(heights: ArrayLike<number>): number {
   return height;
 }
 
-function estimateColumnCanvasHeight(heights: ArrayLike<number>, remaining: number, tileWidth: number): number {
+function estimateColumnCanvasHeight(
+  heights: ArrayLike<number>,
+  remaining: number,
+  tileWidth: number,
+  sampleAspect = ESTIMATED_ASPECT,
+): number {
   const published = maxHeight(heights);
   if (remaining <= 0) {
     return published;
   }
-  const tileHeight = Math.max(1, Math.round(tileWidth / ESTIMATED_ASPECT));
+  const aspect =
+    Number.isFinite(sampleAspect) && sampleAspect > 0 ? sampleAspect : ESTIMATED_ASPECT;
+  const tileHeight = Math.max(1, Math.round(tileWidth / aspect));
   let sum = 0;
   for (let index = 0; index < heights.length; index += 1) {
     sum += heights[index];
@@ -1231,6 +1275,18 @@ function placeUniform(
   rowsPerScreen: number,
   indexOffset: number,
 ): GalleryRow[] {
+  if (aspects.length === 1) {
+    const height = Math.max(48, viewportHeight / Math.max(1, rowsPerScreen));
+    const aspect = aspects[0] ?? ESTIMATED_ASPECT;
+    const tileWidth = Math.min(width, Math.max(1, Math.round(height * aspect)));
+    return [
+      {
+        top: 0,
+        height,
+        tiles: [{ index: indexOffset, x: 0, width: tileWidth }],
+      },
+    ];
+  }
   const cell = Math.max(48, viewportHeight / Math.max(1, rowsPerScreen));
   const columns = Math.max(1, Math.floor(width / cell));
   const tile = Math.max(1, Math.floor(width / columns));

@@ -10,9 +10,14 @@ export type NeighborContext = {
   fast: boolean;
 };
 
+/** P1 = next along navigation; P2 = +2…+5 forward; P3 = two back. */
+export type NeighborPriority = "p1" | "p2" | "p3";
+
+export const NEIGHBOR_FORWARD_CAP = 5;
+
 export type NeighborJob = {
   file: ImageFile;
-  near: boolean;
+  priority: NeighborPriority;
 };
 
 export type ResolvedNeighborSource =
@@ -93,15 +98,25 @@ export function buildNeighborJobs(
   direction: NeighborDirection,
   fast: boolean,
 ): { jobs: NeighborJob[]; protect: string[]; near: Set<string> } {
-  const { forward, backward } = collectNeighbors(files, index, ahead, direction);
-  const near = new Set(fast ? [] : forward.slice(0, 2).map((file) => file.path));
-  const jobs: NeighborJob[] = [...forward, ...backward].map((file) => ({
-    file,
-    near: near.has(file.path),
-  }));
-  const protect = [files[index]?.path, ...forward.slice(0, 2).map((file) => file.path), ...backward.map((file) => file.path)].filter(
-    (path): path is string => Boolean(path),
-  );
+  void fast;
+  const forwardDepth = Math.min(NEIGHBOR_FORWARD_CAP, Math.max(1, ahead));
+  const { forward, backward } = collectNeighbors(files, index, forwardDepth, direction);
+  const jobs: NeighborJob[] = [];
+  for (let offset = 0; offset < forward.length; offset += 1) {
+    jobs.push({
+      file: forward[offset],
+      priority: offset === 0 ? "p1" : "p2",
+    });
+  }
+  for (const file of backward) {
+    jobs.push({ file, priority: "p3" });
+  }
+  const near = new Set(forward[0] ? [forward[0].path] : []);
+  const protect = [
+    files[index]?.path,
+    ...forward.map((file) => file.path),
+    ...backward.map((file) => file.path),
+  ].filter((path): path is string => Boolean(path));
   return { jobs, protect, near };
 }
 

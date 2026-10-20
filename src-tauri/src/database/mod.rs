@@ -1,4 +1,5 @@
 use rusqlite::{Connection, OptionalExtension};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 pub fn app_dir() -> PathBuf {
@@ -325,64 +326,113 @@ pub(crate) fn load_favorite_snapshots_in_directory_scope(
         .map_err(|err| err.to_string())
 }
 
-fn matches_path_key(stored: &str, requested: &str) -> bool {
-    path_key(stored) == path_key(requested)
+fn favorite_stored_path_candidates(requested: &str) -> Vec<String> {
+    let normalized = normalize_stored_path(requested);
+    let mut out = Vec::new();
+    let mut push = |value: String| {
+        if !out.iter().any(|existing| existing == &value) {
+            out.push(value);
+        }
+    };
+    push(normalized.clone());
+    if normalized != requested {
+        push(requested.to_string());
+    }
+    if normalized.len() >= 3 && normalized.as_bytes().get(1) == Some(&b':') {
+        push(format!(r"\\?\{}", normalized));
+    }
+    out
+}
+
+fn favorite_snapshot_for_column(
+    conn: &Connection,
+    column: &str,
+    path: &str,
+) -> Result<Option<FavoriteSnapshot>, String> {
+    let key = path_key(path);
+    let key_column = if column == "origin_path" {
+        "origin_key"
+    } else {
+        "copy_key"
+    };
+    let by_key = conn
+        .query_row(
+            &format!("{SNAPSHOT_SELECT} WHERE {key_column} = ?1"),
+            [&key],
+            snapshot_row,
+        )
+        .optional()
+        .map_err(|err| err.to_string())?;
+    if by_key.is_some() {
+        return Ok(by_key);
+    }
+    let mut matches = Vec::new();
+    for candidate in favorite_stored_path_candidates(path) {
+        let row = conn
+            .query_row(
+                &format!("{SNAPSHOT_SELECT} WHERE {column} = ?1"),
+                [&candidate],
+                snapshot_row,
+            )
+            .optional()
+            .map_err(|err| err.to_string())?;
+        if let Some(row) = row {
+            matches.push(row);
+        }
+    }
+    if matches.len() > 1 {
+        let message = if column == "origin_path" {
+            "Несколько связей избранного указывают на один оригинал."
+        } else {
+            "Несколько связей избранного указывают на один путь копии."
+        };
+        return Err(message.to_string());
+    }
+    Ok(matches.pop())
+}
+
+/// Batch lookup by `origin_key` (one round-trip for P2 chunk / P3 hint load).
+pub(crate) fn favorite_snapshots_for_origin_paths(
+    conn: &Connection,
+    paths: &[String],
+) -> Result<HashMap<String, FavoriteSnapshot>, String> {
+    let mut keys: Vec<String> = Vec::new();
+    for path in paths {
+        let key = path_key(path);
+        if !keys.iter().any(|existing| existing == &key) {
+            keys.push(key);
+        }
+    }
+    if keys.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let placeholders = keys.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    let sql = format!("{SNAPSHOT_SELECT} WHERE origin_key IN ({placeholders})");
+    let mut statement = conn.prepare(&sql).map_err(|err| err.to_string())?;
+    let params: Vec<&str> = keys.iter().map(String::as_str).collect();
+    let rows = statement
+        .query_map(rusqlite::params_from_iter(params.iter()), snapshot_row)
+        .map_err(|err| err.to_string())?;
+    let mut out = HashMap::new();
+    for row in rows {
+        let snap = row.map_err(|err| err.to_string())?;
+        out.insert(path_key(&snap.origin_path), snap);
+    }
+    Ok(out)
 }
 
 pub fn favorite_snapshot_for_copy(
     conn: &Connection,
     copy_path: &str,
 ) -> Result<Option<FavoriteSnapshot>, String> {
-    let key = path_key(copy_path);
-    let by_key = conn
-        .query_row(
-            &format!("{SNAPSHOT_SELECT} WHERE copy_key = ?1"),
-            [&key],
-            snapshot_row,
-        )
-        .optional()
-        .map_err(|err| err.to_string())?;
-    if by_key.is_some() {
-        return Ok(by_key);
-    }
-    let mut matches = Vec::new();
-    for row in load_all_favorite_snapshots(conn)? {
-        if matches_path_key(&row.copy_path, copy_path) {
-            matches.push(row);
-        }
-    }
-    if matches.len() > 1 {
-        return Err("Несколько связей избранного указывают на один путь копии.".to_string());
-    }
-    Ok(matches.pop())
+    favorite_snapshot_for_column(conn, "copy_path", copy_path)
 }
 
 pub fn favorite_snapshot_for_origin(
     conn: &Connection,
     origin_path: &str,
 ) -> Result<Option<FavoriteSnapshot>, String> {
-    let key = path_key(origin_path);
-    let by_key = conn
-        .query_row(
-            &format!("{SNAPSHOT_SELECT} WHERE origin_key = ?1"),
-            [&key],
-            snapshot_row,
-        )
-        .optional()
-        .map_err(|err| err.to_string())?;
-    if by_key.is_some() {
-        return Ok(by_key);
-    }
-    let mut matches = Vec::new();
-    for row in load_all_favorite_snapshots(conn)? {
-        if matches_path_key(&row.origin_path, origin_path) {
-            matches.push(row);
-        }
-    }
-    if matches.len() > 1 {
-        return Err("Несколько связей избранного указывают на один оригинал.".to_string());
-    }
-    Ok(matches.pop())
+    favorite_snapshot_for_column(conn, "origin_path", origin_path)
 }
 
 fn backfill_favorite_path_keys(conn: &Connection) -> Result<(), String> {
@@ -508,19 +558,16 @@ pub fn delete_favorite_copy_path(conn: &Connection, copy_path: &str) -> Result<(
     if changed > 0 {
         return Ok(());
     }
-    let rows = load_all_favorite_snapshots(conn)?;
-    for row in rows {
-        if matches_path_key(&row.copy_path, copy_path) {
-            conn.execute(
-                "DELETE FROM favorite_copies WHERE origin_path = ?1 AND origin_size = ?2 AND origin_modified_at = ?3",
-                (
-                    &row.origin_path,
-                    row.origin_size as i64,
-                    row.origin_modified_at,
-                ),
-            )
-            .map_err(|err| err.to_string())?;
-        }
+    if let Some(row) = favorite_snapshot_for_copy(conn, copy_path)? {
+        conn.execute(
+            "DELETE FROM favorite_copies WHERE origin_path = ?1 AND origin_size = ?2 AND origin_modified_at = ?3",
+            (
+                &row.origin_path,
+                row.origin_size as i64,
+                row.origin_modified_at,
+            ),
+        )
+        .map_err(|err| err.to_string())?;
     }
     Ok(())
 }
@@ -580,6 +627,10 @@ fn path_key(value: &str) -> String {
         .to_ascii_lowercase()
 }
 
+pub(crate) fn favorite_origin_lookup_key(value: &str) -> String {
+    path_key(value)
+}
+
 pub fn relocate_folder_path(
     conn: &Connection,
     old_path: &str,
@@ -616,19 +667,36 @@ pub fn relocate_folder_path(
 
 /// Recompute `origin_key` / `copy_key` from stored paths after prefix rewrites.
 pub fn sync_favorite_copy_keys(conn: &Connection) -> Result<(), String> {
-    let rows = load_all_favorite_snapshots(conn)?;
+    let mut statement = conn
+        .prepare(
+            "SELECT origin_path, origin_size, origin_modified_at, copy_path
+             FROM favorite_copies",
+        )
+        .map_err(|err| err.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, i64>(2)?,
+                row.get::<_, String>(3)?,
+            ))
+        })
+        .map_err(|err| err.to_string())?;
     for row in rows {
-        let origin_key = path_key(&row.origin_path);
-        let copy_key = path_key(&row.copy_path);
+        let (origin_path, origin_size, origin_modified_at, copy_path) =
+            row.map_err(|err| err.to_string())?;
+        let origin_key = path_key(&origin_path);
+        let copy_key = path_key(&copy_path);
         conn.execute(
             "UPDATE favorite_copies SET origin_key = ?1, copy_key = ?2
              WHERE origin_path = ?3 AND origin_size = ?4 AND origin_modified_at = ?5",
             (
                 origin_key,
                 copy_key,
-                normalize_stored_path(&row.origin_path),
-                row.origin_size as i64,
-                row.origin_modified_at,
+                normalize_stored_path(&origin_path),
+                origin_size,
+                origin_modified_at,
             ),
         )
         .map_err(|err| format!("sync favorite keys: {err}"))?;
@@ -939,6 +1007,50 @@ mod tests {
     }
 
     #[test]
+    fn favorite_snapshots_for_origin_paths_batch_load() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        record_favorite_copy(
+            &conn,
+            r"C:\Photos\a.jpg",
+            1,
+            1,
+            r"C:\Photos\Fav\a.jpg",
+            1,
+            1,
+            Some("h1"),
+        )
+        .unwrap();
+        record_favorite_copy(
+            &conn,
+            r"C:\Photos\b.jpg",
+            2,
+            2,
+            r"C:\Photos\Fav\b.jpg",
+            2,
+            2,
+            Some("h2"),
+        )
+        .unwrap();
+        let map = favorite_snapshots_for_origin_paths(
+            &conn,
+            &[
+                r"C:\Photos\a.jpg".to_string(),
+                r"C:\Photos\b.jpg".to_string(),
+            ],
+        )
+        .unwrap();
+        assert_eq!(map.len(), 2);
+        assert_eq!(
+            map
+                .get(&favorite_origin_lookup_key(r"C:\Photos\a.jpg"))
+                .unwrap()
+                .content_sha256
+                .as_deref(),
+            Some("h1")
+        );
+    }
+
     fn load_favorite_snapshots_in_directory_scope_filters_other_albums() {
         let conn = Connection::open_in_memory().unwrap();
         migrate(&conn).unwrap();

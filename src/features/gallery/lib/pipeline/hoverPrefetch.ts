@@ -19,6 +19,12 @@ export type HoverContext = {
   openPath: string | null;
 };
 
+export type PhotoIdentity = {
+  path: string;
+  size: number;
+  modifiedAt: number;
+};
+
 export type HoverState = HoverContext & {
   folderTarget: string | null;
   folderDue: number | null;
@@ -30,6 +36,8 @@ export type HoverState = HoverContext & {
   photoDue: number | null;
   photoSent: string | null;
   photoCancelDue: number | null;
+  /** Просмотрщик открывает этот кадр — не отменять prefetch при leave. */
+  reservedPhotoPath: string | null;
 };
 
 export type HoverEvent =
@@ -38,6 +46,7 @@ export type HoverEvent =
   | { type: "leave-folder"; path: string }
   | { type: "enter-photo"; path: string; size: number; modifiedAt: number }
   | { type: "leave-photo"; path: string }
+  | { type: "reserve-photo-open"; path: string; size: number; modifiedAt: number }
   | { type: "tick" };
 
 export function hoverWindow(rowsPerScreen: number): { first: number; extra: number } {
@@ -58,12 +67,16 @@ export function initialHoverState(context: HoverContext = defaultContext()): Hov
     photoDue: null,
     photoSent: null,
     photoCancelDue: null,
+    reservedPhotoPath: null,
   };
 }
 
 export function reduceHover(state: HoverState, event: HoverEvent, now: number): { state: HoverState; effects: HoverEffect[] } {
   if (event.type === "context") {
-    return { state: { ...state, ...event.context }, effects: [] };
+    return {
+      state: { ...state, ...event.context, reservedPhotoPath: null },
+      effects: [],
+    };
   }
   if (event.type === "tick") {
     return tick(state, now);
@@ -76,6 +89,9 @@ export function reduceHover(state: HoverState, event: HoverEvent, now: number): 
   }
   if (event.type === "enter-photo") {
     return enterPhoto(state, event, now);
+  }
+  if (event.type === "reserve-photo-open") {
+    return reservePhotoOpen(state, event, now);
   }
   return leavePhoto(state, event.path, now);
 }
@@ -96,6 +112,7 @@ export type HoverController = {
   leaveFolder(path?: string): void;
   enterPhoto(file: { path: string; size: number; modifiedAt: number }): void;
   leavePhoto(path?: string): void;
+  reservePhotoForOpen(file: PhotoIdentity): void;
   dispose(): void;
 };
 
@@ -150,6 +167,14 @@ export function createHoverController(
       if (target) {
         dispatch({ type: "leave-photo", path: target });
       }
+    },
+    reservePhotoForOpen(file) {
+      dispatch({
+        type: "reserve-photo-open",
+        path: file.path,
+        size: file.size,
+        modifiedAt: file.modifiedAt,
+      });
     },
     dispose() {
       if (timer != null) {
@@ -235,15 +260,48 @@ function leavePhoto(state: HoverState, path: string, now: number): { state: Hove
   if (state.photoTarget && path && state.photoTarget !== path) {
     return { state, effects: [] };
   }
+  const reserved = state.reservedPhotoPath && samePath(state.reservedPhotoPath, path);
+  const sent = state.photoSent && samePath(state.photoSent, path);
   return {
     state: {
       ...state,
       photoTarget: null,
       photoDue: null,
-      photoCancelDue: state.photoSent && state.photoSent === path ? now + LEAVE_GRACE_MS : null,
+      photoCancelDue: reserved || !sent ? null : now + LEAVE_GRACE_MS,
     },
     effects: [],
   };
+}
+
+function reservePhotoOpen(
+  state: HoverState,
+  event: { path: string; size: number; modifiedAt: number },
+  _now: number,
+): { state: HoverState; effects: HoverEffect[] } {
+  if (!event.path) {
+    return { state, effects: [] };
+  }
+  const effects: HoverEffect[] = [];
+  let next: HoverState = {
+    ...state,
+    reservedPhotoPath: event.path,
+    photoTarget: event.path,
+    photoSize: event.size,
+    photoModified: event.modifiedAt,
+    photoDue: null,
+    photoCancelDue: null,
+  };
+  if (next.photoSent !== event.path) {
+    effects.push({
+      type: "prefetch-photo",
+      path: event.path,
+      size: event.size,
+      modifiedAt: event.modifiedAt,
+      longEdge: next.longEdge,
+    });
+    next = { ...next, photoSent: event.path };
+  }
+  return { state: next, effects };
 }
 
 function tick(state: HoverState, now: number): { state: HoverState; effects: HoverEffect[] } {
@@ -254,8 +312,15 @@ function tick(state: HoverState, now: number): { state: HoverState; effects: Hov
     next = { ...next, folderSent: null, folderCancelDue: null };
   }
   if (next.photoCancelDue != null && next.photoCancelDue <= now) {
-    effects.push({ type: "cancel-photo" });
-    next = { ...next, photoSent: null, photoCancelDue: null };
+    const keepWarm =
+      next.reservedPhotoPath &&
+      next.photoSent &&
+      samePath(next.reservedPhotoPath, next.photoSent);
+    if (!keepWarm) {
+      effects.push({ type: "cancel-photo" });
+      next = { ...next, photoSent: null };
+    }
+    next = { ...next, photoCancelDue: null };
   }
   if (next.folderDue != null && next.folderDue <= now && next.folderTarget && !samePath(next.folderTarget, next.openPath)) {
     effects.push({

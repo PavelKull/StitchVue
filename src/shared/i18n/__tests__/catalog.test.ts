@@ -15,6 +15,7 @@ import {
   settings,
   sidebar,
   supportReminder,
+  appUpdate,
   toolbar,
   topNav,
   trash,
@@ -37,6 +38,7 @@ const ROOT_NAMESPACES = [
   "folder",
   "trash",
   "supportReminder",
+  "appUpdate",
 ] as const;
 
 const PLACEHOLDER_RE = /\{\{(\w+)\}\}/g;
@@ -77,6 +79,7 @@ describe("i18n catalog (stage 1)", () => {
     assert.equal(ru.folder, folder);
     assert.equal(ru.trash, trash);
     assert.equal(ru.supportReminder, supportReminder);
+    assert.equal(ru.appUpdate, appUpdate);
   });
 
   it("has no empty leaf strings", () => {

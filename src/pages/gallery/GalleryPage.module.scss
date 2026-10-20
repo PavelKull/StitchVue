@@ -24,25 +24,6 @@
     }
 }
 
-.bootNotice {
-    position: absolute;
-    top: calc(var(--pg-edge) + 8px);
-    left: 50%;
-    z-index: z.$top-nav;
-    max-width: min(480px, calc(100vw - 32px));
-    margin: 0;
-    padding: 10px 14px;
-    border: 1px solid var(--pg-border);
-    border-radius: var(--pg-radius-panel);
-    background: var(--pg-surface-toolbar);
-    box-shadow: var(--pg-shadow-toolbar);
-    color: var(--pg-text-primary);
-    font-size: 13px;
-    line-height: 1.4;
-    text-align: center;
-    transform: translateX(-50%);
-    pointer-events: none;
-}
 
 .galleryLayer {
     position: absolute;

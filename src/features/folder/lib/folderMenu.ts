@@ -17,6 +17,10 @@ export async function loadFolderMenuOptions(
   });
 }
 
+export async function openFolderInExplorer(folderPath: string): Promise<void> {
+  await invoke("open_in_explorer", { path: folderPath });
+}
+
 export async function renameFolder(
   parentDirectory: string,
   folderPath: string,

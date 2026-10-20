@@ -2,7 +2,8 @@ export const VIEWER_SLOW_MS = 500;
 export const VIEWER_FAST_MS = 180;
 export const VIEWER_AHEAD_SLOW = 4;
 export const VIEWER_AHEAD_NORMAL = 5;
-export const VIEWER_AHEAD_FAST = 12;
+/** C-006: forward decode window stays N+1…N+5, not a wider fast sweep. */
+export const VIEWER_AHEAD_FAST = 5;
 
 /** Smooths recent navigation intervals so one fast keypress does not change the plan. */
 export function smoothInterval(intervals: readonly number[]): number | null {

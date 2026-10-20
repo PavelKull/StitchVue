@@ -31,29 +31,38 @@ export async function flushThumbnailBatch(
 ) {
   const batch = [...pending.entries()];
   pending.clear();
+  const warmDecode: string[] = [];
+
+  for (const [path, info] of batch) {
+    const stored: ThumbInfo = { tier: info.tier, thumbnailPath: info.thumbnailPath };
+    const current = target.get(path);
+    if (current && current.tier >= info.tier) {
+      continue;
+    }
+    target.set(path, stored);
+    if (info.tier >= MIN_DISPLAY_TIER) {
+      onBaseReady?.(path, info.tier, info.session);
+    }
+    warmDecode.push(convertFileSrc(info.thumbnailPath));
+  }
+
+  done();
+
+  if (warmDecode.length === 0) {
+    return;
+  }
+
   await Promise.all(
-    batch.map(async ([path, info]) => {
-      const stored: ThumbInfo = { tier: info.tier, thumbnailPath: info.thumbnailPath };
+    warmDecode.map(async (src) => {
       const image = new Image();
-      image.src = convertFileSrc(info.thumbnailPath);
+      image.src = src;
       try {
         await image.decode();
-        const current = target.get(path);
-        if (!current || info.tier >= current.tier) {
-          target.set(path, stored);
-          if (info.tier >= MIN_DISPLAY_TIER) {
-            onBaseReady?.(path, info.tier, info.session);
-          }
-        }
       } catch {
-        target.set(path, stored);
-        if (info.tier >= MIN_DISPLAY_TIER) {
-          onBaseReady?.(path, info.tier, info.session);
-        }
+        // Map already committed; tile <img> may decode on paint.
       }
     }),
   );
-  done();
 }
 
 export type GalleryPipelineListenRefs = {

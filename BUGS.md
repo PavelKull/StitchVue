@@ -30,6 +30,21 @@
 | C-005 | CHANGED | medium | optimistic overlay remainder |
 | C-006 | CONFIRMED | high | viewer neighbor window |
 
+### Порядок срезов (003, после MVP US1–US3)
+
+| # | Срез | Блокер / примечание |
+|---|------|---------------------|
+| 1 | B-011 T036 | Только после ручного 3-way [`B-011_DIAGNOSIS.md`](docs/stabilization/B-011_DIAGNOSIS.md); `flushThumbnailBatch` (ветка D) не подменяет диагноз A/C |
+| 2 | US4 / B-007 | `hoverPrefetch` / `galleryHover` / `viewerPreload`; Rust Join — только если FE glue недостаточен |
+| 3 | US5 / C-006 | `viewerPreloadLogic` / `viewerPreload` — **после** B-007 |
+| 4 | US6 / B-009 | `viewerFrame` / `ImageViewer`; ориентация байта — B-002/B-004 |
+| 5 | US12–13 / C-002+C-003 | Добивка диалогов / smoke mock updater |
+| 6 | US14 / B-005 | alias thumbs — fixture + smoke |
+
+Параллельно (не в цепочке viewer): B-008 T021 diagnose; B-006 T045 measure-only. **Вне scope:** `pick_index`, второй cache, virt off, `tauri-plugin-updater`, worktree.
+
+Цепочка viewer зафиксирована: **B-007 → C-006 → остаток B-009** (`specs/003-pre-release-stabilization/research.md` D-04).
+
 ---
 
 ## Баги и ошибки
@@ -107,6 +122,7 @@
 - **Зависимости:** C-005 только временем add; оптимистичное снятие не должно ждать eviction. Не трогать оригиналы фото.
 - **Приёмка:** избранное сразу показывает ≥ origin tier при том же size; origin на диске не читается повторно, если JPEG тира есть.
 - **Диагностика:** не нужна сверх ручного сравнения origin vs copy path в `thumbnail_cache`.
+- **Прогресс 003:** `alias_thumbnails_from_origin` при copy + pipeline cache-miss fallback; audit F001/F003 — alias **копирует** JPEG на `thumb_path` копии, `evict`/`cached_thumb` не сносят shared path целиком. Gate alias по size (F004) — открыто. Smoke — **не FIXED**.
 
 ### B-006 — фон папки кажется тупящим; приоритеты в целом верные
 - **Статус:** открыто
@@ -131,7 +147,8 @@
 - **Что происходит:** задумано: hover греет viewer-качество, открытие почти сразу. Сейчас после наведения и клика кадр всё равно **грузится** в просмотрщике.
 - **Ожидание:** если курсор побыл на тайле достаточно, чтобы стартануть prefetch, открытие берёт уже тёплый кадр (или добивает тот же decode), а не начинает с нуля. Viewport-thumbs по-прежнему важнее hover (как B-006).
 - **Как повторить:** дождаться миниатюр на экране, навести на фото, подождать долю секунды, открыть. Сравнить с кликом без наведения. RAW/JPEG отдельно.
-- **Код сейчас:** механизм **есть**, не изобретать: `onHoverPhoto` → `enterPhoto` (`PHOTO_DELAY_MS = 100`) / `leavePhoto` (`LEAVE_GRACE_MS = 140`) в `hoverPrefetch.ts` + `galleryHover.ts` → `prefetch_photo` / `cancel_photo_prefetch`. Rust `viewer::prefetch` Join/Start; `grid_blocks_hover` режет hover при scroll / дырах 256 / headers. `peekPreloaded` только если `naturalWidth > 0` (`viewerPreload.ts`). Без native `ImageViewer` ставит `setOpening(true)`. Клик по тайлу шлёт `pointerleave` → `leavePhoto`.
+- **Код сейчас:** механизм **есть**, не изобретать: `onHoverPhoto` → `enterPhoto` (`PHOTO_DELAY_MS = 100`) / `leavePhoto` (`LEAVE_GRACE_MS = 140`) в `hoverPrefetch.ts` + `galleryHover.ts` → `prefetch_photo` / `cancel_photo_prefetch`. Rust `viewer::prefetch` Join/Start; `grid_blocks_hover` режет hover при scroll / дырах 256 / headers. `peekPreloaded` — `kept` с decode, иначе `warmSrc` без `naturalWidth` (`viewerPreload.ts`). Без native `ImageViewer` ставит `setOpening(true)`. Клик по тайлу шлёт `pointerleave` → `leavePhoto`.
+- **Прогресс 003:** `reserve-photo-open` + `onOpen` → `reservePhotoForOpen` (немедленный prefetch, без cancel grace для открываемого path); tick не шлёт `cancel-photo`, пока path зарезервирован. Глобальный `cancel_photo_prefetch` при `cancel-photo` и Join на Rust — без изменений. Smoke JPEG ≥100 ms hover — **не FIXED**.
 - **Почему может «не работать» (проверить по месту):**
   1. Клик быстрее 100 ms — prefetch ещё не ушёл.
   2. `pointerleave` → cancel через 140 ms, как раз когда viewer должен забрать job.
@@ -159,6 +176,7 @@
 - **Зависимости:** нет с B-009.
 - **Приёмка:** 1 фото + app-FS: шаги зума меняют размер тайла, не больше viewport; многофото-зум не регрессирует.
 - **Диагностика:** обязательна. Сравнить `tile.width`/`row.height` на шагах слайдера в FS vs окне.
+- **Прогресс 003:** `followZoom` для любого одиночного ряда mosaic; grid/columns — отдельный single-tile путь в `placeUniform`. FS smoke не записан — **не FIXED**.
 
 ### B-009 — в просмотрщике при быстром листании кадр мелкий и «на боку», потом вырастает
 - **Статус:** открыто
@@ -175,6 +193,7 @@
 - **Зависимости:** ориентация байта — B-002/B-004; тёплый кадр — B-007 и окно C-006. C-006 снижает частоту «марки», не чинит frame 1:1 и EXIF. Не путать с зумом сетки B-008. `fill` в `viewerPhotoStyle` ≠ squash тайла B-003.
 - **Приёмка:** быстрое листание EXIF 6/8: кадр на экран сразу, без переворота; мыло ок.
 - **Диагностика:** смотреть первый paint: `aspectFromMeta` vs `displayAspect`; есть ли thumb в Map.
+- **Прогресс 003:** при смене `file.path` — `syncDisplayAspect` + `syncFrame`; `opening=false` при известном meta aspect даже без src. Остаток EXIF/боком — B-002/B-004. Smoke не записан — **не FIXED**.
 
 ### B-010 — при смене языка прыгает высота модалки
 - **Статус:** открыто
@@ -205,7 +224,7 @@
 - **Не делать сейчас:** не поднимать параллелизм HDD и не отключать виртуализацию. Потом точечно: чуть шире overscan, не размонтировать img в окне, или placeholder из известных src.
 - **Зависимости:** B-001 (follow-end vs пустой хвост).
 - **Приёмка:** тёплая папка, быстрый скролл/«вниз»: нет пустого viewport и пачки на весь экран.
-- **Диагностика:** обязательна. DevTools: `thumbs.get(path)` vs нет тайла vs blank `img`.
+- **Диагностика:** кодовый разбор T035 — [`docs/stabilization/B-011_DIAGNOSIS.md`](docs/stabilization/B-011_DIAGNOSIS.md). Ветки: **A** placeholder (нет tier≥256 в Map), **B** нет `.photo` (unpublished mosaic / B-001), **C** `<img>` с src но naturalWidth 0 (virt remount WebView2), **D** пачка после `flushThumbnailBatch` + один `thumbVersion`. Rust FastScrolling Map не чистит. **T036 заблокирован** до ручного протокола в доке (какая ветка на сценарии wheel vs jump-end).
 
 <!-- Шаблон:
 
@@ -243,17 +262,18 @@
 - **Технический статус:** CONFIRMED · уверенность high
 - **Где:** вся оболочка: файловые операции, загрузка папки, настройки, корзина/избранное, свойства, rename, confirm
 - **Что сейчас:** три канала без общей карты «когда что»:
-  - **Тост / notice:** `OperationNoticeView` + `fileNotice`. Рядом `bootNotice` — отдельный `<p>` в галерее. `common.errorToast` в каталоге есть, единого тост-хоста нет.
+  - **Тост / notice:** `OperationNoticeView` + `fileNotice` (включая boot через `bootToastNotice`). Карта: `docs/ui-catalog/index.md`, `NOTICE_CHANNEL_MAP`. `common.errorToast` в каталоге есть, отдельного тост-хоста кроме notice пока нет.
   - **Ошибки:** `localizeErrorCode` / `formatInvokeError` в одних местах, сырой `error` / `notice.text` в других. Сбой скана — `styles.message` (C-001).
-  - **Модалки:** копии `useAnimatedModal` + свой backdrop: Settings, Rename, TrashFolderDelete, PhotoProperties, SupportReminder, FavoriteTrashUnfavorite, ConfirmMove, FavoriteMissingOrigin. Общего shell нет. Папки **`ui-catalog/` нет**.
+  - **Модалки:** копии `useAnimatedModal` + свой backdrop (список в `docs/ui-catalog/index.md`). Общего React-shell пока нет; визуал через shared modal-motion SCSS.
 - **Что изменить:** шкала toast / модалка / empty (C-001). Один визуал тоста и один каркас диалога на существующих виджетах; коды только через i18n. Каталог скринов: `ui-catalog/{toasts,modals,empty}/` + `index.md`. Без новой UI-библиотеки. Playwright — только кандидат-генератор PNG (`INVESTIGATE`), не этот этап. Storybook/Chromatic не брать.
 - **Зависимости:** C-001, C-003 (диалог обновления в тот же shell).
 - **Приёмка:** карта ситуаций; новый кейс кладётся в один из трёх каналов; скрины фикстур, не 50k галерея.
+- **Прогресс 003:** `NOTICE_CHANNEL_MAP`, `docs/ui-catalog/index.md`, boot → `OperationNoticeView`, `AnimatedModalFrame` (UpdateDialog). Остальные диалоги на общий frame не переведены; PNG в `ui-catalog/modals/` нет — **не FIXED**.
 
 ### C-003 — замокать UI обновления (кнопка + диалог), по плану апдейтера
 - **Статус:** нужна правка
 - **Технический статус:** CONFIRMED · уверенность high
-- **Где:** всплывающий диалог + постоянная точка входа. Спека: `specs/002-stitchvue-release-auto-update/` (**не в коде**). Каталог скринов — C-002. Среза `src/features/app-update/` **нет**.
+- **Где:** всплывающий диалог + постоянная точка входа. Спека: `specs/002-stitchvue-release-auto-update/` (**не в коде**). Каталог скринов — C-002. Mock: `src/features/app-update/`, `App.tsx` → `AppUpdateProvider`.
 - **Как задумано в 002 (не выдумывать другой продукт):**
   - Проверка **один раз при запуске** (`check()`), не таймер.
   - Модалка: новая версия, release notes, **«Обновить»** / **«Позже»**. Без автоустановки. «Позже» — до следующего запуска, без скачивания.
@@ -267,6 +287,7 @@
 - **Сейчас, без плагина:** не ждать GitHub/`tauri-plugin-updater`. Фикстура: «установлено 0.1.0, доступно 0.2.0». Дев-флаг / ui-catalog. Боевой `check()` не звать. Когда 002 поедет — подменить mock на `checkForUpdate` / `downloadUpdateWithProgress` / `installUpdate`.
 - **Зависимости:** C-002 shell; spec 002 (реальный updater — не эта правка).
 - **Приёмка:** mock-диалог открывается из About и по флагу; Update disabled при file op/unfavorite; без plugin в Cargo.
+- **Прогресс 003:** `AppUpdateProvider`, mock fixture 0.1.0→0.2.0, About «Проверить обновления», busy-gate `fileOperation`/`unfavoriteBusy`, dev auto-prompt только при `VITE_MOCK_UPDATE_AUTO_PROMPT=true`, i18n `appUpdate.*`. Ручной smoke — **не FIXED**.
 
 ### C-004 — вкладка «Поддержать»: звезда GitHub и визуал кнопок
 - **Статус:** нужна правка
@@ -297,6 +318,7 @@
 - **Зависимости:** инварианты оригиналов; не ждать B-005. Тесты `favorite*Optimistic*`, `removeFavoritesBatch`.
 - **Приёмка:** mass/partial: тайл/звезда/selection в том же тике; пустая папка скрыта сразу; rollback только fail; оригинал на диске жив.
 - **Диагностика:** mass при `listingReady=false`; partial в открытом избранном — остаются ли тайлы при погашенной звезде.
+- **Прогресс 003:** listing в избранном всегда через `filterListingImagesForFavoriteOverlay` (убран bypass при mass exit); selection снимается с pending-off путей; `flushThumbnailBatch` пишет Map до decode (B-011 path D); audit F002 — cancel/progress file op глобально при навигации (grid busy по-прежнему scoped). Smoke не записан — **не FIXED**.
 
 ### C-006 — приоритетная предзагрузка соседних фотографий в ImageViewer
 - **Статус:** нужна правка

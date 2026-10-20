@@ -301,6 +301,25 @@ fn path_stamp(path: &Path) -> (Option<u64>, Option<i64>, Option<String>) {
     (size, modified, name)
 }
 
+fn alias_favorite_copy_thumbnails(db: &Connection, origin_path: &str, copy_path: &str) {
+    let (origin_size, origin_modified, _) = path_stamp(Path::new(origin_path));
+    let (copy_size, copy_modified, _) = path_stamp(Path::new(copy_path));
+    let (Some(origin_size), Some(origin_modified), Some(copy_size), Some(copy_modified)) =
+        (origin_size, origin_modified, copy_size, copy_modified)
+    else {
+        return;
+    };
+    let _ = crate::cache::alias_thumbnails_from_origin(
+        db,
+        origin_path,
+        origin_size,
+        origin_modified,
+        copy_path,
+        copy_size,
+        copy_modified,
+    );
+}
+
 fn record_favorite_link(
     db: &Connection,
     origin_path: &str,
@@ -951,6 +970,11 @@ impl Pipeline {
                             outcome.source_content_sha256.as_deref(),
                         ) {
                             Ok(()) => {
+                                alias_favorite_copy_thumbnails(
+                                    &db,
+                                    &outcome.source_path,
+                                    destination,
+                                );
                                 let _ = crate::database::finish_op(
                                     &db,
                                     &log_id,
@@ -2430,36 +2454,49 @@ fn produce_jpeg(inner: &Inner, job: &Job, path: &Path, tier: u32) -> Result<(), 
             let _slot = acquire_read(inner, job)?;
             crate::metadata::read_header(path).ok()
         };
-        if let Some(meta) = &header {
-            source.orientation = thumbnail::embedded_orientation(
-                source.orientation,
-                source.image.width(),
-                source.image.height(),
-                meta.orientation,
-                meta.width,
-                meta.height,
-            );
-        }
-        let (width, height, orientation, rgb) = thumbnail::bitmap_for_tier(source, tier)?;
-        let (meta_w, meta_h) = match header {
-            Some(meta) => (meta.width, meta.height),
-            None => (width, height),
+        let use_embedded = match &header {
+            Some(meta) => {
+                source.orientation = thumbnail::embedded_orientation(
+                    source.orientation,
+                    source.image.width(),
+                    source.image.height(),
+                    meta.orientation,
+                    meta.width,
+                    meta.height,
+                );
+                thumbnail::embedded_preview_trusted(
+                    source.image.width(),
+                    source.image.height(),
+                    source.orientation,
+                    meta.width,
+                    meta.height,
+                    meta.orientation,
+                )
+            }
+            None => false,
         };
-        let bytes = thumbnail::encode_bitmap(&rgb, tier)?;
-        emit_encoded(
-            inner,
-            job,
-            tier,
-            &bytes,
-            meta_w,
-            meta_h,
-            orientation,
-            header.is_some(),
-        );
-        if tier <= 256 {
-            set_hold_flags(inner, job, true, false);
+        if use_embedded {
+            let (width, height, orientation, rgb) = thumbnail::bitmap_for_tier(source, tier)?;
+            let (meta_w, meta_h) = match header {
+                Some(meta) => (meta.width, meta.height),
+                None => (width, height),
+            };
+            let bytes = thumbnail::encode_bitmap(&rgb, tier)?;
+            emit_encoded(
+                inner,
+                job,
+                tier,
+                &bytes,
+                meta_w,
+                meta_h,
+                orientation,
+                true,
+            );
+            if tier <= 256 {
+                set_hold_flags(inner, job, true, false);
+            }
+            return Ok(());
         }
-        return Ok(());
     }
     if !generation_current(inner, job) {
         return Err(DecodeError::new(FailureKind::Failed, "viewport moved"));
@@ -2962,6 +2999,36 @@ fn next_job(inner: &Inner) -> Job {
                             ready[slot] = true;
                         }
                         cached.push((tier, thumb));
+                    }
+                }
+                if cached.is_empty() {
+                    if let Ok(Some(snap)) =
+                        crate::database::favorite_snapshot_for_copy(&db, &path)
+                    {
+                        if snap.copy_size == Some(size) && snap.origin_size == size {
+                            let _ = cache::alias_thumbnails_from_origin(
+                                &db,
+                                &snap.origin_path,
+                                snap.origin_size,
+                                snap.origin_modified_at,
+                                &path,
+                                size,
+                                modified_at,
+                            );
+                            for tier in [256u32, 512, 1024] {
+                                if tier == 1024 && !want_1024 {
+                                    continue;
+                                }
+                                if let Ok(Some(thumb)) =
+                                    cache::cached_thumb(&db, &path, size, modified_at, tier)
+                                {
+                                    if let Some(slot) = tier_slot(tier) {
+                                        ready[slot] = true;
+                                    }
+                                    cached.push((tier, thumb));
+                                }
+                            }
+                        }
                     }
                 }
                 if let Some(tier) = tier_for(priority, ready, want_1024) {

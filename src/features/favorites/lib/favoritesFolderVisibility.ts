@@ -41,10 +41,10 @@ export function resolveFavoritesFolderVisibility(options: {
     const pendingForAlbum =
         options.pendingCreate &&
         pathKey(options.pendingCreate.parentDirectory) === albumKey;
-    if (options.hasActiveFavoriteAdds || pendingForAlbum) {
-        if (!favoritesFolder || pendingForAlbum) {
-            return 'pending-create';
-        }
+    // Плейсхолдер, пока листинг ещё без «Избранное». Зависший pendingCreate
+    // не должен блокировать уже существующую плитку после cancel или смены папки.
+    if (!favoritesFolder && (options.hasActiveFavoriteAdds || pendingForAlbum)) {
+        return 'pending-create';
     }
     if (
         favoritesFolder &&
@@ -55,13 +55,36 @@ export function resolveFavoritesFolderVisibility(options: {
         }
         return 'hidden';
     }
-    if (favoritesFolder) {
-        return 'visible';
-    }
-    if (pendingForAlbum) {
-        return 'pending-create';
-    }
     return 'visible';
+}
+
+export function nextFavoritesFolderPendingCreate(options: {
+    parentDirectory: string | null;
+    serviceRole?: 'favorites' | 'trash' | null;
+    folders: readonly FolderShortcut[];
+    hasActiveAddIntents: boolean;
+    copyInFlightForParent: boolean;
+    hideOverlay: FavoritesServiceFolderHideOverlay | null;
+}): FavoritesFolderPendingCreate | null {
+    if (!options.parentDirectory || options.serviceRole) {
+        return null;
+    }
+    const hasFolder = options.folders.some(
+        (folder) => folder.serviceRole === 'favorites',
+    );
+    if (
+        (options.hasActiveAddIntents || options.copyInFlightForParent) &&
+        !hasFolder
+    ) {
+        return {
+            parentDirectory: options.parentDirectory,
+            folderPath: predictFavoritesServiceFolderPath(
+                options.parentDirectory,
+                options.hideOverlay,
+            ),
+        };
+    }
+    return null;
 }
 
 export function buildAlbumFolderTiles(options: {

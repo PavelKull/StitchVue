@@ -1,0 +1,103 @@
+.title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.meta {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pg-text-secondary);
+}
+
+.notes {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--pg-radius-panel);
+  background: rgb(255 255 255 / 4%);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--pg-text-secondary);
+}
+
+.hint {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pg-text-secondary);
+}
+
+.error {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pg-danger, #ff6b7a);
+}
+
+.progressTrack {
+  height: 6px;
+  margin: 0 0 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--pg-accent);
+  transition: width 120ms linear;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.primary,
+.secondary,
+.ghost {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--pg-radius-control);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.primary {
+  border: 0;
+  background: var(--pg-accent);
+  color: var(--pg-on-accent, #111);
+}
+
+.primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.secondary {
+  border: 1px solid rgb(255 255 255 / 14%);
+  background: transparent;
+  color: var(--pg-text-primary);
+}
+
+.ghost {
+  border: 0;
+  background: transparent;
+  color: var(--pg-text-secondary);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.mockBadge {
+  margin: 0 0 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pg-text-secondary);
+}

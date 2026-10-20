@@ -8,7 +8,10 @@ import { Tooltip } from "../../shared/ui/Tooltip";
 
 import { useAnimatedModal } from "../../shared/ui/useAnimatedModal";
 
-import type { OperationNotice } from "../../features/selection/lib/fileOperation";
+import {
+  fileOperationProgressWidthSample,
+  type OperationNotice,
+} from "../../features/selection/lib/fileOperation";
 
 import styles from "./SelectionActions.module.scss";
 
@@ -37,6 +40,12 @@ type SelectionActionsProps = {
   unfavoriteMode?: boolean;
 
   progressLabel: string | null;
+
+  /** Reserve toolbar width while op runs (before first progress event / during byte updates). */
+  reserveProgressWidth?: boolean;
+
+  /** Use byte progress line when reserving width (copy to favorites). */
+  reserveProgressWithBytes?: boolean;
 
   showCancel?: boolean;
 
@@ -80,6 +89,10 @@ export function SelectionActions({
 
   progressLabel,
 
+  reserveProgressWidth = false,
+
+  reserveProgressWithBytes = false,
+
   showCancel = true,
 
   embedded = false,
@@ -106,13 +119,28 @@ export function SelectionActions({
 
   const favoriteHint = unfavoriteMode ? t("selection.unfavoriteHint") : t("selection.favoriteHint");
 
+  const showProgressSlot = Boolean(progressLabel) || reserveProgressWidth;
+
+  const progressWidthSample = showProgressSlot
+    ? fileOperationProgressWidthSample(reserveProgressWithBytes)
+    : null;
+
   return (
 
     <div className={embedded ? styles.embedded : styles.panel} role="group" aria-label={t("selection.actionsAria")} data-scrollbar-obstacle="bottom">
 
       <span className={styles.count}>{t("selection.selectedCount", { count })}</span>
 
-      {progressLabel ? <span className={styles.progress}>{progressLabel}</span> : null}
+      {showProgressSlot && progressWidthSample ? (
+        <span className={styles.progress} aria-live="polite">
+          <span className={styles.progressSizer} aria-hidden="true">
+            {progressWidthSample}
+          </span>
+          <span className={styles.progressText}>
+            {progressLabel ?? "\u00a0"}
+          </span>
+        </span>
+      ) : null}
 
       {photoToggle ? (
 
@@ -190,7 +218,7 @@ export function SelectionActions({
 
       ) : null}
 
-      {progressLabel && showCancel ? (
+      {showCancel ? (
 
         <button type="button" className={styles.action} onClick={onCancel}>
 
@@ -207,6 +235,8 @@ export function SelectionActions({
 }
 
 
+
+/** C-002 toast channel host — см. `NOTICE_CHANNEL_MAP` в `src/shared/ui/noticeChannels.ts`. */
 
 /** Сколько тост остаётся на экране (пауза при наведении). */
 

@@ -100,6 +100,25 @@ export function selectAll(
   };
 }
 
+export function removePathsFromSelection(
+  state: SelectionState,
+  directoryKey: string | null,
+  keysToRemove: ReadonlySet<string>,
+): SelectionState {
+  if (state.directoryKey !== directoryKey || keysToRemove.size === 0) {
+    return state;
+  }
+  const paths = state.paths.filter((item) => !keysToRemove.has(pathKey(item)));
+  const anchor =
+    state.anchor !== null && keysToRemove.has(pathKey(state.anchor))
+      ? null
+      : state.anchor;
+  if (paths.length === state.paths.length && anchor === state.anchor) {
+    return state;
+  }
+  return { directoryKey, paths, anchor };
+}
+
 export function pruneSelection(
   state: SelectionState,
   directoryKey: string | null,

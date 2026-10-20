@@ -13,7 +13,7 @@ test('empty scroll jump state', () => {
     });
 });
 
-test('canScroll when max > 2', () => {
+test('canScroll when content exceeds viewport', () => {
     assert.deepEqual(
         computeScrollJumpState({
             scrollHeight: 1000,
@@ -24,7 +24,7 @@ test('canScroll when max > 2', () => {
     );
     assert.deepEqual(
         computeScrollJumpState({
-            scrollHeight: 502,
+            scrollHeight: 500,
             clientHeight: 500,
             scrollTop: 0,
         }),
@@ -32,7 +32,7 @@ test('canScroll when max > 2', () => {
     );
     assert.deepEqual(
         computeScrollJumpState({
-            scrollHeight: 503,
+            scrollHeight: 501,
             clientHeight: 500,
             scrollTop: 0,
         }),

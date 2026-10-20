@@ -36,6 +36,7 @@
 | `remember_folder` / `recent_folders` | Недавние |
 | `toggle_favorite` / `favorite_folders` | Закладки папок (не copy-избранное фото) |
 | `folder_menu_options` / `rename_folder` | Контекстное меню |
+| `open_in_explorer` | Открыть папку в Проводнике |
 | `remove_empty_service_folder` / `cleanup_empty_service_folder` | Сервисные папки |
 
 ### Prefetch / viewer

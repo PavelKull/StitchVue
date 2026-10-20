@@ -21,6 +21,15 @@ export function hasActiveFavoriteAddIntent(
     return intent.status === 'queued' || intent.status === 'executing';
 }
 
+/** P5: drain IPC in flight — star toggle must not start unfavorite or re-queue. */
+export function isFavoriteAddIntentExecuting(
+    intents: readonly FavoriteAddIntent[],
+    photoKey: string,
+): boolean {
+    const intent = intents.find((item) => item.photoKey === photoKey);
+    return intent?.status === 'executing' && intent.desired === true;
+}
+
 export function shouldPreserveFavoritePathDuringMassUnfavorite(
     photoKey: string,
     overlay: FavoriteOverlayMap,

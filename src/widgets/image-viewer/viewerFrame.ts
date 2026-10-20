@@ -1,10 +1,14 @@
+import type { ImageMeta } from "../../entities/image/types";
+import { displayAspect, rotationQuarters } from "../../features/gallery/lib/viewer/displayRotation.ts";
+
 const VIEWER_PAD = 32;
 
-export function aspectFromMeta(meta: { width: number; height: number } | undefined): number {
-  if (meta && meta.height > 0) {
-    return meta.width / meta.height;
+/** Display aspect for viewer frame (file pixels + user rotation quarters). */
+export function aspectFromMeta(meta: ImageMeta | undefined): number {
+  if (!meta || meta.height <= 0) {
+    return 1;
   }
-  return 1;
+  return displayAspect(meta.width, meta.height, rotationQuarters(meta));
 }
 
 export function aspectFromSize(width: number, height: number): number {

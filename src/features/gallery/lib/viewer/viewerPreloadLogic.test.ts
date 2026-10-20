@@ -23,7 +23,10 @@ test("opening a photo plans five ahead and two back", () => {
     planned.jobs.map((job) => job.file.path),
     ["C:\\p6.jpg", "C:\\p7.jpg", "C:\\p8.jpg", "C:\\p9.jpg", "C:\\p10.jpg", "C:\\p4.jpg", "C:\\p3.jpg"],
   );
-  assert.deepEqual([...planned.near], ["C:\\p6.jpg", "C:\\p7.jpg"]);
+  assert.deepEqual([...planned.near], ["C:\\p6.jpg"]);
+  assert.equal(planned.jobs[0].priority, "p1");
+  assert.equal(planned.jobs[1].priority, "p2");
+  assert.equal(planned.jobs[5].priority, "p3");
 });
 
 test("changing direction rebuilds the forward window", () => {
@@ -201,10 +204,10 @@ test("hover warms native first, then sharp, then preview", () => {
   assert.equal(pickHoverWarmSource({ nativePath: "", sharpPath: "", previewPath: "" }), null);
 });
 
-test("fast pace drops near-native upgrades but keeps the ahead window", () => {
+test("fast pace still upgrades the next photo and caps forward at five", () => {
   const planned = buildNeighborJobs(files, 2, 12, 1, true);
-  assert.equal(planned.near.size, 0);
-  // index 2 with 12 files → 9 forward + 2 back = 11
-  assert.equal(planned.jobs.length, 11);
+  assert.equal(planned.near.size, 1);
   assert.equal(planned.jobs[0].file.path, "C:\\p3.jpg");
+  assert.equal(planned.jobs[0].priority, "p1");
+  assert.equal(planned.jobs.length, 7);
 });

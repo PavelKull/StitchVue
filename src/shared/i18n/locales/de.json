@@ -65,6 +65,10 @@
     "io_error": "Fehler beim Lesen oder Schreiben der Datei",
     "not_image": "Dies ist keine Bilddatei",
     "destination": "Der Zielordner konnte nicht vorbereitet werden",
+    "destination_unmarked": "Ein Ordner „Favoriten“ existiert bereits, wurde aber nicht von der App erstellt. Umbenennen oder entfernen und erneut versuchen",
+    "destination_exists_file": "Eine Datei blockiert den Ordnernamen Favoriten oder Papierkorb — umbenennen oder entfernen",
+    "destination_reparse": "Der Zielpfad ist ein Link — Vorgang abgebrochen",
+    "destination_role_conflict": "Der Dienstordner ist mit einer anderen Rolle registriert",
     "favorite_link": "Die Verknüpfung zum Favoriten-Original ist beschädigt",
     "unsupported": "Dieser Vorgang wird auf diesem System nicht unterstützt",
     "state_changed": "Der Ordnerinhalt hat sich geändert. Bitte bestätigen Sie das Löschen erneut",
@@ -270,6 +274,7 @@
     },
     "about": {
       "version": "Version {{version}}",
+      "checkUpdates": "Nach Updates suchen",
       "tagline": "Fotos schnell und ohne unnötige Elemente ansehen",
       "developer": "Entwickler:",
       "linkedin": "LinkedIn",
@@ -294,6 +299,20 @@
       "licensesUnavailable": "Der Lizenztext ist in dieser Version nicht verfügbar.",
       "openRepoFailed": "Der Link konnte nicht geöffnet werden. Überprüfen Sie die Repository-URL in der Konfiguration."
     }
+  },
+  "appUpdate": {
+    "mockBadge": "Vorschau",
+    "title": "Update verfügbar",
+    "versionLine": "Installiert {{current}} · Verfügbar {{next}}",
+    "later": "Später",
+    "update": "Aktualisieren",
+    "retry": "Erneut versuchen",
+    "close": "Schließen",
+    "blockedHint": "Warten Sie, bis der aktuelle Dateivorgang oder das Entfernen aus Favoriten abgeschlossen ist.",
+    "networkError": "Update konnte nicht heruntergeladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
+    "readyMock": "Download abgeschlossen (Mock). Eine echte Version würde StitchVue installieren und neu starten.",
+    "downloading": "Download… {{percent}} %",
+    "previewErrorDev": "Fehlerzustand (Dev)"
   },
   "properties": {
     "title": "Eigenschaften",
@@ -443,6 +462,7 @@
   },
   "folder": {
     "menuAria": "Ordneraktionen",
+    "openInExplorer": "Im Explorer öffnen",
     "rename": "Umbenennen",
     "renameTitle": "Ordner umbenennen",
     "renameInputAria": "Ordnername",

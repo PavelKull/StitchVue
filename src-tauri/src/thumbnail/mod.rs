@@ -111,6 +111,35 @@ pub fn embedded_orientation(
     parent_orientation
 }
 
+/// After baking, preview pixels should match the parent file display aspect.
+pub fn embedded_preview_trusted(
+    thumb_width: u32,
+    thumb_height: u32,
+    bake_orientation: u8,
+    header_width: u32,
+    header_height: u32,
+    header_orientation: u8,
+) -> bool {
+    if header_width == 0 || header_height == 0 {
+        return false;
+    }
+    let (display_w, display_h) =
+        crate::metadata::oriented_size(header_width, header_height, header_orientation);
+    let (baked_w, baked_h) =
+        crate::metadata::oriented_size(thumb_width, thumb_height, bake_orientation);
+    aspects_match(display_w, display_h, baked_w, baked_h)
+}
+
+fn aspects_match(w1: u32, h1: u32, w2: u32, h2: u32) -> bool {
+    if w1 == 0 || h1 == 0 || w2 == 0 || h2 == 0 {
+        return false;
+    }
+    let a = w1 as f64 / h1 as f64;
+    let b = w2 as f64 / h2 as f64;
+    let ratio = a / b;
+    ratio > 0.9 && ratio < 1.11
+}
+
 pub struct Rendered {
     pub tiers: Vec<(u32, Vec<u8>)>,
     pub width: u32,
@@ -562,6 +591,13 @@ mod tests {
         assert_eq!(embedded_orientation(1, 120, 160, 6, 3000, 4000), 1);
         assert_eq!(embedded_orientation(1, 160, 120, 3, 4000, 3000), 3);
         assert_eq!(embedded_orientation(6, 160, 120, 6, 3000, 4000), 6);
+    }
+
+    #[test]
+    fn embedded_preview_trust_requires_header_aspect_match() {
+        assert!(embedded_preview_trusted(160, 120, 6, 4000, 3000, 6));
+        assert!(!embedded_preview_trusted(160, 120, 1, 4000, 3000, 6));
+        assert!(!embedded_preview_trusted(160, 120, 6, 0, 0, 1));
     }
 
     #[test]

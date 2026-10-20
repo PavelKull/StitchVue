@@ -25,15 +25,27 @@ pub(crate) fn favorite_duplicate_hints_for_paths(
     db: &Connection,
     paths: &[String],
 ) -> HashMap<String, FavoriteDuplicateHint> {
+    let snapshots = database::favorite_snapshots_for_origin_paths(db, paths).unwrap_or_else(
+        |_| {
+            let mut fallback = HashMap::new();
+            for path in paths {
+                if let Ok(Some(snap)) = database::favorite_snapshot_for_origin(db, path) {
+                    fallback.insert(database::favorite_origin_lookup_key(path), snap);
+                }
+            }
+            fallback
+        },
+    );
     let mut out = HashMap::new();
     for path in paths {
         let origin_key = normalize_key(Path::new(path)).to_ascii_lowercase();
-        let snap = match database::favorite_snapshot_for_origin(db, path) {
-            Ok(Some(snap)) => snap,
-            _ => continue,
+        let lookup_key = database::favorite_origin_lookup_key(path);
+        let snap = match snapshots.get(&lookup_key) {
+            Some(snap) => snap,
+            None => continue,
         };
-        let hash = match snap.content_sha256 {
-            Some(hash) if !hash.is_empty() => hash,
+        let hash = match snap.content_sha256.as_deref() {
+            Some(hash) if !hash.is_empty() => hash.to_string(),
             _ => continue,
         };
         out.insert(

@@ -28,7 +28,7 @@
 **Purpose**: Cross-cutting constraints before any source package
 
 - [x] T004 Freeze out-of-scope in every sealed task: no `pick_index` rewrite, no second cache, no updater plugin, no worktree, no user-photo fixtures
-- [ ] T005 Document viewer chain dependency in sealed tasks for US4–US6: B-007 then C-006 then remaining B-009 (`research.md` D-04)
+- [x] T005 Document viewer chain dependency in sealed tasks for US4–US6: B-007 then C-006 then remaining B-009 (`research.md` D-04; порядок срезов в `BUGS.md`; при старте US4–US6 — явная зависимость в YAML sealed TASK)
 
 **Checkpoint**: Packages US1–US3 and US7–US9 may start in parallel after T004. US5 must not start before US4. US6 must not start before US5.
 

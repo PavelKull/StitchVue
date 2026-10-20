@@ -33,6 +33,7 @@ import {
 import { useGalleryPipelineEvents } from '../../features/gallery/model/pipeline/galleryPipelineEvents';
 import { useGalleryBoot } from '../../features/gallery/model/boot/useGalleryBoot';
 import { useGalleryDrives } from '../../features/gallery/model/directory/useGalleryDrives';
+import { useGalleryDriveHotplug } from '../../features/gallery/model/directory/useGalleryDriveHotplug';
 import {
     browseDirectory,
     selectFolder,
@@ -99,6 +100,7 @@ import {
     emptySelection,
     pathKey,
     pruneSelection,
+    removePathsFromSelection,
     selectAll,
 } from '../../features/selection/lib/selection';
 import {
@@ -121,11 +123,14 @@ import {
     confirmMoveText,
     favoritesNeedsReviewNotice,
     favoritesPartialSuccessNotice,
+    fileOperationIsActiveInDirectory,
+    fileOperationIsCopyToFavoritesInDirectory,
     needsMoveConfirm,
     operationId,
     operationNotice,
     progressLabel,
     summarize,
+    type FileOperationState,
     type FileAction,
     type FileOperationProgress,
     type FileOperationResult,
@@ -183,6 +188,7 @@ import {
     clearFavoriteOverlayIfGeneration,
     clearFavoriteOverlayKey,
     favoriteDisplayOn,
+    isTerminalFavoriteAddOutcomeStatus,
     filterListingImagesForFavoriteOverlay,
     isFavoriteOverlayPending,
     isFavoriteOverlayBlockingAdd,
@@ -241,12 +247,14 @@ import {
 } from '../../features/favorites/lib/favoritesOperationCoordinator';
 import {
     filterMassUnfavoriteStarOverlayEntries,
+    isFavoriteAddIntentExecuting,
     shouldPreserveFavoritePathDuringMassUnfavorite,
 } from '../../features/favorites/lib/favoriteReaddGuards';
 import { shouldAttemptEmptyFavoritesCleanup } from '../../features/favorites/lib/favoritesEmptyFolderAfterAdds';
 import {
     buildAlbumFolderTiles,
     favoritesFolderTileIsPendingCreate,
+    nextFavoritesFolderPendingCreate,
     predictFavoritesServiceFolderPath,
     resolveFavoritesFolderVisibility,
     type FavoritesFolderPendingCreate,
@@ -297,6 +305,7 @@ import {
 } from '../../widgets/gallery-grid/StitchVueGrid';
 import { GalleryScrollJumpButton } from '../../widgets/gallery-grid/GalleryScrollJumpButton';
 import { BottomControlBar } from '../../widgets/bottom-control-bar/BottomControlBar';
+import { useAppUpdate } from '../../features/app-update';
 import { SettingsDialog } from '../../widgets/settings-dialog/SettingsDialog';
 import { ImageViewer } from '../../widgets/image-viewer/ImageViewer';
 import { PhotoPropertiesDialog } from '../../widgets/photo-properties/PhotoPropertiesDialog';
@@ -471,16 +480,14 @@ export function GalleryPage() {
         height: number;
     } | null>(null);
     const [settingsOpen, setSettingsOpen] = useState(false);
-    const [bootNotice, setBootNotice] = useState<string | null>(null);
     const settingsTriggerRef = useRef<HTMLButtonElement>(null);
     const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-    const [fileOperation, setFileOperation] = useState<{
-        id: string;
-        action: FileAction | 'remove_from_favorites';
-    } | null>(null);
+    const [fileOperation, setFileOperation] =
+        useState<FileOperationState | null>(null);
     const [fileProgress, setFileProgress] =
         useState<FileOperationProgress | null>(null);
     const [unfavoriteBusy, setUnfavoriteBusy] = useState(false);
+    const { openUpdateDialog, setUpdateOperationsBlocked } = useAppUpdate();
     const [fileNotice, setFileNotice] = useState<OperationNotice | null>(null);
     const [confirmMove, setConfirmMove] = useState<ImageFile[] | null>(null);
     const [favoriteTrashUnfavorite, setFavoriteTrashUnfavorite] =
@@ -661,33 +668,42 @@ export function GalleryPage() {
         setFavoriteAddQueueRevision((value) => value + 1);
     }
 
-    function syncFavoritesFolderPendingCreate(parentDirectory: string | null) {
-        if (!parentDirectory || viewRef.current.serviceRole) {
+    function syncFavoritesFolderPendingCreate(
+        parentDirectory: string | null,
+        folders?: readonly FolderShortcut[],
+    ) {
+        if (!parentDirectory) {
             setFavoritesFolderPendingCreate(null);
             return;
         }
-        const hasFolder = viewRef.current.folders.some(
-            (folder) => folder.serviceRole === 'favorites',
-        );
-        const hasAdds =
-            favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+        const viewingParent =
+            !!viewRef.current.path &&
+            pathKey(viewRef.current.path) === pathKey(parentDirectory) &&
+            viewRef.current.serviceRole == null;
+        if (
+            viewRef.current.serviceRole &&
+            viewRef.current.path &&
+            pathKey(viewRef.current.path) === pathKey(parentDirectory)
+        ) {
+            setFavoritesFolderPendingCreate(null);
+            return;
+        }
+        setFavoritesFolderPendingCreate(
+            nextFavoritesFolderPendingCreate({
                 parentDirectory,
-            );
-        const copying =
-            fileOperationRef.current?.action === 'copy_to_local_favorites';
-        if ((hasAdds || copying) && !hasFolder) {
-            setFavoritesFolderPendingCreate({
-                parentDirectory,
-                folderPath: predictFavoritesServiceFolderPath(
+                serviceRole: null,
+                folders: folders ?? (viewingParent ? viewRef.current.folders : []),
+                hasActiveAddIntents:
+                    favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                        parentDirectory,
+                    ),
+                copyInFlightForParent: fileOperationIsCopyToFavoritesInDirectory(
+                    fileOperationRef.current,
                     parentDirectory,
-                    optimisticFavoritesFolderHideRef.current,
                 ),
-            });
-            return;
-        }
-        if (hasFolder || (!hasAdds && !copying)) {
-            setFavoritesFolderPendingCreate(null);
-        }
+                hideOverlay: optimisticFavoritesFolderHideRef.current,
+            }),
+        );
     }
 
     function releaseUnfavoriteGate(reason = 'gate_release') {
@@ -1035,18 +1051,18 @@ export function GalleryPage() {
         refreshDrives,
         load: bootLoad,
         pipelineListenersReady,
-        setBootNotice,
+        showGalleryToast: setFileNotice,
         translate: t,
         abandonInFlightDriveRequests,
     });
 
-    useEffect(() => {
-        if (!bootNotice) {
-            return;
-        }
-        const timer = window.setTimeout(() => setBootNotice(null), 6000);
-        return () => window.clearTimeout(timer);
-    }, [bootNotice]);
+    useGalleryDriveHotplug({
+        viewRef,
+        requestId,
+        refreshDrivesRef,
+        setView,
+        applyHomeDrivesSnapshot,
+    });
 
     useEffect(() => {
         return () => {
@@ -1204,6 +1220,10 @@ export function GalleryPage() {
         const timer = window.setTimeout(() => setShowFileProgress(true), 300);
         return () => window.clearTimeout(timer);
     }, [fileOperation]);
+
+    useEffect(() => {
+        setUpdateOperationsBlocked(fileOperation !== null || unfavoriteBusy);
+    }, [fileOperation, unfavoriteBusy, setUpdateOperationsBlocked]);
 
     function stashOpenFolder() {
         const current = viewRef.current;
@@ -1378,6 +1398,14 @@ export function GalleryPage() {
             setView(withLocalizedDirectory(browseView));
             setStatus('ready');
             seedFolderThumbProgress(id, next.images);
+            if (browseView.path && !browseView.serviceRole) {
+                syncFavoritesFolderPendingCreate(
+                    browseView.path,
+                    browseView.folders,
+                );
+            } else {
+                syncFavoritesFolderPendingCreate(null);
+            }
             if (
                 folderHide &&
                 next.path &&
@@ -1534,6 +1562,11 @@ export function GalleryPage() {
             } else {
                 setFolderEnteringKey(null);
             }
+            const nextFolders = insertServiceFolder(
+                viewRef.current.folders,
+                folderPath,
+                role,
+            );
             setView((current) => ({
                 ...current,
                 folders: insertServiceFolder(current.folders, folderPath, role),
@@ -1541,7 +1574,7 @@ export function GalleryPage() {
             if (role === 'favorites') {
                 const parent = viewRef.current.path;
                 if (parent) {
-                    syncFavoritesFolderPendingCreate(parent);
+                    syncFavoritesFolderPendingCreate(parent, nextFolders);
                     bumpFavoriteAddQueueRevision();
                 }
             }
@@ -1553,19 +1586,11 @@ export function GalleryPage() {
         if (view.serviceRole !== 'favorites') {
             return view.images;
         }
-        if (massUnfavoriteExitingFavorites) {
-            return view.images;
-        }
         return filterListingImagesForFavoriteOverlay(
             view.images,
             favoriteOverlay,
         );
-    }, [
-        view.images,
-        view.serviceRole,
-        favoriteOverlay,
-        massUnfavoriteExitingFavorites,
-    ]);
+    }, [view.images, view.serviceRole, favoriteOverlay]);
 
     const orderedImages = useMemo(
         () => sortPhotos(listingImages, gallerySort),
@@ -1589,7 +1614,7 @@ export function GalleryPage() {
     const albumFolderTiles = useMemo(() => {
         const directory = view.path;
         if (!directory) {
-            return [];
+            return orderFoldersForDisplay(view.folders);
         }
         if (view.serviceRole) {
             return orderFoldersForDisplay(view.folders).filter(
@@ -2077,15 +2102,20 @@ export function GalleryPage() {
             : viewerFile
               ? [viewerFile]
               : [];
+    const fileOpInThisFolder = fileOperationIsActiveInDirectory(
+        fileOperation,
+        view.path,
+    );
     const commandsAvailable = commandAvailability({
         hasDirectory: view.path !== null,
         role: serviceRole,
         running: fileOperation !== null || unfavoriteBusy,
         targetCount: targetFiles.length,
     });
-    const fileProgressText = showFileProgress
-        ? progressLabel(fileProgress)
-        : null;
+    const fileProgressText =
+        showFileProgress && fileOperation !== null
+            ? progressLabel(fileProgress)
+            : null;
     const showBulkSelectionBar =
         !inTrash &&
         viewerIndex === null &&
@@ -2301,7 +2331,7 @@ export function GalleryPage() {
                 applyFavoriteOverlayPendingBatch(current, pendingBatch),
             );
         }
-        fileOperationRef.current = { id, action };
+        fileOperationRef.current = { id, action, directory };
         if (action === 'copy_to_local_favorites') {
             favoritesCoordinatorRef.current.beginFileOperation({
                 operationId: id,
@@ -2309,7 +2339,7 @@ export function GalleryPage() {
             });
         }
         if (!silentFavorite) {
-            setFileOperation({ id, action });
+            setFileOperation({ id, action, directory });
             setFileProgress(null);
         }
         setFileNotice(null);
@@ -2453,9 +2483,9 @@ export function GalleryPage() {
                                 continue;
                             }
                             if (
-                                item.status === 'copied' ||
-                                item.status === 'already_exists' ||
-                                item.status === 'failed'
+                                isTerminalFavoriteAddOutcomeStatus(
+                                    item.status,
+                                )
                             ) {
                                 setFavoriteOverlay((current) =>
                                     clearFavoriteOverlayIfGeneration(
@@ -2635,17 +2665,17 @@ export function GalleryPage() {
                 favoritePerf = null;
             })
             .finally(() => {
-                if (action === 'copy_to_local_favorites') {
-                    favoritesCoordinatorRef.current.endFileOperation(id);
-                    syncFavoritesFolderPendingCreate(directory);
-                    bumpFavoriteAddQueueRevision();
-                }
                 if (fileOperationRef.current?.id === id) {
                     fileOperationRef.current = null;
                 }
                 if (!silentFavorite) {
                     setFileOperation(null);
                     setFileProgress(null);
+                }
+                if (action === 'copy_to_local_favorites') {
+                    favoritesCoordinatorRef.current.endFileOperation(id);
+                    syncFavoritesFolderPendingCreate(directory);
+                    bumpFavoriteAddQueueRevision();
                 }
             });
     }
@@ -2934,6 +2964,10 @@ export function GalleryPage() {
             showRestore={false}
             unfavoriteMode={inFavorites}
             progressLabel={fileProgressText}
+            reserveProgressWidth={fileOperation !== null}
+            reserveProgressWithBytes={
+                fileOperation?.action === 'copy_to_local_favorites'
+            }
             showCancel={fileOperation !== null}
             photoToggle={photoToggle}
             onClear={() => setSelection(clearSelectionPaths(directoryKey))}
@@ -3187,7 +3221,8 @@ export function GalleryPage() {
                 const executorResult = results[key];
                 if (
                     executorResult === 'completed' ||
-                    executorResult === 'failed'
+                    executorResult === 'failed' ||
+                    executorResult === 'skipped'
                 ) {
                     rollbackFavoriteStarOverlay(key, entry.generation);
                 }
@@ -3279,6 +3314,18 @@ export function GalleryPage() {
             operationId: batchOperationId,
             albumDirectory: directory,
         });
+        fileOperationRef.current = {
+            id: batchOperationId,
+            action: 'copy_to_local_favorites',
+            directory,
+        };
+        setFileOperation({
+            id: batchOperationId,
+            action: 'copy_to_local_favorites',
+            directory,
+        });
+        setFileProgress(null);
+        setFileNotice(null);
         try {
             favoritePerf.markIpcStart();
             const result = await invoke<FileOperationResult>(
@@ -3390,6 +3437,11 @@ export function GalleryPage() {
             favoritePerf.finish('failed');
             return { kind: 'ok', results: failedResults };
         } finally {
+            if (fileOperationRef.current?.id === batchOperationId) {
+                fileOperationRef.current = null;
+            }
+            setFileOperation(null);
+            setFileProgress(null);
             favoritesCoordinatorRef.current.endFileOperation(batchOperationId);
             syncFavoritesFolderPendingCreate(directory);
             bumpFavoriteAddQueueRevision();
@@ -3421,9 +3473,10 @@ export function GalleryPage() {
                     favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
                         parentDirectory,
                     ),
-                copyToFavoritesInFlight:
-                    fileOperationRef.current?.action ===
-                    'copy_to_local_favorites',
+                copyToFavoritesInFlight: fileOperationIsCopyToFavoritesInDirectory(
+                    fileOperationRef.current,
+                    parentDirectory,
+                ),
             })
         ) {
             return;
@@ -3817,6 +3870,12 @@ export function GalleryPage() {
                 }
                 return next;
             });
+            const dirKey = viewRef.current.path
+                ? pathKey(viewRef.current.path)
+                : null;
+            setSelection((current) =>
+                removePathsFromSelection(current, dirKey, pathsOff),
+            );
         }
         applyMassUnfavoriteOriginOverlays(sessionId, rows);
         const missing = targets.filter(
@@ -4094,6 +4153,14 @@ export function GalleryPage() {
             }
             return;
         }
+        if (
+            isFavoriteAddIntentExecuting(
+                favoritesCoordinatorRef.current.snapshotIntents(),
+                key,
+            )
+        ) {
+            return;
+        }
         if (starOnFromQueuedAddOnly(key) && cancelQueuedFavoriteAdd(key)) {
             return;
         }
@@ -4128,6 +4195,9 @@ export function GalleryPage() {
             key,
             false,
             removeOpId,
+        );
+        setSelection((current) =>
+            removePathsFromSelection(current, directoryKey, new Set([key])),
         );
         lockedUnfavoritePathsRef.current.add(key);
         markBusy([key], true);
@@ -5539,13 +5609,11 @@ export function GalleryPage() {
                         }
                         onOpen={(path) => void load(path)}
                         onContextMenu={(event, target) => {
-                            if (view.path) {
-                                folderContext.openFolderContextMenu(
-                                    event,
-                                    target,
-                                    view.path,
-                                );
-                            }
+                            folderContext.openFolderContextMenu(
+                                event,
+                                target,
+                                view.path ?? "",
+                            );
                         }}
                         onPointerEnter={() =>
                             hoverRef.current?.enterFolder(folder.path)
@@ -5594,6 +5662,7 @@ export function GalleryPage() {
                     meta={metaRef.current}
                     thumbs={thumbsRef.current}
                     failed={failedRef.current}
+                    failedVersion={failedVersion}
                     rowsPerScreen={rowsPerScreen}
                     fit={fit}
                     layoutMode={layoutMode}
@@ -5611,11 +5680,15 @@ export function GalleryPage() {
                     onVisible={reportVisible}
                     onGeometryRange={reportGeometry}
                     onScrollActivity={reportGalleryScrollActivity}
-                    onOpen={(index) =>
+                    onOpen={(index) => {
+                        const file = orderedRef.current[index];
+                        if (file) {
+                            hoverRef.current?.reservePhotoForOpen(file);
+                        }
                         setViewerIndex((current) =>
                             current === index ? null : index,
-                        )
-                    }
+                        );
+                    }}
                     onHoverPhoto={(index, inside) => {
                         const file = orderedRef.current[index];
                         if (!file) {
@@ -5668,7 +5741,7 @@ export function GalleryPage() {
                     }
                     selectedKeys={selectedKeys}
                     selectionMode={inTrash ? false : selectionMode}
-                    busy={fileOperation !== null}
+                    busy={fileOpInThisFolder}
                     busyPaths={busyPaths}
                     inFavorites={inFavorites}
                     inTrash={inTrash}
@@ -5702,6 +5775,7 @@ export function GalleryPage() {
             style={{
                 ['--pg-sidebar-width' as string]: `${sidebarWidth}px`,
                 ['--pg-gallery-inset-pinned' as string]: `${sidebarWidth + 32}px`,
+                ['--pg-notice-bottom' as string]: `${bottomOverlayReserve}px`,
             }}
             data-sidebar-pinned={sidebarPinned ? 'true' : 'false'}
             data-sidebar-inset-anim={
@@ -5803,14 +5877,6 @@ export function GalleryPage() {
                 }
             }}
         >
-            {bootNotice ? (
-                <p
-                    className={styles.bootNotice}
-                    role="status"
-                >
-                    {bootNotice}
-                </p>
-            ) : null}
             <div
                 ref={galleryLayerRef}
                 className={styles.galleryLayer}
@@ -5885,6 +5951,7 @@ export function GalleryPage() {
                     onCopyPath={copyPath}
                     onTogglePin={() => setTopNavPinned((value) => !value)}
                     onOpenFolder={() => void openFolder()}
+                    onFolderContextMenu={folderContext.openFolderPathContextMenu}
                 />
             </div>
 
@@ -5973,6 +6040,7 @@ export function GalleryPage() {
                 preferences={preferences}
                 usage={usage}
                 returnFocusRef={settingsTriggerRef}
+                onCheckForUpdates={openUpdateDialog}
                 onClose={() => setSettingsOpen(false)}
                 onPreferencesChange={(patch) =>
                     setPreferences(savePreferences(patch))
@@ -6021,7 +6089,7 @@ export function GalleryPage() {
                         !inTrash &&
                         shouldShowSelectionActions(
                             liveSelection.paths.length,
-                            Boolean(fileProgressText),
+                            fileProgressText !== null,
                         )
                             ? fileActions(
                                   selectionMode

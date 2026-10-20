@@ -608,6 +608,11 @@ fn open_url_in_browser(url: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub fn open_in_explorer(path: String) -> Result<(), String> {
+    crate::file_ops::open_folder_in_explorer(&path)
+}
+
+#[tauri::command]
 pub fn open_external_link(kind: ExternalLinkKind, url: Option<String>) -> Result<(), String> {
     let resolved: String = match kind {
         ExternalLinkKind::Cloudtips => external_link_url("cloudtips")?,

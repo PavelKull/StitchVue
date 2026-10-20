@@ -8,6 +8,7 @@ import {
   mapSnapshotCopyOrigins,
   clearFavoriteOverlayIfGeneration,
   favoriteDisplayOn,
+  isTerminalFavoriteAddOutcomeStatus,
   isFavoriteOverlayPending,
   isFavoriteOverlayBlockingAdd,
   nextFavoriteOverlayGeneration,
@@ -105,6 +106,16 @@ test("favoritePathsFromServerWithOverlay adds pending on before server confirms"
   const overlay = applyFavoriteOverlayPending(new Map(), "c:\\b.jpg", "op", true, 1);
   const merged = favoritePathsFromServerWithOverlay([], overlay);
   assert.equal(merged.has("c:\\b.jpg"), true);
+});
+
+test("cancelled add outcome clears pending overlay so star matches disk", () => {
+  assert.equal(isTerminalFavoriteAddOutcomeStatus("cancelled"), true);
+  let overlay = applyFavoriteOverlayPending(new Map(), "c:\\x.jpg", "op", true, 3);
+  overlay = clearFavoriteOverlayIfGeneration(overlay, "c:\\x.jpg", 3);
+  assert.equal(
+    favoriteDisplayOn("c:\\x.jpg", new Set(), overlay, false),
+    false,
+  );
 });
 
 test("clearFavoriteOverlayForOperation removes only matching pending ops", () => {

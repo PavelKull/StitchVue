@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
 import { collapseBreadcrumbSegments, segmentsFromPath, type PathSegment } from "./pathSegments";
@@ -7,9 +7,10 @@ import styles from "./TopNavigationBar.module.scss";
 type BreadcrumbsProps = {
   path: string | null;
   onNavigate: (path: string | null) => void;
+  onFolderContextMenu?: (event: MouseEvent, path: string | null) => void;
 };
 
-export function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
+export function Breadcrumbs({ path, onNavigate, onFolderContextMenu }: BreadcrumbsProps) {
   const { t } = useTranslation();
   const navRef = useRef<HTMLElement>(null);
   const measureRef = useRef<HTMLOListElement>(null);
@@ -39,7 +40,11 @@ export function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
         <BreadcrumbItems segments={fullSegments} onNavigate={onNavigate} measureOnly />
       </ol>
       <ol className={styles.breadcrumbList}>
-        <BreadcrumbItems segments={segments} onNavigate={onNavigate} />
+        <BreadcrumbItems
+          segments={segments}
+          onNavigate={onNavigate}
+          onFolderContextMenu={onFolderContextMenu}
+        />
       </ol>
     </nav>
   );
@@ -48,10 +53,19 @@ export function Breadcrumbs({ path, onNavigate }: BreadcrumbsProps) {
 type BreadcrumbItemsProps = {
   segments: PathSegment[];
   onNavigate: (path: string | null) => void;
+  onFolderContextMenu?: (event: MouseEvent, path: string | null) => void;
   measureOnly?: boolean;
 };
 
-function BreadcrumbItems({ segments, onNavigate, measureOnly }: BreadcrumbItemsProps) {
+function BreadcrumbItems({ segments, onNavigate, onFolderContextMenu, measureOnly }: BreadcrumbItemsProps) {
+  const onContextMenu = measureOnly
+    ? undefined
+    : (event: MouseEvent, path: string | null) => {
+        if (!path) {
+          return;
+        }
+        onFolderContextMenu?.(event, path);
+      };
   return (
     <>
       {segments.map((segment, index) => {
@@ -66,7 +80,11 @@ function BreadcrumbItems({ segments, onNavigate, measureOnly }: BreadcrumbItemsP
             {segment.ellipsis ? (
               <span className={styles.breadcrumbEllipsis}>{segment.label}</span>
             ) : isLast ? (
-              <span className={styles.breadcrumbCurrent} aria-current={measureOnly ? undefined : "location"}>
+              <span
+                className={styles.breadcrumbCurrent}
+                aria-current={measureOnly ? undefined : "location"}
+                onContextMenu={onContextMenu ? (event) => onContextMenu(event, segment.path) : undefined}
+              >
                 {segment.label}
               </span>
             ) : (
@@ -75,6 +93,7 @@ function BreadcrumbItems({ segments, onNavigate, measureOnly }: BreadcrumbItemsP
                 className={styles.breadcrumbLink}
                 tabIndex={measureOnly ? -1 : undefined}
                 onClick={measureOnly ? undefined : () => onNavigate(segment.path)}
+                onContextMenu={onContextMenu ? (event) => onContextMenu(event, segment.path) : undefined}
               >
                 {segment.label}
               </button>

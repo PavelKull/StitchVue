@@ -402,17 +402,30 @@ fn decode_tile(inner: &Inner, file: &ScreenFile) -> Result<(), DecodeError> {
         };
         if let Some(preview) = embedded {
             let mut source = thumbnail::decode(&preview, Some(Format::Jpeg))?;
-            if let Ok(meta) = crate::metadata::read_header(path) {
-                source.orientation = thumbnail::embedded_orientation(
-                    source.orientation,
-                    source.image.width(),
-                    source.image.height(),
-                    meta.orientation,
-                    meta.width,
-                    meta.height,
-                );
+            let use_embedded = match crate::metadata::read_header(path) {
+                Ok(meta) => {
+                    source.orientation = thumbnail::embedded_orientation(
+                        source.orientation,
+                        source.image.width(),
+                        source.image.height(),
+                        meta.orientation,
+                        meta.width,
+                        meta.height,
+                    );
+                    thumbnail::embedded_preview_trusted(
+                        source.image.width(),
+                        source.image.height(),
+                        source.orientation,
+                        meta.width,
+                        meta.height,
+                        meta.orientation,
+                    )
+                }
+                Err(_) => false,
+            };
+            if use_embedded {
+                return store_tile(inner, file, source);
             }
-            return store_tile(inner, file, source);
         }
         let bytes = {
             let _slot = take_slot(inner)

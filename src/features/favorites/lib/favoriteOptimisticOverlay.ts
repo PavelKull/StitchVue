@@ -28,6 +28,16 @@ export function isFavoriteOverlayBlockingAdd(
   return entry?.status === "pending" && entry.desired === true;
 }
 
+/** Remove pending overlay after per-file add outcome (incl. user cancel). */
+export function isTerminalFavoriteAddOutcomeStatus(status: string): boolean {
+  return (
+    status === "copied" ||
+    status === "already_exists" ||
+    status === "failed" ||
+    status === "cancelled"
+  );
+}
+
 /** Pending unfavorite — hide copy from Favorites grid/viewer before IPC completes. */
 export function shouldHideFromFavoritesListing(
   overlay: FavoriteOverlayMap,

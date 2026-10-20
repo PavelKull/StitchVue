@@ -75,14 +75,32 @@
 }
 
 .progress {
+  display: inline-grid;
+  align-items: center;
   color: var(--pg-text-secondary);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.progressSizer,
+.progressText {
+  grid-area: 1 / 1;
+}
+
+.progressSizer {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.progressText {
+  min-width: 0;
+  text-align: left;
 }
 
 .notice {
   position: fixed;
-  bottom: 112px;
+  bottom: var(--pg-notice-bottom, 112px);
   left: 50%;
   z-index: 130;
   display: flex;

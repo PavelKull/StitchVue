@@ -1,0 +1,30 @@
+@use "../styles/floating-panel" as panel;
+@use "../styles/modal-motion" as modal;
+@use "../styles/z-index" as z;
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: z.$modal;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  overflow: auto;
+  background: rgb(0 0 0 / 52%);
+  backdrop-filter: blur(2px);
+  @include modal.modal-backdrop-motion;
+}
+
+.panel {
+  width: min(440px, 100%);
+  padding: 20px 20px 18px;
+  color: var(--pg-text-primary);
+  @include panel.floating-panel-surface;
+  @include modal.modal-dialog-motion;
+  border-radius: 12px;
+}
+
+.panelWide {
+  width: min(720px, calc(100vw - 32px));
+}

@@ -156,9 +156,12 @@ test("repeating the same metadata batch returns the same published boxes", () =>
   const slots = slotsFrom(real, 40);
   const first = layoutMosaicPublished(slots, WIDTH, VIEWPORT, ROWS, FIT);
   const second = layoutMosaicPublished(slots, WIDTH, VIEWPORT, ROWS, FIT, first);
-  assert.equal(second, first);
+  assert.equal(second.publishedEnd, first.publishedEnd);
+  assert.equal(second.height, first.height);
+  assertBoxesStay(boxMap(first), second, "repeat same batch");
   const third = layoutMosaicPublished(slots.slice(), WIDTH, VIEWPORT, ROWS, FIT, second);
-  assert.equal(third, second);
+  assert.equal(third.publishedEnd, second.publishedEnd);
+  assertBoxesStay(boxMap(second), third, "repeat sliced batch");
 });
 
 test("a long sequence of row publishes keeps earlier boxes and stays packed", () => {
