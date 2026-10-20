@@ -18,6 +18,8 @@ export type GalleryEmptyStateInput = {
     imageCount: number;
     folderCount: number;
     unsupportedFileCount: number;
+    /** Mass unfavorite navigates away — do not flash «пустое Избранное». */
+    optimisticLeavingFavorites?: boolean;
 };
 
 export function resolveGalleryEmptyKind(
@@ -37,6 +39,9 @@ export function resolveGalleryEmptyKind(
         return 'none';
     }
     if (input.serviceRole === 'favorites') {
+        if (input.optimisticLeavingFavorites) {
+            return 'opening';
+        }
         return 'emptyFavorites';
     }
     if (input.serviceRole === 'trash') {

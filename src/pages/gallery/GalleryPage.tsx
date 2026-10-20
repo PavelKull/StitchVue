@@ -1391,6 +1391,9 @@ export function GalleryPage() {
                 imageCount: listingImages.length,
                 folderCount: view.folders.length,
                 unsupportedFileCount: view.unsupportedFileCount ?? 0,
+                optimisticLeavingFavorites:
+                    optimisticHiddenFolderKeys.size > 0 &&
+                    view.serviceRole === 'favorites',
             }),
         [
             status,
@@ -1400,6 +1403,7 @@ export function GalleryPage() {
             listingImages.length,
             view.folders.length,
             view.unsupportedFileCount,
+            optimisticHiddenFolderKeys,
         ],
     );
     const galleryEmptyCopy = galleryEmptyI18nKeys(galleryEmptyKind);
@@ -3259,7 +3263,6 @@ export function GalleryPage() {
         }
         setUnfavoriteGate(beginUnfavorite(sessionId));
         beginMassUnfavoriteOriginSession(sessionId, sessionPath);
-        applyInstantMassUnfavoritePresentation(sessionId, targets);
         const listingReady =
             status === 'ready' && !folderListingBusyRef.current;
         const optimisticFullFavoritesClear =
@@ -3277,7 +3280,12 @@ export function GalleryPage() {
                 sessionPath,
                 parentDirectory,
             );
+            applyRemovedServiceFolder({
+                folderPath: sessionPath,
+                parentDirectory,
+            });
         }
+        applyInstantMassUnfavoritePresentation(sessionId, targets);
         const landingKey = massUnfavoriteStartLandingKey({
             currentPath: sessionPath,
             sessionPath,
@@ -3287,12 +3295,6 @@ export function GalleryPage() {
             const cleared = selectionAfterMassUnfavorite(landingKey);
             setSelectionMode(cleared.selectionMode);
             setSelection(cleared.selection);
-        }
-        if (optimisticFullFavoritesClear) {
-            applyRemovedServiceFolder({
-                folderPath: sessionPath,
-                parentDirectory,
-            });
         }
 
         void (async () => {

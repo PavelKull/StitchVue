@@ -115,6 +115,19 @@ test('empty favorites and trash kinds', () => {
     );
 });
 
+test('optimistic mass unfavorite does not flash empty favorites', () => {
+    assert.equal(
+        resolveGalleryEmptyKind(
+            base({
+                serviceRole: 'favorites',
+                imageCount: 0,
+                optimisticLeavingFavorites: true,
+            }),
+        ),
+        'opening',
+    );
+});
+
 test('i18n keys for each empty kind', () => {
     const kinds: GalleryEmptyKind[] = [
         'opening',
