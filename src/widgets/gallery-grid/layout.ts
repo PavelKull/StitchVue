@@ -296,6 +296,38 @@ function committedKeepEnd(previous: SegmentedLayout | null | undefined, slotCoun
   return published;
 }
 
+/** True when display rotation swapped width/height (w/h ↔ h/w), not late metadata drift. */
+export function isDisplayRotationAspectSwap(frozen: number, slot: number): boolean {
+  if (!isTrustedAspect(frozen) || !isTrustedAspect(slot) || frozen === slot) {
+    return false;
+  }
+  const product = frozen * slot;
+  return product > 0.985 && product < 1.015;
+}
+
+/** Shrink the frozen published prefix when display rotation changes aspect (B-003). */
+export function thawPublishedKeepEnd(
+  slots: Array<number | null>,
+  previous: SegmentedLayout | null | undefined,
+  keepEnd: number,
+): number {
+  if (!previous || keepEnd <= 0) {
+    return keepEnd;
+  }
+  let thawAt = keepEnd;
+  for (let index = 0; index < keepEnd && index < slots.length; index += 1) {
+    const slot = slots[index];
+    const frozen = previous.usedAspects[index];
+    if (frozen === undefined) {
+      continue;
+    }
+    if (isTrustedAspect(slot) && isDisplayRotationAspectSwap(frozen, slot)) {
+      thawAt = Math.min(thawAt, index);
+    }
+  }
+  return thawAt;
+}
+
 function keepPublishedRows(previous: SegmentedLayout, keepEnd: number): GalleryRow[] {
   const rows: GalleryRow[] = [];
   for (const segment of previous.segments) {
@@ -362,14 +394,16 @@ export function layoutMosaicPublished(
     previous && previous.layoutKey === layoutKey && (previous.publishedEnd ?? 0) <= slots.length
       ? previous
       : null;
-  const keepEnd = committedKeepEnd(version, slots.length);
+  const committedEnd = committedKeepEnd(version, slots.length);
+  const keepEnd = thawPublishedKeepEnd(slots, version, committedEnd);
   const used = freezeUsedAspects(slots, version, keepEnd);
   const known = trustedPrefixLength(slots);
   const closed = listingComplete;
   const commitUntil = mosaicCommitEnd(slots, closed);
   if (
     version &&
-    version.publishedEnd === keepEnd &&
+    version.publishedEnd === committedEnd &&
+    keepEnd === committedEnd &&
     version.usedAspects.length === used.length &&
     sameAspects(version.usedAspects, used) &&
     !(closed && known === slots.length && commitUntil > keepEnd)
@@ -470,12 +504,14 @@ export function layoutColumnsPublished(
     ((previous.publishedEnd ?? 0) === 0 || previous.segments[0]?.columns)
       ? previous
       : null;
-  const keepEnd = committedKeepEnd(version, slots.length);
+  const committedEnd = committedKeepEnd(version, slots.length);
+  const keepEnd = thawPublishedKeepEnd(slots, version, committedEnd);
   const used = freezeUsedAspects(slots, version, keepEnd);
   const known = trustedPrefixLength(slots);
   if (
     version &&
-    version.publishedEnd === keepEnd &&
+    version.publishedEnd === committedEnd &&
+    keepEnd === committedEnd &&
     keepEnd === known &&
     version.usedAspects.length === used.length &&
     sameAspects(version.usedAspects, used)
@@ -486,14 +522,23 @@ export function layoutColumnsPublished(
   let columns: MasonryTile[][];
   let heights: number[];
   let rows: GalleryRow[];
-  if (keepEnd > 0 && version?.segments[0]?.columns && version.columnHeights) {
-    columns = version.segments[0].columns.map((column) => column.slice());
+  const columnSegment = version?.segments[0];
+  const reuseColumns =
+    keepEnd > 0 &&
+    keepEnd === committedEnd &&
+    columnSegment?.columns &&
+    version?.columnHeights;
+  if (reuseColumns && columnSegment.columns && version.columnHeights) {
+    columns = columnSegment.columns.map((column) => column.slice());
     heights = version.columnHeights.slice();
-    rows = version.segments[0].template.slice();
+    rows = columnSegment.template.slice();
   } else {
     columns = Array.from({ length: columnCount }, () => []);
     heights = Array.from({ length: columnCount }, () => 0);
     rows = [];
+    for (let index = 0; index < keepEnd; index += 1) {
+      appendColumnTile(columns, heights, rows, slots[index] as number, index, tileWidth);
+    }
   }
   for (let index = keepEnd; index < known; index += 1) {
     appendColumnTile(columns, heights, rows, slots[index] as number, index, tileWidth);

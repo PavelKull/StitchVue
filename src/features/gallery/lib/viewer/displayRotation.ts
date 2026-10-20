@@ -39,7 +39,7 @@ export function tilePhotoStyle(
       height: tileWidth,
       maxWidth: "none",
       maxHeight: "none",
-      objectFit: "fill",
+      objectFit: "cover",
       transform: `translate(-50%, -50%) rotate(${spin}deg)`,
     };
   }

@@ -80,9 +80,9 @@
 **Goal**: Thaw one mosaic index; no tile `fill` squash  
 **Independent Test**: 90° rotate → slot aspect changes, no stretch
 
-- [ ] T015 [US2] Invalidate published geometry for the rotated index in `src/widgets/gallery-grid/StitchVueGrid.tsx` / `src/widgets/gallery-grid/layout.ts` (`freezeUsedAspects` keepEnd / key)
-- [ ] T016 [US2] Change odd-quarter `tilePhotoStyle` off `objectFit: "fill"` in `src/features/gallery/lib/viewer/displayRotation.ts` (cover + size swap)
-- [ ] T017 [P] [US2] Extend `src/features/gallery/lib/listing/galleryOrder.test.ts` or layout tests for thawed aspect after quarters change
+- [x] T015 [US2] Invalidate published geometry for the rotated index in `src/widgets/gallery-grid/StitchVueGrid.tsx` / `src/widgets/gallery-grid/layout.ts` (`freezeUsedAspects` keepEnd / key)
+- [x] T016 [US2] Change odd-quarter `tilePhotoStyle` off `objectFit: "fill"` in `src/features/gallery/lib/viewer/displayRotation.ts` (cover + size swap)
+- [x] T017 [P] [US2] Extend `src/features/gallery/lib/listing/galleryOrder.test.ts` or layout tests for thawed aspect after quarters change
 
 ---
 

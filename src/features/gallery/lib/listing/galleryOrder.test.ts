@@ -18,6 +18,7 @@ import { displayAspect, tilePhotoStyle } from "../viewer/displayRotation.ts";
 import {
   ESTIMATED_ASPECT,
   layoutGallery,
+  layoutMosaicPublished,
   layoutNeedsAspectRefresh,
   layoutSegmented,
   refineSegmentedLayout,
@@ -187,6 +188,30 @@ test("tile photo style swaps box size for odd quarter turns", () => {
   const style = tilePhotoStyle(120, 80, 1);
   assert.equal(style?.width, 80);
   assert.equal(style?.height, 120);
+  assert.equal(style?.objectFit, "cover");
+});
+
+test("layoutMosaicPublished thaws a rotated index without refreezing the old aspect", () => {
+  const upright = displayAspect(4000, 3000, 0);
+  const rotated = displayAspect(4000, 3000, 1);
+  const slots = [upright, 1.2, 1.1, 0.9];
+  const first = layoutMosaicPublished(slots, 900, 300, 2, 0, null, true);
+  assert.equal(first.usedAspects[0], upright);
+  const afterRotate = layoutMosaicPublished(
+    [rotated, 1.2, 1.1, 0.9],
+    900,
+    300,
+    2,
+    0,
+    first,
+    true,
+  );
+  assert.equal(afterRotate.usedAspects[0], rotated);
+  assert.equal(afterRotate.usedAspects[1], first.usedAspects[1]);
+  const tileBefore = first.segments[0]?.template.flatMap((row) => row.tiles).find((t) => t.index === 0);
+  const tileAfter = afterRotate.segments[0]?.template.flatMap((row) => row.tiles).find((t) => t.index === 0);
+  assert.ok(tileBefore && tileAfter);
+  assert.notEqual(tileBefore.width, tileAfter.width);
 });
 
 test("first mosaic estimated slots refresh when real aspects arrive without a mode switch", () => {
