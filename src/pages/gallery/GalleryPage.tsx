@@ -243,6 +243,7 @@ import {
     filterMassUnfavoriteStarOverlayEntries,
     shouldPreserveFavoritePathDuringMassUnfavorite,
 } from '../../features/favorites/lib/favoriteReaddGuards';
+import { shouldAttemptEmptyFavoritesCleanup } from '../../features/favorites/lib/favoritesEmptyFolderAfterAdds';
 import {
     buildAlbumFolderTiles,
     favoritesFolderTileIsPendingCreate,
@@ -2501,6 +2502,15 @@ export function GalleryPage() {
                         favoritePerf.finish(outcome);
                         favoritePerf = null;
                     }
+                    const addSummary = summarize(result.outcomes);
+                    if (
+                        addSummary.copied + addSummary.alreadyExists === 0 &&
+                        addSummary.failed > 0
+                    ) {
+                        void tryCleanupEmptyFavoritesFolderAfterQueuedAdds(
+                            directory,
+                        );
+                    }
                 } else if (action === 'move_to_local_trash') {
                     const summary = summarize(result.outcomes);
                     if (summary.failed !== 0) {
@@ -2596,6 +2606,9 @@ export function GalleryPage() {
                                     text: formatInvokeError(error),
                                     details: [],
                                 });
+                                void tryCleanupEmptyFavoritesFolderAfterQueuedAdds(
+                                    albumDirectory,
+                                );
                                 return;
                             }
                             if (!mayAnnounceAllBatchFailed(false)) {
@@ -3136,10 +3149,11 @@ export function GalleryPage() {
             }
         }
         for (const entry of entries) {
-            const key = entry.intent.photoKey;
-            if (!(key in results)) {
+            const key = pathKey(entry.intent.photoKey);
+            if (results[key] === undefined) {
                 results[key] = 'failed';
             }
+            results[entry.intent.photoKey] = results[key];
         }
         if (marked.length > 0) {
             noteFavoritePathsConfirmedLocalMutation();
@@ -3163,7 +3177,7 @@ export function GalleryPage() {
             }
         } else {
             for (const entry of entries) {
-                const key = entry.intent.photoKey;
+                const key = pathKey(entry.intent.photoKey);
                 const item = result.outcomes.find(
                     (row) => pathKey(row.sourcePath) === key,
                 );
@@ -3382,11 +3396,62 @@ export function GalleryPage() {
         }
     }
 
+    function resolveParentDirectoryForAlbumScope(
+        albumScope: string,
+    ): string | null {
+        const current = viewRef.current.path;
+        if (
+            current &&
+            viewRef.current.serviceRole !== 'favorites' &&
+            pathKey(current).toLowerCase() === albumScope.toLowerCase()
+        ) {
+            return current;
+        }
+        return null;
+    }
+
+    async function tryCleanupEmptyFavoritesFolderAfterQueuedAdds(
+        parentDirectory: string,
+    ) {
+        if (
+            !shouldAttemptEmptyFavoritesCleanup({
+                parentDirectory,
+                serviceRole: viewRef.current.serviceRole,
+                hasActiveAddIntents:
+                    favoritesCoordinatorRef.current.hasActiveAddIntentsForDirectory(
+                        parentDirectory,
+                    ),
+                copyToFavoritesInFlight:
+                    fileOperationRef.current?.action ===
+                    'copy_to_local_favorites',
+            })
+        ) {
+            return;
+        }
+        const folderPath = predictFavoritesServiceFolderPath(
+            parentDirectory,
+            optimisticFavoritesFolderHideRef.current,
+        );
+        const outcome = await cleanupEmptyServiceFolder(
+            parentDirectory,
+            folderPath,
+        );
+        if (outcome.status === 'removed' && outcome.location) {
+            applyRemovedServiceFolder(outcome.location);
+        }
+        syncFavoritesFolderPendingCreate(parentDirectory);
+        bumpFavoriteAddQueueRevision();
+    }
+
     async function drainFavoriteAddQueue(albumScope: string) {
         await favoritesCoordinatorRef.current.drainQueuedAdds(
             albumScope,
             (intents) => executeQueuedFavoriteAddDrain(intents),
         );
+        const parent = resolveParentDirectoryForAlbumScope(albumScope);
+        if (parent) {
+            await tryCleanupEmptyFavoritesFolderAfterQueuedAdds(parent);
+        }
     }
 
     function tryQueueFavoriteAdds(
@@ -3463,6 +3528,11 @@ export function GalleryPage() {
                 current,
                 intent.overlayOperationId,
             ),
+        );
+        syncFavoritesFolderPendingCreate(intent.albumDirectory);
+        bumpFavoriteAddQueueRevision();
+        void tryCleanupEmptyFavoritesFolderAfterQueuedAdds(
+            intent.albumDirectory,
         );
         return true;
     }

@@ -131,6 +131,8 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 **P1:** `GalleryPage.tsx` — drain до `cleanupEmptyServiceFolder` / `relistParentAfterFavoritesMassUnfavorite` / `scheduleFolderRefresh`; тест T19.
 
+**Пустая «Избранное» после add:** `favoritesEmptyFolderAfterAdds.ts` + `tryCleanupEmptyFavoritesFolderAfterQueuedAdds` после drain и отмены queued intent (только если нет активных intent и нет copy in-flight).
+
 ### Инварианты P1
 
 - Rust batch unfavorite уже завершён до входа в `finishBackgroundMassUnfavorite`.
@@ -166,7 +168,7 @@ B06-lite (дата, диск HDD): flicker PASS|FAIL; queue_wait_ms: …; ipc_ms
 
 ## 8. P2-audit — пакетное ADD (2026-10-20)
 
-Статус: **аудит завершён**, реализация — после закрытия P1 (B06).
+Статус: **реализовано на FE** (chunk 16, §8.3–8.5).
 
 ### 8.1 Вывод в одну строку
 

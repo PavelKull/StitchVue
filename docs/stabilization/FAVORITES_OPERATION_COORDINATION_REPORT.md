@@ -23,7 +23,8 @@
 
 ## Архитектура
 
-- **`favoritesOperationCoordinator.ts`**: учёт FS-сессий (`mass-unfavorite`, `file-operation`), conflict по дереву путей, очередь add-intent с coalescing `desired`, FIFO drain, один retry на временный conflict.
+- **`favoritesOperationCoordinator.ts`**: учёт FS-сессий (`mass-unfavorite`, `file-operation`), conflict по дереву путей, очередь add-intent с coalescing `desired`, FIFO drain чанками до 16 (`favoriteQueuedAddCoalesce.ts`), один retry на временный conflict; fallback на одиночный IPC при `pre_start_conflict`.
+- **`favoritesEmptyFolderAfterAdds.ts`**: `cleanup_empty_service_folder` после drain/cancel/полного провала direct add, если нет активных intent.
 - **GalleryPage**: optimistic overlay сразу; IPC add после drain; без нового global store.
 
 ## Файлы
