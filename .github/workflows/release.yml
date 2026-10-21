@@ -26,6 +26,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          # Full history so release notes can list commits since the previous tag.
+          fetch-depth: 0
 
       - name: Require updater signing key (N-16)
         shell: pwsh
@@ -86,6 +89,17 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Collect release notes for the update dialog
+        id: notes
+        shell: pwsh
+        run: |
+          $notes = node scripts/release-notes.mjs $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $delimiter = "RELEASE_NOTES_EOF"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "body<<$delimiter" -Encoding utf8NoBOM
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $notes -Encoding utf8NoBOM
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $delimiter -Encoding utf8NoBOM
+
       - name: Install Rust stable (Windows x64)
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -104,6 +118,7 @@ jobs:
           npm run typecheck
           npm run i18n-check
           npm test
+          node --test scripts/release-notes.test.mjs
 
       - name: Rust tests
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
@@ -117,11 +132,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: StitchVue ${{ github.ref_name }}
-          releaseBody: |
-            StitchVue Windows x64 (NSIS).
-
-            Assets: setup `.exe`, `.sig`, and `latest.json` for the in-app updater.
-            Publish this draft as **Latest** when ready (pre-releases are not served by `/releases/latest`).
+          releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           prerelease: false
           uploadUpdaterJson: true

@@ -56,7 +56,6 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
   const [operationsBlocked, setOperationsBlocked] = useState(false);
   const availableRef = useRef<AvailableUpdate | null>(null);
   const startingRef = useRef(false);
-  const autoCheckedRef = useRef(false);
 
   useEffect(() => {
     void getVersion()
@@ -134,17 +133,19 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
     void runCheck({ manual: true });
   }, [runCheck]);
 
+  const runCheckRef = useRef(runCheck);
   useEffect(() => {
-    if (autoCheckedRef.current) {
-      return;
-    }
-    autoCheckedRef.current = true;
-    // После старта: не мешать открытию папок; модалка только если есть update.
+    runCheckRef.current = runCheck;
+  }, [runCheck]);
+
+  useEffect(() => {
+    // Таймер не зависит от runCheck: загрузка версии иначе снимает его до проверки.
+    // Сеть и модалка — только после паузы, чтобы не тормозить открытие папок.
     const timer = window.setTimeout(() => {
-      void runCheck({ manual: false });
+      void runCheckRef.current({ manual: false });
     }, 15_000);
     return () => window.clearTimeout(timer);
-  }, [runCheck]);
+  }, []);
 
   const startUpdate = useCallback(async () => {
     if (!canStartUpdate(snapshot.phase) || startingRef.current) {
