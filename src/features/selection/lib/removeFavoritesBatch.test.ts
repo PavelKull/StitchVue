@@ -1,7 +1,7 @@
-import test from "node:test";
+import test, { afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { ImageFile } from "../../../entities/image/types.ts";
-import { initI18n } from "../../../shared/i18n/i18n.ts";
+import i18n, { initI18n, setAppLocale } from "../../../shared/i18n/i18n.ts";
 import {
   batchUnfavoriteConfirmLines,
   batchUnfavoritePromptCopy,
@@ -50,8 +50,38 @@ function memoryStorage(): Storage {
   };
 }
 
+/** Explicit ru prefs — empty storage would resolve locale from OS (en on GHA Windows). */
+function seedRuPreferences(): void {
+  localStorage.setItem(
+    "stitchvue.preferences.v2",
+    JSON.stringify({
+      defaultLayoutMode: "mosaic",
+      rememberLayoutMode: true,
+      rememberZoom: true,
+      rememberLastFolder: false,
+      confirmMove: "always",
+      panelsPeekOnEdge: true,
+      rememberPanelsPinned: true,
+      animationsEnabled: true,
+      showPhotoDates: false,
+      locale: "ru",
+    }),
+  );
+}
+
 (globalThis as { localStorage?: Storage }).localStorage = memoryStorage();
+seedRuPreferences();
 initI18n();
+
+beforeEach(async () => {
+  seedRuPreferences();
+  // initI18n is a singleton no-op after first call; force language for parallel files.
+  await i18n.changeLanguage("ru");
+});
+
+afterEach(async () => {
+  await i18n.changeLanguage("ru");
+});
 
 const noCleanup = cleanupOutcomeFromStatus(null, null);
 
@@ -539,6 +569,37 @@ test("pickCleanupFromResults reads cleanupStatus from the last success", () => {
 test("batch dialog and progress labels are stable", () => {
   assert.match(batchUnfavoritePromptCopy(4).text, /4/);
   assert.equal(unfavoriteProgressLabel(8, 12), "Обработано 8 из 12");
+});
+
+test("unfavorite summary and progress follow active locale (ru and en)", async () => {
+  const partialInput = {
+    total: 4,
+    succeeded: 3,
+    failed: 1,
+    skipped: 0,
+    cleanup: noCleanup,
+    errors: ["disk full"],
+  };
+
+  await setAppLocale("ru");
+  assert.equal(
+    summarizeUnfavoriteBatch(partialInput).text,
+    "Исключено: 3 из 4. Не удалось обработать: 1",
+  );
+  assert.equal(unfavoriteProgressLabel(8, 12), "Обработано 8 из 12");
+
+  await setAppLocale("en");
+  assert.equal(
+    summarizeUnfavoriteBatch(partialInput).text,
+    "Removed: 3 of 4. Failed: 1",
+  );
+  assert.equal(unfavoriteProgressLabel(8, 12), "Processed 8 of 12");
+
+  await setAppLocale("ru");
+  assert.equal(
+    summarizeUnfavoriteBatch(partialInput).text,
+    "Исключено: 3 из 4. Не удалось обработать: 1",
+  );
 });
 
 test("pickRemovedServiceFolder and successfulRemovalKeys read the last cleanup", () => {
