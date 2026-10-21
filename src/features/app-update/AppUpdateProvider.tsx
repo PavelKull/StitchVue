@@ -10,12 +10,17 @@ import {
 } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import {
-  MOCK_AVAILABLE_VERSION,
-  MOCK_INSTALLED_VERSION,
-  MOCK_RELEASE_NOTES,
-  MOCK_UPDATE_AUTO_PROMPT_DEV,
-} from "./mock/fixture";
-import { initialMockUpdateSnapshot } from "./model/mockUpdateFlow";
+  beginAppUpdatePrepare,
+  endAppUpdatePrepare,
+  fileOperationInProgress,
+} from "./api/updateGateIpc";
+import { checkForUpdate, downloadUpdateWithProgress, installUpdate, type AvailableUpdate } from "./api/updater";
+import {
+  canStartUpdate,
+  classifyUpdateError,
+  initialUpdateSnapshot,
+  type UpdateSnapshot,
+} from "./lib/updateLifecycle";
 import { UpdateDialog } from "./ui/UpdateDialog";
 
 type AppUpdateContextValue = {
@@ -33,72 +38,138 @@ export function useAppUpdate(): AppUpdateContextValue {
   return value;
 }
 
-const AUTO_PROMPT_KEY = "stitchvue-mock-update-auto-prompt";
-
 export function AppUpdateProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const [installedVersion, setInstalledVersion] = useState(MOCK_INSTALLED_VERSION);
-  const [snapshot, setSnapshot] = useState(initialMockUpdateSnapshot);
+  const [installedVersion, setInstalledVersion] = useState("—");
+  const [available, setAvailable] = useState<AvailableUpdate | null>(null);
+  const [snapshot, setSnapshot] = useState<UpdateSnapshot>(initialUpdateSnapshot);
   const [operationsBlocked, setOperationsBlocked] = useState(false);
-  const downloadTimerRef = useRef(0);
+  const availableRef = useRef<AvailableUpdate | null>(null);
+  const startingRef = useRef(false);
+  const autoCheckedRef = useRef(false);
 
   useEffect(() => {
     void getVersion()
-      .then((value) => setInstalledVersion(value || MOCK_INSTALLED_VERSION))
-      .catch(() => setInstalledVersion(MOCK_INSTALLED_VERSION));
+      .then((value) => setInstalledVersion(value || "—"))
+      .catch(() => setInstalledVersion("—"));
   }, []);
 
-  const resetFlow = useCallback(() => {
-    window.clearInterval(downloadTimerRef.current);
-    downloadTimerRef.current = 0;
-    setSnapshot(initialMockUpdateSnapshot());
-  }, []);
+  useEffect(() => {
+    availableRef.current = available;
+  }, [available]);
 
-  const openUpdateDialog = useCallback(() => {
-    resetFlow();
-    setOpen(true);
-  }, [resetFlow]);
+  const releasePendingUpdate = useCallback(async () => {
+    const pending = availableRef.current;
+    availableRef.current = null;
+    setAvailable(null);
+    if (pending) {
+      try {
+        await pending.raw.close();
+      } catch {
+        /* resource already released */
+      }
+    }
+  }, []);
 
   const closeDialog = useCallback(() => {
+    if (snapshot.phase === "downloading" || snapshot.phase === "installing" || snapshot.phase === "arming") {
+      return;
+    }
     setOpen(false);
-    resetFlow();
-  }, [resetFlow]);
+    setSnapshot(initialUpdateSnapshot());
+    void releasePendingUpdate();
+  }, [releasePendingUpdate, snapshot.phase]);
 
-  const startMockDownload = useCallback(() => {
-    if (operationsBlocked) {
-      return;
-    }
-    setSnapshot({ phase: "downloading", progress: 0 });
-    window.clearInterval(downloadTimerRef.current);
-    let progress = 0;
-    downloadTimerRef.current = window.setInterval(() => {
-      progress = Math.min(100, progress + 8);
-      setSnapshot({ phase: "downloading", progress });
-      if (progress >= 100) {
-        window.clearInterval(downloadTimerRef.current);
-        downloadTimerRef.current = 0;
-        setSnapshot({ phase: "ready", progress: 100 });
+  const runCheck = useCallback(
+    async (opts: { manual: boolean }) => {
+      setSnapshot({ phase: "checking", progress: 0, errorKey: null });
+      try {
+        const update = await checkForUpdate();
+        if (!update) {
+          if (opts.manual) {
+            setAvailable(null);
+            setSnapshot({ phase: "upToDate", progress: 0, errorKey: null });
+            setOpen(true);
+          } else {
+            setSnapshot(initialUpdateSnapshot());
+          }
+          return;
+        }
+        await releasePendingUpdate();
+        setAvailable(update);
+        setSnapshot({ phase: "prompt", progress: 0, errorKey: null });
+        setOpen(true);
+      } catch {
+        // Автопроверка молчит при сети/endpoint; ручная — показывает ошибку.
+        if (opts.manual) {
+          setSnapshot({ phase: "error", progress: 0, errorKey: "network" });
+          setOpen(true);
+        } else {
+          setSnapshot(initialUpdateSnapshot());
+        }
       }
-    }, 120);
-  }, [operationsBlocked]);
+    },
+    [releasePendingUpdate],
+  );
+
+  const openUpdateDialog = useCallback(() => {
+    void runCheck({ manual: true });
+  }, [runCheck]);
 
   useEffect(() => {
-    return () => window.clearInterval(downloadTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    if (!MOCK_UPDATE_AUTO_PROMPT_DEV) {
+    if (autoCheckedRef.current) {
       return;
     }
-    if (sessionStorage.getItem(AUTO_PROMPT_KEY)) {
-      return;
-    }
+    autoCheckedRef.current = true;
+    // После старта: не мешать открытию папок; модалка только если есть update.
     const timer = window.setTimeout(() => {
-      sessionStorage.setItem(AUTO_PROMPT_KEY, "1");
-      openUpdateDialog();
-    }, 2000);
+      void runCheck({ manual: false });
+    }, 15_000);
     return () => window.clearTimeout(timer);
-  }, [openUpdateDialog]);
+  }, [runCheck]);
+
+  const startUpdate = useCallback(async () => {
+    if (!canStartUpdate(snapshot.phase) || startingRef.current) {
+      return;
+    }
+    const update = availableRef.current;
+    if (!update) {
+      return;
+    }
+    if (operationsBlocked) {
+      setSnapshot({ phase: "error", progress: 0, errorKey: "blocked" });
+      return;
+    }
+    startingRef.current = true;
+    setSnapshot({ phase: "arming", progress: 0, errorKey: null });
+    try {
+      const busy = await fileOperationInProgress();
+      if (busy || operationsBlocked) {
+        setSnapshot({ phase: "error", progress: 0, errorKey: "blocked" });
+        return;
+      }
+      try {
+        await beginAppUpdatePrepare();
+      } catch {
+        setSnapshot({ phase: "error", progress: 0, errorKey: "prepare" });
+        return;
+      }
+      setSnapshot({ phase: "downloading", progress: 0, errorKey: null });
+      try {
+        await downloadUpdateWithProgress(update.raw, (progress) => {
+          setSnapshot({ phase: "downloading", progress, errorKey: null });
+        });
+        setSnapshot({ phase: "installing", progress: 100, errorKey: null });
+        await endAppUpdatePrepare();
+        await installUpdate(update.raw);
+      } catch (error) {
+        await endAppUpdatePrepare();
+        setSnapshot({ phase: "error", progress: 0, errorKey: classifyUpdateError(error) });
+      }
+    } finally {
+      startingRef.current = false;
+    }
+  }, [operationsBlocked, snapshot.phase]);
 
   const contextValue = useMemo(
     () => ({
@@ -114,16 +185,16 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
       <UpdateDialog
         open={open}
         installedVersion={installedVersion}
-        availableVersion={MOCK_AVAILABLE_VERSION}
-        releaseNotes={MOCK_RELEASE_NOTES}
+        availableVersion={available?.version ?? ""}
+        releaseNotes={available?.body ?? ""}
         phase={snapshot.phase}
         progress={snapshot.progress}
+        errorKey={snapshot.errorKey}
         operationsBlocked={operationsBlocked}
         onLater={closeDialog}
-        onUpdate={startMockDownload}
-        onRetry={startMockDownload}
-        onCloseReady={closeDialog}
-        onPreviewError={() => setSnapshot({ phase: "error", progress: 0 })}
+        onUpdate={() => void startUpdate()}
+        onRetry={() => void startUpdate()}
+        onClose={closeDialog}
       />
     </AppUpdateContext.Provider>
   );

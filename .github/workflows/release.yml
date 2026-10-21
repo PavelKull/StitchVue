@@ -1,0 +1,130 @@
+# StitchVue Windows x64 release (NSIS + signed updater artifacts).
+# Trigger: push tag matching v* (e.g. v0.1.0). Does not create tags itself.
+# Requires repo Secrets: TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
+# Review assets on the draft Release, then publish (Latest) when ready for in-app updater.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    # Pinned for first stable release; bump deliberately later (not windows-latest).
+    runs-on: windows-2022
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Require updater signing key (N-16)
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TAURI_SIGNING_PRIVATE_KEY)) {
+            Write-Error "TAURI_SIGNING_PRIVATE_KEY is missing. Add it in repo Settings → Secrets before releasing."
+            exit 1
+          }
+
+      - name: Verify tag matches package / tauri / Cargo versions
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -notmatch '^v(\d+\.\d+\.\d+)$') {
+            Write-Error "Tag '$tag' must be SemVer with v prefix (example: v0.1.0)."
+            exit 1
+          }
+          $expected = $Matches[1]
+
+          $pkg = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          $conf = (Get-Content -Raw src-tauri/tauri.conf.json | ConvertFrom-Json).version
+
+          $cargoContent = Get-Content -Raw src-tauri/Cargo.toml
+          $packageSection = [regex]::Match(
+            $cargoContent,
+            '(?ms)^\[package\]\s*$([\s\S]*?)(?=^\[|\z)'
+          )
+          if (-not $packageSection.Success) {
+            Write-Error "Cargo.toml: section [package] not found"
+            exit 1
+          }
+          if ($packageSection.Groups[1].Value -match '(?m)^\s*version\.workspace\s*=\s*true\s*$') {
+            Write-Error "Cargo.toml: version.workspace = true is not supported by this release check."
+            exit 1
+          }
+          $versionMatch = [regex]::Match(
+            $packageSection.Groups[1].Value,
+            '(?m)^\s*version\s*=\s*"([^"]+)"'
+          )
+          if (-not $versionMatch.Success) {
+            Write-Error "Cargo.toml: package version not found"
+            exit 1
+          }
+          $cargo = $versionMatch.Groups[1].Value
+
+          Write-Host "tag=$tag expected=$expected package.json=$pkg tauri.conf.json=$conf Cargo.toml=$cargo"
+          if ($pkg -ne $expected -or $conf -ne $expected -or $cargo -ne $expected) {
+            Write-Error "Version mismatch: tag v$expected must equal package.json, tauri.conf.json, and Cargo.toml."
+            exit 1
+          }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          # Pinned LTS for first release; bump deliberately later (not lts/*).
+          node-version: "22"
+          cache: npm
+
+      - name: Install Rust stable (Windows x64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Typecheck / i18n / frontend tests
+        run: |
+          npm run typecheck
+          npm run i18n-check
+          npm test
+
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build NSIS + signed updater artifacts
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: StitchVue ${{ github.ref_name }}
+          releaseBody: |
+            StitchVue Windows x64 (NSIS).
+
+            Assets: setup `.exe`, `.sig`, and `latest.json` for the in-app updater.
+            Publish this draft as **Latest** when ready (pre-releases are not served by `/releases/latest`).
+          releaseDraft: true
+          prerelease: false
+          uploadUpdaterJson: true
+          updaterJsonPreferNsis: true
+          uploadUpdaterSignatures: true
+          args: --target x86_64-pc-windows-msvc

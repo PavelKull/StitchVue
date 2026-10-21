@@ -38,7 +38,7 @@ When a release is published on GitHub:
 2. Download the **NSIS** setup executable (`.exe`) for the latest version.
 3. Run the installer and launch StitchVue from the Start menu.
 
-Automatic in-app updates are **not** implemented yet. A **Tauri updater** fed from GitHub Releases is planned for a future version; until then, install newer builds manually from Releases.
+After a signed GitHub Release is published as **Latest** (with `latest.json` and `.sig`), the app can check for updates on launch and from **Settings → About → Check for updates**. Installation starts only after you click **Update**. Until CI publishes signed updater artifacts, use the NSIS installer from Releases.
 
 ## Report bugs
 

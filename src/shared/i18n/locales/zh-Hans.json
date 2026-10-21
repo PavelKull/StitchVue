@@ -301,18 +301,23 @@
     }
   },
   "appUpdate": {
-    "mockBadge": "预览",
     "title": "有可用更新",
     "versionLine": "已安装 {{current}} · 可用 {{next}}",
     "later": "稍后",
     "update": "更新",
     "retry": "重试",
     "close": "关闭",
+    "checking": "正在检查更新…",
+    "upToDateTitle": "已是最新版本",
+    "upToDateBody": "StitchVue {{version}} 已是最新版本。",
+    "arming": "正在准备更新…",
+    "installing": "正在安装… StitchVue 将重新启动。",
     "blockedHint": "请等待当前文件操作或取消收藏完成。",
+    "prepareError": "无法开始更新：仍有文件操作在进行。",
     "networkError": "无法下载更新。请检查网络后重试。",
-    "readyMock": "下载完成（模拟）。正式版本将安装更新并重启 StitchVue。",
-    "downloading": "正在下载… {{percent}}%",
-    "previewErrorDev": "预览错误状态（开发）"
+    "signatureError": "无法验证更新签名。请稍后重试，或从 GitHub Releases 重新安装。",
+    "installError": "更新已下载但无法安装。请重试，或使用 Releases 中的 NSIS 安装包。",
+    "downloading": "正在下载… {{percent}}%"
   },
   "properties": {
     "title": "属性",

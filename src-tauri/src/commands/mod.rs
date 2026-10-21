@@ -467,6 +467,21 @@ pub fn cancel_file_operation(operation_id: String) -> bool {
 }
 
 #[tauri::command]
+pub fn file_operation_in_progress() -> bool {
+    crate::file_ops::any_file_operation_in_progress()
+}
+
+#[tauri::command]
+pub fn begin_app_update_prepare() -> Result<(), String> {
+    crate::file_ops::begin_app_update_prepare()
+}
+
+#[tauri::command]
+pub fn end_app_update_prepare() {
+    crate::file_ops::end_app_update_prepare()
+}
+
+#[tauri::command]
 pub async fn image_properties(path: String) -> Result<crate::metadata::PhotoProperties, String> {
     tauri::async_runtime::spawn_blocking(move || {
         crate::metadata::photo_properties(std::path::Path::new(&path))

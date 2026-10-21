@@ -1,14 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { initialMockUpdateSnapshot, mockUpdateBlocked } from "./mockUpdateFlow.ts";
+import { canStartUpdate, updateActionBlocked } from "../lib/updateLifecycle.ts";
 
-test("mock update blocks primary action while file work is active", () => {
-  assert.equal(mockUpdateBlocked(true, "prompt"), true);
-  assert.equal(mockUpdateBlocked(true, "downloading"), true);
-  assert.equal(mockUpdateBlocked(true, "error"), false);
-  assert.equal(mockUpdateBlocked(false, "prompt"), false);
-});
-
-test("initial snapshot is prompt at zero progress", () => {
-  assert.deepEqual(initialMockUpdateSnapshot(), { phase: "prompt", progress: 0 });
+test("legacy mock gate maps to lifecycle helpers", () => {
+  assert.equal(updateActionBlocked(true, "prompt"), true);
+  assert.equal(canStartUpdate("downloading"), false);
 });

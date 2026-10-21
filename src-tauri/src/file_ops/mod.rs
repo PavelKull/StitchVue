@@ -34,6 +34,8 @@ mod p5_batch;
 mod p1_identity_gate;
 #[cfg(test)]
 mod p2_reconcile_scope;
+#[cfg(test)]
+mod update_gate;
 pub mod reconcile;
 pub mod recycle;
 pub(crate) mod trash_folder;
@@ -183,6 +185,9 @@ struct Registry {
     done: VecDeque<(String, FileOperationResult)>,
 }
 
+/// Блокирует новые `claim` на время download/install обновления.
+static UPDATE_PREPARE: AtomicBool = AtomicBool::new(false);
+
 fn registry() -> &'static Mutex<Registry> {
     static REGISTRY: OnceLock<Mutex<Registry>> = OnceLock::new();
     REGISTRY.get_or_init(|| {
@@ -193,7 +198,32 @@ fn registry() -> &'static Mutex<Registry> {
     })
 }
 
+pub fn any_file_operation_in_progress() -> bool {
+    let registry = registry().lock().unwrap_or_else(|err| err.into_inner());
+    !registry.active.is_empty()
+}
+
+pub fn begin_app_update_prepare() -> Result<(), String> {
+    let registry = registry().lock().unwrap_or_else(|err| err.into_inner());
+    if !registry.active.is_empty() {
+        return Err("file_operation_in_progress".to_string());
+    }
+    UPDATE_PREPARE.store(true, Ordering::SeqCst);
+    if !registry.active.is_empty() {
+        UPDATE_PREPARE.store(false, Ordering::SeqCst);
+        return Err("update_prepare_failed".to_string());
+    }
+    Ok(())
+}
+
+pub fn end_app_update_prepare() {
+    UPDATE_PREPARE.store(false, Ordering::SeqCst);
+}
+
 pub fn claim(operation_id: &str) -> Claim {
+    if UPDATE_PREPARE.load(Ordering::SeqCst) {
+        return Claim::Busy;
+    }
     let mut registry = registry().lock().unwrap_or_else(|err| err.into_inner());
     if let Some((_, result)) = registry.done.iter().find(|(id, _)| id == operation_id) {
         return Claim::Replay(result.clone());

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatedModalFrame } from "../../../shared/ui/AnimatedModalFrame";
-import type { MockUpdatePhase } from "../model/mockUpdateFlow";
+import type { UpdateErrorKey, UpdatePhase } from "../lib/updateLifecycle";
 import styles from "./UpdateDialog.module.scss";
 
 export type UpdateDialogProps = {
@@ -9,14 +9,14 @@ export type UpdateDialogProps = {
   installedVersion: string;
   availableVersion: string;
   releaseNotes: string;
-  phase: MockUpdatePhase;
+  phase: UpdatePhase;
   progress: number;
+  errorKey: UpdateErrorKey | null;
   operationsBlocked: boolean;
   onLater: () => void;
   onUpdate: () => void;
   onRetry: () => void;
-  onCloseReady: () => void;
-  onPreviewError?: () => void;
+  onClose: () => void;
 };
 
 export function UpdateDialog({
@@ -26,16 +26,18 @@ export function UpdateDialog({
   releaseNotes,
   phase,
   progress,
+  errorKey,
   operationsBlocked,
   onLater,
   onUpdate,
   onRetry,
-  onCloseReady,
-  onPreviewError,
+  onClose,
 }: UpdateDialogProps) {
   const { t } = useTranslation();
   const titleId = useId();
   const laterRef = useRef<HTMLButtonElement>(null);
+
+  const busyPhase = phase === "arming" || phase === "downloading" || phase === "installing";
 
   useEffect(() => {
     if (!open) {
@@ -54,48 +56,68 @@ export function UpdateDialog({
       }
       event.preventDefault();
       event.stopPropagation();
-      if (phase === "downloading") {
+      if (busyPhase) {
         return;
       }
       onLater();
     }
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [open, onLater, phase]);
+  }, [open, onLater, busyPhase]);
 
-  const updateDisabled = operationsBlocked || phase === "downloading";
+  const updateDisabled = operationsBlocked || busyPhase || phase === "checking";
+  const title =
+    phase === "upToDate"
+      ? t("appUpdate.upToDateTitle")
+      : phase === "checking"
+        ? t("appUpdate.checking")
+        : t("appUpdate.title");
+
+  const errorText =
+    errorKey === "blocked"
+      ? t("appUpdate.blockedHint")
+      : errorKey === "prepare"
+        ? t("appUpdate.prepareError")
+        : errorKey === "signature"
+          ? t("appUpdate.signatureError")
+          : errorKey === "install"
+            ? t("appUpdate.installError")
+            : errorKey === "network"
+              ? t("appUpdate.networkError")
+              : null;
 
   return (
     <AnimatedModalFrame
       open={open}
       titleId={titleId}
       onBackdropClick={() => {
-        if (phase === "downloading") {
+        if (busyPhase) {
           return;
         }
         onLater();
       }}
     >
-      <p className={styles.mockBadge}>{t("appUpdate.mockBadge")}</p>
-      <h2 id={titleId} className={styles.title}>{t("appUpdate.title")}</h2>
-      <p className={styles.meta}>
-        {t("appUpdate.versionLine", {
-          current: installedVersion,
-          next: availableVersion,
-        })}
-      </p>
-      {phase === "prompt" || phase === "downloading" ? (
+      <h2 id={titleId} className={styles.title}>{title}</h2>
+      {phase !== "upToDate" && phase !== "checking" ? (
+        <p className={styles.meta}>
+          {t("appUpdate.versionLine", {
+            current: installedVersion,
+            next: availableVersion || "—",
+          })}
+        </p>
+      ) : null}
+      {phase === "upToDate" ? (
+        <p className={styles.meta}>{t("appUpdate.upToDateBody", { version: installedVersion })}</p>
+      ) : null}
+      {(phase === "prompt" || phase === "downloading" || phase === "arming") && releaseNotes ? (
         <div className={styles.notes}>{releaseNotes}</div>
       ) : null}
       {operationsBlocked && phase === "prompt" ? (
         <p className={styles.hint}>{t("appUpdate.blockedHint")}</p>
       ) : null}
-      {phase === "error" ? (
-        <p className={styles.error}>{t("appUpdate.networkError")}</p>
-      ) : null}
-      {phase === "ready" ? (
-        <p className={styles.hint}>{t("appUpdate.readyMock")}</p>
-      ) : null}
+      {phase === "error" && errorText ? <p className={styles.error}>{errorText}</p> : null}
+      {phase === "arming" ? <p className={styles.hint}>{t("appUpdate.arming")}</p> : null}
+      {phase === "installing" ? <p className={styles.hint}>{t("appUpdate.installing")}</p> : null}
       {phase === "downloading" ? (
         <div
           className={styles.progressTrack}
@@ -110,11 +132,6 @@ export function UpdateDialog({
       <div className={styles.actions}>
         {phase === "prompt" ? (
           <>
-            {import.meta.env.DEV && onPreviewError ? (
-              <button type="button" className={styles.ghost} onClick={onPreviewError}>
-                {t("appUpdate.previewErrorDev")}
-              </button>
-            ) : null}
             <button ref={laterRef} type="button" className={styles.secondary} onClick={onLater}>
               {t("appUpdate.later")}
             </button>
@@ -122,6 +139,15 @@ export function UpdateDialog({
               {t("appUpdate.update")}
             </button>
           </>
+        ) : null}
+        {phase === "checking" || phase === "arming" || phase === "installing" ? (
+          <button type="button" className={styles.secondary} disabled>
+            {phase === "checking"
+              ? t("appUpdate.checking")
+              : phase === "arming"
+                ? t("appUpdate.arming")
+                : t("appUpdate.installing")}
+          </button>
         ) : null}
         {phase === "downloading" ? (
           <button type="button" className={styles.secondary} disabled>
@@ -138,8 +164,8 @@ export function UpdateDialog({
             </button>
           </>
         ) : null}
-        {phase === "ready" ? (
-          <button type="button" className={styles.primary} onClick={onCloseReady}>
+        {phase === "upToDate" ? (
+          <button ref={laterRef} type="button" className={styles.primary} onClick={onClose}>
             {t("appUpdate.close")}
           </button>
         ) : null}

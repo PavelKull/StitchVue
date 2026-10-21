@@ -301,18 +301,23 @@
     }
   },
   "appUpdate": {
-    "mockBadge": "Vorschau",
     "title": "Update verfügbar",
     "versionLine": "Installiert {{current}} · Verfügbar {{next}}",
     "later": "Später",
     "update": "Aktualisieren",
     "retry": "Erneut versuchen",
     "close": "Schließen",
+    "checking": "Suche nach Updates…",
+    "upToDateTitle": "Sie sind auf dem neuesten Stand",
+    "upToDateBody": "StitchVue {{version}} ist die aktuelle Version.",
+    "arming": "Update wird vorbereitet…",
+    "installing": "Installation… StitchVue wird neu gestartet.",
     "blockedHint": "Warten Sie, bis der aktuelle Dateivorgang oder das Entfernen aus Favoriten abgeschlossen ist.",
+    "prepareError": "Update konnte nicht gestartet werden, weil noch ein Dateivorgang läuft.",
     "networkError": "Update konnte nicht heruntergeladen werden. Prüfen Sie die Verbindung und versuchen Sie es erneut.",
-    "readyMock": "Download abgeschlossen (Mock). Eine echte Version würde StitchVue installieren und neu starten.",
-    "downloading": "Download… {{percent}} %",
-    "previewErrorDev": "Fehlerzustand (Dev)"
+    "signatureError": "Die Update-Signatur konnte nicht geprüft werden. Versuchen Sie es später erneut oder installieren Sie von GitHub Releases neu.",
+    "installError": "Das Update wurde heruntergeladen, konnte aber nicht installiert werden. Erneut versuchen oder den NSIS-Installer aus Releases nutzen.",
+    "downloading": "Download… {{percent}} %"
   },
   "properties": {
     "title": "Eigenschaften",

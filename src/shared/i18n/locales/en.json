@@ -301,18 +301,23 @@
     }
   },
   "appUpdate": {
-    "mockBadge": "Preview",
     "title": "Update available",
     "versionLine": "Installed {{current}} · Available {{next}}",
     "later": "Later",
     "update": "Update",
     "retry": "Try again",
     "close": "Close",
+    "checking": "Checking for updates…",
+    "upToDateTitle": "You’re up to date",
+    "upToDateBody": "StitchVue {{version}} is the latest version.",
+    "arming": "Preparing update…",
+    "installing": "Installing… StitchVue will restart.",
     "blockedHint": "Wait until the current file operation or unfavorite finishes.",
+    "prepareError": "Could not start the update because a file operation is still running.",
     "networkError": "Could not download the update. Check your connection and try again.",
-    "readyMock": "Download complete (mock). A real build would install and restart StitchVue.",
-    "downloading": "Downloading… {{percent}}%",
-    "previewErrorDev": "Preview error state"
+    "signatureError": "The update signature could not be verified. Try again later or reinstall from GitHub Releases.",
+    "installError": "The update downloaded but could not be installed. Try again or use the NSIS installer from Releases.",
+    "downloading": "Downloading… {{percent}}%"
   },
   "properties": {
     "title": "Properties",

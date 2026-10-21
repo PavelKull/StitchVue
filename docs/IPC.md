@@ -66,6 +66,16 @@
 | `run_file_operation` | `Action` + paths; progress emit |
 | `cancel_file_operation` | Отмена по `operation_id` |
 
+### App update / file gate
+
+| Команда | Назначение |
+|---------|------------|
+| `file_operation_in_progress` | `true`, если в registry есть активный `claim` |
+| `begin_app_update_prepare` | Ставит `UPDATE_PREPARE`; новые `claim` → Busy; ошибка если уже есть active op |
+| `end_app_update_prepare` | Снимает `UPDATE_PREPARE` (идемпотентно) |
+
+Frontend: `src/features/app-update/api/updateGateIpc.ts`. Прогресс загрузки — JS API `@tauri-apps/plugin-updater`.
+
 ### Прочее
 
 | Команда | Назначение |

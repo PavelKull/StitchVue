@@ -22,6 +22,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            #[cfg(desktop)]
+            app.handle()
+                .plugin(tauri_plugin_updater::Builder::new().build())?;
             let connection = database::open().map_err(std::io::Error::other)?;
             cache::maintain(&connection).map_err(std::io::Error::other)?;
             let root = database::app_dir().join("cache");
@@ -77,6 +80,9 @@ pub fn run() {
             commands::trash_entry_origin,
             commands::run_file_operation,
             commands::cancel_file_operation,
+            commands::file_operation_in_progress,
+            commands::begin_app_update_prepare,
+            commands::end_app_update_prepare,
             commands::image_properties,
             commands::resolve_external_drop,
             commands::rotate_display_clockwise,
