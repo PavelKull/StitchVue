@@ -79,16 +79,19 @@ export type ResolveLocaleInput = {
   saved: unknown;
   /**
    * true — в storage уже были настройки без поля locale (или после v1→v2).
-   * Тогда сохраняем русский, а не язык ОС.
+   * Тогда сохраняем русский (миграция), а не продуктовый en.
    */
   hasExistingPreferences: boolean;
-  /** `navigator.languages` или аналог для тестов. */
+  /**
+   * Ранее — `navigator.languages` для автовыбора ОС.
+   * Оставлено в API для совместимости вызовов; на выбор locale больше не влияет.
+   */
   systemLanguages: readonly string[];
 };
 
 /**
  * Приоритет: сохранённый user-facing → (существующие prefs без locale → ru)
- * → язык ОС → en.
+ * → en (продуктовый дефолт для новой установки и битого значения у нового пользователя).
  */
 export function resolveLocale(input: ResolveLocaleInput): UserFacingLocale {
   if (isUserFacingLocale(input.saved)) {
@@ -98,15 +101,11 @@ export function resolveLocale(input: ResolveLocaleInput): UserFacingLocale {
     if (input.hasExistingPreferences) {
       return "ru";
     }
-  } else if (input.hasExistingPreferences) {
+    return "en";
+  }
+  if (input.hasExistingPreferences) {
     // Повреждённое значение у существующего пользователя — не уводить с RU
     return "ru";
-  }
-
-  for (const tag of input.systemLanguages) {
-    if (typeof tag === "string" && tag.length > 0) {
-      return mapSystemLocale(tag);
-    }
   }
   return "en";
 }

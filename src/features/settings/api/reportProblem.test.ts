@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   BUG_REPORT_SUBJECT,
   CONTACT_SUBJECT,
+  buildBugReportIssueUrl,
   resolveReportProblemRoute,
 } from "./reportProblem.ts";
 
@@ -32,6 +33,14 @@ describe("resolveReportProblemRoute", () => {
 
   it("is unavailable when neither Issues nor email is set", () => {
     assert.deepEqual(resolveReportProblemRoute("", ""), { channel: "unavailable" });
+  });
+
+  it("builds a prefilled GitHub new-issue URL", () => {
+    const url = buildBugReportIssueUrl("https://github.com/example/repo/issues/new", "0.1.3");
+    assert.match(url, /^https:\/\/github\.com\/example\/repo\/issues\/new\?/);
+    assert.match(url, /title=Bug\+report/);
+    assert.match(url, /0\.1\.3/);
+    assert.match(url, /Steps\+to\+reproduce/);
   });
 
   it("ignores email when Issues URL is present (no silent email fallback)", () => {

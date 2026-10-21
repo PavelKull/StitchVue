@@ -52,13 +52,13 @@ export const DEFAULT_PREFERENCES: AppPreferences = {
   rememberLayoutMode: true,
   rememberZoom: true,
   rememberLastFolder: false,
-  confirmMove: "always",
+  confirmMove: "mass",
   panelsPeekOnEdge: true,
   rememberPanelsPinned: true,
   animationsEnabled: true,
   showPhotoDates: false,
-  // Сброс настроек и константный дефолт; первый запуск без storage — через resolveLocale (ОС → en).
-  locale: "ru",
+  // Сброс настроек и продуктовый дефолт; первый запуск без storage — тоже en.
+  locale: "en",
 };
 
 function normalizeMoveConfirm(parsed: { confirmMove?: MoveConfirm; confirmLargeMove?: boolean }): MoveConfirm {

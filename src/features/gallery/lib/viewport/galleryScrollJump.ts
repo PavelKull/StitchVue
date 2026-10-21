@@ -156,7 +156,7 @@ export function isAtScrollBottom(
     return max <= eps || scrollTop >= max - eps;
 }
 
-/** Снять pendingScrollToEnd: пользователь прокрутил вверх или листинг готов и мы внизу. */
+/** Снять pendingScrollToEnd: пользователь прокрутил вверх, или листинг и геометрия готовы и мы внизу. */
 export function shouldClearPendingScrollToEnd(input: {
     pending: boolean;
     scrollTop: number;
@@ -164,18 +164,40 @@ export function shouldClearPendingScrollToEnd(input: {
     scrollHeight: number;
     clientHeight: number;
     listingComplete: boolean;
+    geometryComplete: boolean;
+    animating: boolean;
 }): boolean {
     if (!input.pending) {
         return false;
     }
-    const max = scrollMax(input.scrollHeight, input.clientHeight);
     if (
         input.scrollTop < input.previousScrollTop - SCROLL_END_CANCEL_UP_EPS
     ) {
         return true;
     }
-    if (input.listingComplete && isAtScrollBottom(input.scrollTop, max)) {
+    if (input.animating) {
+        return false;
+    }
+    const max = scrollMax(input.scrollHeight, input.clientHeight);
+    if (
+        input.listingComplete &&
+        input.geometryComplete &&
+        isAtScrollBottom(input.scrollTop, max)
+    ) {
         return true;
     }
     return false;
+}
+
+/** Приклеить follow-max к выросшему scrollHeight, пока нет анимации прыжка. */
+export function shouldStickFollowScrollGrowth(input: {
+    pending: boolean;
+    animating: boolean;
+    previousHeight: number;
+    scrollHeight: number;
+}): boolean {
+    if (!input.pending || input.animating) {
+        return false;
+    }
+    return input.scrollHeight > input.previousHeight;
 }

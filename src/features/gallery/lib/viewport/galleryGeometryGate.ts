@@ -31,3 +31,21 @@ export function listingHasTrustedGeometry(
   }
   return false;
 }
+
+/** Все слоты имеют доверенный аспект или маркер ошибки; пустой список — complete. */
+export function listingHasCompleteGeometry(
+  images: readonly { path: string }[],
+  meta: Map<string, ImageMeta>,
+  failed: Map<string, string>,
+): boolean {
+  for (const file of images) {
+    if (failed.has(file.path)) {
+      continue;
+    }
+    const known = meta.get(file.path);
+    if (!known || known.height <= 0) {
+      return false;
+    }
+  }
+  return true;
+}

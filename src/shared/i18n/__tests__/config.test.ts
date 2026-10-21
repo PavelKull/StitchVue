@@ -51,14 +51,14 @@ describe("i18n config locale resolution", () => {
     );
   });
 
-  it("uses OS for fresh install and falls back to en", () => {
+  it("defaults to en on fresh install regardless of OS language", () => {
     assert.equal(
       resolveLocale({
         saved: undefined,
         hasExistingPreferences: false,
         systemLanguages: ["de-DE"],
       }),
-      "de",
+      "en",
     );
     assert.equal(
       resolveLocale({
@@ -66,7 +66,7 @@ describe("i18n config locale resolution", () => {
         hasExistingPreferences: false,
         systemLanguages: ["zh-CN"],
       }),
-      "zh-Hans",
+      "en",
     );
     assert.equal(
       resolveLocale({
@@ -74,7 +74,7 @@ describe("i18n config locale resolution", () => {
         hasExistingPreferences: false,
         systemLanguages: ["ru-RU"],
       }),
-      "ru",
+      "en",
     );
     assert.equal(
       resolveLocale({

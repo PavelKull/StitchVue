@@ -28,6 +28,7 @@ import type {
 import { coalesceFolderRefresh } from '../../features/gallery/lib/directory/folderRefresh';
 import {
     createDeferredVoid,
+    listingHasCompleteGeometry,
     listingHasTrustedGeometry,
 } from '../../features/gallery/lib/viewport/galleryGeometryGate';
 import { useGalleryPipelineEvents } from '../../features/gallery/model/pipeline/galleryPipelineEvents';
@@ -335,7 +336,7 @@ import { beginDirectorySession } from '../../features/gallery/api/gallerySession
 import { restorePromptText } from '../../features/gallery/lib/directory/restorePromptText';
 import { useGalleryFolderHistory } from '../../features/gallery/model/directory/useGalleryFolderHistory';
 import { DISK_SERVICE_FOLDER_LEAF } from '../../entities/folder/serviceFolder';
-import { formatInvokeError } from '../../shared/i18n';
+import { formatInvokeError, setAppLocale } from '../../shared/i18n';
 import { FolderViewTile } from '../../widgets/folder-tile/FolderViewTile';
 import { useAnimatedModal } from '../../shared/ui/useAnimatedModal';
 import { GallerySupportReminder } from '../../widgets/support-reminder/GallerySupportReminder';
@@ -487,7 +488,7 @@ export function GalleryPage() {
     const [fileProgress, setFileProgress] =
         useState<FileOperationProgress | null>(null);
     const [unfavoriteBusy, setUnfavoriteBusy] = useState(false);
-    const { openUpdateDialog, setUpdateOperationsBlocked } = useAppUpdate();
+    const { setUpdateOperationsBlocked } = useAppUpdate();
     const [fileNotice, setFileNotice] = useState<OperationNotice | null>(null);
     const [confirmMove, setConfirmMove] = useState<ImageFile[] | null>(null);
     const [favoriteTrashUnfavorite, setFavoriteTrashUnfavorite] =
@@ -1611,6 +1612,15 @@ export function GalleryPage() {
             ),
         [status, orderedImages, metaVersion, failedVersion],
     );
+    const geometryComplete = useMemo(
+        () =>
+            listingHasCompleteGeometry(
+                orderedImages,
+                metaRef.current,
+                failedRef.current,
+            ),
+        [orderedImages, metaVersion, failedVersion],
+    );
     const albumFolderTiles = useMemo(() => {
         const directory = view.path;
         if (!directory) {
@@ -1696,6 +1706,7 @@ export function GalleryPage() {
         rowsPerScreen,
         bottomOverlayReserve,
         listingComplete: status === 'ready',
+        geometryComplete,
     });
     const { reportScrollActivity, resetScrollActivityForFolderChange } =
         useGalleryScrollActivity({
@@ -6040,7 +6051,6 @@ export function GalleryPage() {
                 preferences={preferences}
                 usage={usage}
                 returnFocusRef={settingsTriggerRef}
-                onCheckForUpdates={openUpdateDialog}
                 onClose={() => setSettingsOpen(false)}
                 onPreferencesChange={(patch) =>
                     setPreferences(savePreferences(patch))
@@ -6051,6 +6061,8 @@ export function GalleryPage() {
                     setPreferences(next);
                     setLayoutMode(next.defaultLayoutMode);
                     setRowsPerScreen(ZOOM_DEFAULT);
+                    // resetPreferences пишет locale в storage, но не переключает i18n
+                    void setAppLocale(next.locale);
                 }}
                 onClearCache={clearCache}
                 onCacheLimit={setLimit}

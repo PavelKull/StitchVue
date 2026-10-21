@@ -40,7 +40,7 @@ function missingKeyMessage(key: string): string {
 export function initI18n(): typeof i18n {
   if (!initialized) {
     const prefs = loadPreferences();
-    const lng: UserFacingLocale = isUserFacingLocale(prefs.locale) ? prefs.locale : "ru";
+    const lng: UserFacingLocale = isUserFacingLocale(prefs.locale) ? prefs.locale : "en";
 
     i18n.use(initReactI18next);
     void i18n.init({

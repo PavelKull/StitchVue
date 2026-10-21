@@ -637,7 +637,15 @@ pub fn open_external_link(kind: ExternalLinkKind, url: Option<String>) -> Result
         ExternalLinkKind::GithubIssues => {
             let base = external_link_url("githubRepo")?;
             let base = base.trim_end_matches('/');
-            format!("{base}/issues/new")
+            let prefix = format!("{base}/issues/new");
+            if let Some(custom) = url {
+                if !custom.starts_with("https://") || !custom.starts_with(&prefix) {
+                    return Err("invalid issues url".to_string());
+                }
+                custom
+            } else {
+                prefix
+            }
         }
         ExternalLinkKind::SupportEmail => {
             let mailto = url.ok_or_else(|| "mailto url is required".to_string())?;

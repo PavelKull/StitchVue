@@ -55,7 +55,7 @@ describe("settingsPreferences", () => {
 
   it("loads defaults for empty storage", () => {
     const prefs = loadPreferences();
-    assert.equal(prefs.confirmMove, "always");
+    assert.equal(prefs.confirmMove, "mass");
     assert.equal(prefs.defaultLayoutMode, "mosaic");
     assert.equal(prefs.panelsPeekOnEdge, true);
     assert.equal(prefs.showPhotoDates, false);
@@ -63,16 +63,16 @@ describe("settingsPreferences", () => {
     assert.ok(["ru", "en", "de", "zh-Hans"].includes(prefs.locale));
   });
 
-  it("keeps confirmMove always on empty storage (regression)", () => {
-    assert.equal(loadPreferences().confirmMove, "always");
-    assert.notEqual(loadPreferences().confirmMove, "mass");
+  it("defaults confirmMove to mass on empty storage", () => {
+    assert.equal(loadPreferences().confirmMove, "mass");
+    assert.notEqual(loadPreferences().confirmMove, "always");
   });
 
-  it("resolves locale from OS on fresh install", () => {
+  it("defaults locale to en on fresh install", () => {
     const previous = globalThis.navigator;
     Object.defineProperty(globalThis, "navigator", {
       configurable: true,
-      value: { language: "en-GB", languages: ["en-GB"] },
+      value: { language: "ru-RU", languages: ["ru-RU"] },
     });
     try {
       assert.equal(loadPreferences().locale, "en");
@@ -212,10 +212,10 @@ describe("settingsPreferences", () => {
     savePreferences({ confirmMove: "never", panelsPeekOnEdge: false, showPhotoDates: true, locale: "en" });
     resetPreferencesToDefaults();
     const prefs = loadPreferences();
-    assert.equal(prefs.confirmMove, "always");
+    assert.equal(prefs.confirmMove, "mass");
     assert.equal(prefs.panelsPeekOnEdge, true);
     assert.equal(prefs.showPhotoDates, false);
-    assert.equal(prefs.locale, "ru");
+    assert.equal(prefs.locale, "en");
   });
 
   it("migrates v1 without locale to ru", () => {

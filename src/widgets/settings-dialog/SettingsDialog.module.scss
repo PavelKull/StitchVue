@@ -228,6 +228,7 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
     visibility: visible;
     pointer-events: auto;
     overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 
   h3 {
@@ -427,44 +428,70 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   max-width: none;
 }
 
-.aboutHero {
+.aboutHeader {
   display: flex;
-  gap: 14px;
-  margin-bottom: 4px;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
 
-  .meta,
-  .hint {
-    margin-bottom: 6px;
-
-    &:last-child {
-      margin-bottom: 0;
-    }
-  }
+.aboutHeaderText {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .aboutLogo {
-  border-radius: 14px;
+  flex-shrink: 0;
+  border-radius: 12px;
 }
 
-.developerRow {
+.aboutTitle {
+  margin: 0 0 2px;
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+.aboutVersion {
+  margin: 0 0 4px;
+  color: var(--pg-text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.aboutTagline {
+  margin: 0;
+  color: var(--pg-text-muted);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.aboutStatus {
+  margin: 0 0 8px;
+  color: var(--pg-icon-active);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.aboutLinkGroup {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 
-.linkedinLink {
+.aboutTextLink {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 0;
+  padding: 4px 0;
   border: 0;
   background: transparent;
   color: var(--pg-text-primary);
   font: inherit;
   font-size: 14px;
-  line-height: 1.3;
+  line-height: 1.35;
   cursor: pointer;
 
   &:hover {
@@ -477,11 +504,12 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   }
 }
 
-.linkedinIcon {
+.aboutTextLinkIcon {
   display: inline-flex;
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
+  opacity: 0.75;
 
   svg {
     display: block;
@@ -490,29 +518,25 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   }
 }
 
-.aboutTitle {
-  margin: 0 0 4px;
-}
-
-.linkList {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
 .aboutSection {
-  margin: 0 0 14px;
-  padding-top: 14px;
+  margin: 0 0 10px;
+  padding-top: 10px;
   border-top: 1px solid rgb(255 255 255 / 8%);
 
   h4 {
-    margin: 0 0 6px;
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
   }
 
   .meta {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
+}
+
+.aboutLegal {
+  margin-bottom: 0;
+  overflow-anchor: none;
 }
 
 .aboutAction {
@@ -564,12 +588,35 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   }
 }
 
+.aboutActionPrimary {
+  background: color-mix(in srgb, var(--pg-accent) 88%, black 12%);
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--pg-accent) 94%, white 6%);
+  }
+
+  &:disabled {
+    opacity: 0.72;
+    cursor: wait;
+  }
+}
+
 .aboutActionAccent {
   background: rgb(31 104 205 / 32%);
   color: var(--pg-icon-active);
 
   &:hover:not(:disabled) {
     background: rgb(31 104 205 / 42%);
+  }
+}
+
+.aboutActionSoft {
+  background: rgb(31 104 205 / 18%);
+  color: var(--pg-icon-active);
+
+  &:hover:not(:disabled) {
+    background: rgb(31 104 205 / 28%);
   }
 }
 
@@ -582,9 +629,77 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   }
 }
 
-.aboutLicenseToggle {
+.aboutDisclosure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
-  max-width: 320px;
+  min-height: 28px;
+  margin: 0;
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  color: var(--pg-text-muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--pg-text-primary);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pg-accent);
+    outline-offset: 2px;
+  }
+}
+
+.aboutDisclosureIcon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.aboutDisclosureChevronSlot {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+}
+
+.aboutDisclosureChevron {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  opacity: 0.85;
+  transition: transform 150ms ease;
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.aboutLegal[data-license-open="true"] .aboutDisclosureChevron {
+  transform: rotate(180deg);
+}
+
+.aboutDisclosureLabel {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .contactEmailRow {
@@ -592,17 +707,27 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 10px;
-  margin-bottom: 12px;
+  margin: 10px 0 0;
 }
 
-.contactEmail {
+.contactEmailLink {
   min-width: 0;
   max-width: calc(100% - 48px);
   overflow-wrap: anywhere;
   user-select: text;
   font-size: 14px;
   line-height: 1.45;
-  color: var(--pg-text-primary);
+  color: var(--pg-icon-active);
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pg-accent);
+    outline-offset: 2px;
+  }
 }
 
 .contactCopyIcon {
@@ -657,13 +782,30 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
   line-height: 1.3;
 }
 
+.licenseCollapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  overflow-anchor: none;
+}
+
+.aboutLegal[data-license-open="true"] .licenseCollapse {
+  grid-template-rows: 1fr;
+}
+
+.licenseCollapse[hidden] {
+  display: none;
+}
+
 .licenseBox {
-  margin-top: 10px;
-  padding: 12px 14px;
+  min-height: 0;
+  margin-top: 6px;
+  padding: 10px 12px;
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: var(--pg-radius-panel);
   background: rgb(0 0 0 / 22%);
   overflow: visible;
+  overflow-anchor: none;
 
   pre {
     margin: 0;
@@ -676,7 +818,8 @@ $settings-scrollbar-thumb-border: ($settings-scrollbar-hit - $settings-scrollbar
 
 @media (prefers-reduced-motion: reduce) {
   .aboutAction,
-  .contactCopyIcon {
+  .contactCopyIcon,
+  .aboutDisclosureChevron {
     transition: none;
   }
 }

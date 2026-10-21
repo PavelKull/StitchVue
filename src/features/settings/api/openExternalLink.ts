@@ -13,6 +13,8 @@ export type ExternalLinkKind =
 export type OpenExternalLinkOptions = {
   /** Subject for `support_email` mailto. Defaults to contact subject. */
   subject?: string;
+  /** Full `…/issues/new?…` URL when kind is `github_issues` (must match configured repo). */
+  issuesUrl?: string;
 };
 
 export async function openExternalLink(
@@ -27,5 +29,5 @@ export async function openExternalLink(
     await invoke("open_external_link", { kind, url });
     return;
   }
-  await invoke("open_external_link", { kind });
+  await invoke("open_external_link", { kind, url: options?.issuesUrl ?? null });
 }

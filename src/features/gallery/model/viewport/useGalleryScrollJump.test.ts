@@ -9,6 +9,7 @@ import {
     scrollJumpStatesEqual,
     scrollMax,
     shouldClearPendingScrollToEnd,
+    shouldStickFollowScrollGrowth,
 } from '../../lib/viewport/galleryScrollJump.ts';
 
 test('commitScrollJump equality matches hook helper', () => {
@@ -52,6 +53,8 @@ test('shouldClearPendingScrollToEnd on scroll up', () => {
             scrollHeight: 1000,
             clientHeight: 400,
             listingComplete: false,
+            geometryComplete: false,
+            animating: false,
         }),
         true,
     );
@@ -66,6 +69,8 @@ test('shouldClearPendingScrollToEnd when listing complete at bottom', () => {
             scrollHeight: 1000,
             clientHeight: 400,
             listingComplete: true,
+            geometryComplete: true,
+            animating: false,
         }),
         true,
     );
@@ -80,6 +85,8 @@ test('shouldClearPendingScrollToEnd stays while growing toward end', () => {
             scrollHeight: 2000,
             clientHeight: 400,
             listingComplete: false,
+            geometryComplete: false,
+            animating: false,
         }),
         false,
     );
@@ -94,6 +101,143 @@ test('shouldClearPendingScrollToEnd noop when not pending', () => {
             scrollHeight: 1000,
             clientHeight: 400,
             listingComplete: true,
+            geometryComplete: true,
+            animating: false,
+        }),
+        false,
+    );
+});
+
+test('shouldClearPendingScrollToEnd stays when listing complete but geometry incomplete at bottom', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 599,
+            previousScrollTop: 599,
+            scrollHeight: 1000,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: false,
+            animating: false,
+        }),
+        false,
+    );
+});
+
+test('shouldStickFollowScrollGrowth when height grew', () => {
+    assert.equal(
+        shouldStickFollowScrollGrowth({
+            pending: true,
+            animating: false,
+            previousHeight: 800,
+            scrollHeight: 1200,
+        }),
+        true,
+    );
+    assert.equal(
+        shouldStickFollowScrollGrowth({
+            pending: true,
+            animating: true,
+            previousHeight: 800,
+            scrollHeight: 1200,
+        }),
+        false,
+    );
+    assert.equal(
+        shouldStickFollowScrollGrowth({
+            pending: false,
+            animating: false,
+            previousHeight: 800,
+            scrollHeight: 1200,
+        }),
+        false,
+    );
+    assert.equal(
+        shouldStickFollowScrollGrowth({
+            pending: true,
+            animating: false,
+            previousHeight: 1200,
+            scrollHeight: 1200,
+        }),
+        false,
+    );
+});
+
+test('shouldClearPendingScrollToEnd when listing and geometry complete at bottom', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 599,
+            previousScrollTop: 599,
+            scrollHeight: 1000,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: true,
+            animating: false,
+        }),
+        true,
+    );
+});
+
+test('shouldClearPendingScrollToEnd on user scroll up while geometry incomplete', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 400,
+            previousScrollTop: 500,
+            scrollHeight: 1000,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: false,
+            animating: false,
+        }),
+        true,
+    );
+});
+
+test('shouldClearPendingScrollToEnd stays while animating at bottom', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 599,
+            previousScrollTop: 599,
+            scrollHeight: 1000,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: true,
+            animating: true,
+        }),
+        false,
+    );
+});
+
+test('shouldClearPendingScrollToEnd on empty non-scrollable listing', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 0,
+            previousScrollTop: 0,
+            scrollHeight: 400,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: true,
+            animating: false,
+        }),
+        true,
+    );
+});
+
+test('shouldClearPendingScrollToEnd stays for programmatic at-bottom while animating with incomplete geometry', () => {
+    assert.equal(
+        shouldClearPendingScrollToEnd({
+            pending: true,
+            scrollTop: 599,
+            previousScrollTop: 580,
+            scrollHeight: 1000,
+            clientHeight: 400,
+            listingComplete: true,
+            geometryComplete: false,
+            animating: true,
         }),
         false,
     );

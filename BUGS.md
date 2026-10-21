@@ -12,7 +12,7 @@
 
 | ID | Технический статус | Уверенность | Слой |
 |----|--------------------|-------------|------|
-| B-001 | CONFIRMED | high | FE scroll jump |
+| B-001 | CONFIRMED (IMPLEMENTED / AWAITING SMOKE) | high | FE scroll jump |
 | B-002 | LIKELY | medium | thumb + tile CSS |
 | B-003 | CONFIRMED | high | mosaic freeze + CSS-rotate |
 | B-004 | LIKELY | medium | embedded preview |
@@ -59,13 +59,13 @@
   1. Открыть достаточно большую папку (листинг и сетка нарастают не мгновенно).
   2. Пока загрузка/инициализация не закончилась, нажать кнопку вниз.
   3. Оказаться не в конце папки, а на текущем низе уже отрисованного контента.
-- **Код сейчас:** `jumpGalleryScroll` в `src/features/gallery/model/viewport/useGalleryScrollJump.ts` делает `scrollTo({ top: scrollHeight - clientHeight })` по **текущему** DOM. Высота растёт позже: `listingComplete={status === 'ready'}` в `GalleryPage` → `layoutMosaicPublished` / `publishedEnd` + `estimateUniformTail` в `widgets/gallery-grid/layout.ts`. Флага «хочу быть в конце» нет. Backend (`images-batch`, headers) высоту скролла не считает.
-- **Причина:** подтверждена. Прыжок одноразовый; follow-max нет.
-- **Как чинить:** прежняя рекомендация жива. Не ждать полной готовности. Намерение `pendingScrollToEnd`: клик сразу на текущий max → на росте `scrollHeight` снова `scrollTop = max`, пока флаг жив; снять при ready+низ / ручном скролле / «вверх» / смене папки. На время флага `behavior: 'auto'`. Спейсер на всё число файлов **не** первый шаг — ломает инкрементальную раскладку.
+- **Код сейчас:** `jumpGalleryScroll` в `src/features/gallery/model/viewport/useGalleryScrollJump.ts` ставит `pendingScrollToEnd` и follow-max на рост `scrollHeight` (ResizeObserver / spacer). Высота растёт позже: `listingComplete={status === 'ready'}` в `GalleryPage` → `layoutMosaicPublished` / `publishedEnd` + `estimateUniformTail` в `widgets/gallery-grid/layout.ts`. Backend (`images-batch`, headers) высоту скролла не считает.
+- **Причина:** follow-max есть, но `pendingScrollToEnd` снимался при `listingComplete` (`status === 'ready'`) && atBottom, до того как метаданные закончили растить spacer. Временный «низ» не должен сбрасывать follow.
+- **Как чинить:** держать follow, пока `listingComplete` **и** `geometryComplete` (каждый слот — trusted aspect или failed). Снять при listing+geometry+низ / ручном скролле вверх / «вверх» / смене папки. Программные кадры анимации и временный at-bottom не сбрасывают флаг. Спейсер на всё число файлов **не** первый шаг — ломает инкрементальную раскладку.
 - **Зависимости:** B-011 — follow-end без тайлов в хвосте mosaic даст пустой конец. Не ждать очередь миниатюр.
 - **Приёмка:** большая папка, «вниз» до `ready` — в реальном конце ленты; «вверх» сразу; ручной скролл снимает приклеивание.
 - **Диагностика:** не нужна сверх ручного сценария.
-- **Прогресс 003:** пакет `TASK-2026-003-B001-scroll-end` — `pendingScrollToEnd`, follow-max на ResizeObserver, отмена при скролле вверх / «вверх» / смене папки. Unit 6/6. Ручная проверка на большой папке не выполнялась — **не FIXED**.
+- **Прогресс 003:** пакет `TASK-2026-003-B001-scroll-end` — `pendingScrollToEnd`, follow-max на ResizeObserver. **TASK-B001:** follow до listing+geometry complete; unit-тесты. Продуктовый smoke на большой портретной папке — **AWAITING**. Статус **IMPLEMENTED / AWAITING SMOKE**, технически **CONFIRMED**, **не FIXED**. Если слот так и не получит meta и не попадёт в `failed`, follow снимается только вручную (вверх / смена папки / «вверх»).
 
 ### B-002 — миниатюра не заполняет тайл, чёрные полосы пока грузится
 - **Статус:** открыто

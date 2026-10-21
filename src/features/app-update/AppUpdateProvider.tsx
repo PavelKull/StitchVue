@@ -19,12 +19,21 @@ import {
   canStartUpdate,
   classifyUpdateError,
   initialUpdateSnapshot,
+  type UpdateErrorKey,
   type UpdateSnapshot,
 } from "./lib/updateLifecycle";
 import { UpdateDialog } from "./ui/UpdateDialog";
 
+export type AboutUpdateStatus =
+  | { kind: "idle" }
+  | { kind: "checking" }
+  | { kind: "upToDate"; version: string }
+  | { kind: "available"; version: string }
+  | { kind: "error"; errorKey: UpdateErrorKey };
+
 type AppUpdateContextValue = {
   openUpdateDialog: () => void;
+  aboutUpdateStatus: AboutUpdateStatus;
   setUpdateOperationsBlocked: (blocked: boolean) => void;
 };
 
@@ -43,6 +52,7 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
   const [installedVersion, setInstalledVersion] = useState("—");
   const [available, setAvailable] = useState<AvailableUpdate | null>(null);
   const [snapshot, setSnapshot] = useState<UpdateSnapshot>(initialUpdateSnapshot);
+  const [aboutUpdateStatus, setAboutUpdateStatus] = useState<AboutUpdateStatus>({ kind: "idle" });
   const [operationsBlocked, setOperationsBlocked] = useState(false);
   const availableRef = useRef<AvailableUpdate | null>(null);
   const startingRef = useRef(false);
@@ -82,6 +92,9 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
 
   const runCheck = useCallback(
     async (opts: { manual: boolean }) => {
+      if (opts.manual) {
+        setAboutUpdateStatus({ kind: "checking" });
+      }
       setSnapshot({ phase: "checking", progress: 0, errorKey: null });
       try {
         const update = await checkForUpdate();
@@ -89,6 +102,7 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
           if (opts.manual) {
             setAvailable(null);
             setSnapshot({ phase: "upToDate", progress: 0, errorKey: null });
+            setAboutUpdateStatus({ kind: "upToDate", version: installedVersion });
             setOpen(true);
           } else {
             setSnapshot(initialUpdateSnapshot());
@@ -98,18 +112,22 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
         await releasePendingUpdate();
         setAvailable(update);
         setSnapshot({ phase: "prompt", progress: 0, errorKey: null });
+        if (opts.manual) {
+          setAboutUpdateStatus({ kind: "available", version: update.version });
+        }
         setOpen(true);
       } catch {
         // Автопроверка молчит при сети/endpoint; ручная — показывает ошибку.
         if (opts.manual) {
           setSnapshot({ phase: "error", progress: 0, errorKey: "network" });
+          setAboutUpdateStatus({ kind: "error", errorKey: "network" });
           setOpen(true);
         } else {
           setSnapshot(initialUpdateSnapshot());
         }
       }
     },
-    [releasePendingUpdate],
+    [installedVersion, releasePendingUpdate],
   );
 
   const openUpdateDialog = useCallback(() => {
@@ -174,9 +192,10 @@ export function AppUpdateProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(
     () => ({
       openUpdateDialog,
+      aboutUpdateStatus,
       setUpdateOperationsBlocked: setOperationsBlocked,
     }),
-    [openUpdateDialog],
+    [aboutUpdateStatus, openUpdateDialog],
   );
 
   return (

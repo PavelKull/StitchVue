@@ -23,3 +23,27 @@ export function resolveReportProblemRoute(
   }
   return { channel: "unavailable" };
 }
+
+/** Prefilled GitHub issue form (opened in the system browser). */
+export function buildBugReportIssueUrl(issuesNewUrl: string, appVersion: string): string {
+  const base = issuesNewUrl.replace(/\/$/, "");
+  const body = [
+    "### StitchVue version",
+    appVersion || "—",
+    "",
+    "### Windows",
+    typeof navigator !== "undefined" ? navigator.userAgent : "",
+    "",
+    "### Steps to reproduce",
+    "1. ",
+    "",
+    "### Expected behavior",
+    "",
+    "### Actual behavior",
+    "",
+  ].join("\n");
+  const params = new URLSearchParams();
+  params.set("title", "Bug report");
+  params.set("body", body);
+  return `${base}?${params.toString()}`;
+}

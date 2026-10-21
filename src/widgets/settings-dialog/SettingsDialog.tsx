@@ -1,11 +1,12 @@
 import { getVersion } from "@tauri-apps/api/app";
-import { useCallback, useEffect, useId, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { LAYOUT_MODES } from "../../entities/gallery/layoutMode";
 import { formatCacheSize } from "../../features/settings/lib/formatCacheSize";
 import { openExternalLink } from "../../features/settings/api/openExternalLink";
+import { useAppUpdate } from "../../features/app-update";
 import {
   BUG_REPORT_SUBJECT,
-  CONTACT_SUBJECT,
+  buildBugReportIssueUrl,
   resolveReportProblemRoute,
 } from "../../features/settings/api/reportProblem";
 import type { AppPreferences, SettingsTab } from "../../features/settings/lib/settingsPreferences";
@@ -50,8 +51,6 @@ type SettingsDialogProps = {
   onCacheTtl: (preset: string) => Promise<CacheUsage>;
   ttlPreset: string;
   returnFocusRef?: RefObject<HTMLElement | null>;
-  /** C-003: opens mock update dialog (real check lives in feature 002). */
-  onCheckForUpdates?: () => void;
 };
 
 const CACHE_LIMITS = [
@@ -73,7 +72,6 @@ export function SettingsDialog({
   onCacheTtl,
   ttlPreset,
   returnFocusRef,
-  onCheckForUpdates,
 }: SettingsDialogProps) {
   const { t } = useTranslation();
   const tabs: { id: SettingsTab; label: string; icon: StitchVueIconName }[] = [
@@ -312,7 +310,7 @@ export function SettingsDialog({
                   <SupportPanel />
                 </div>
                 <div className={styles.panelPane} data-active={tab === "about"} aria-hidden={tab !== "about"}>
-                  <AboutPanel onCheckForUpdates={onCheckForUpdates} />
+                  <AboutPanel />
                 </div>
               </div>
             </div>
@@ -656,8 +654,24 @@ function SupportPanel() {
   );
 }
 
-function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
+function AboutExternalLink({
+  label,
+  onClick,
+}: {
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button type="button" className={styles.aboutTextLink} onClick={onClick}>
+      <span>{label}</span>
+      <StitchVueIcon name="arrow-up-right" className={styles.aboutTextLinkIcon} />
+    </button>
+  );
+}
+
+function AboutPanel() {
   const { t } = useTranslation();
+  const { openUpdateDialog, aboutUpdateStatus } = useAppUpdate();
   const [version, setVersion] = useState<string | null>(null);
   const [licenseOpen, setLicenseOpen] = useState(false);
   const [licenseText, setLicenseText] = useState<string | null>(null);
@@ -666,9 +680,12 @@ function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
   const [emailCopied, setEmailCopied] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
   const emailCopyTimerRef = useRef(0);
+  const licenseDisclosureRef = useRef<HTMLButtonElement>(null);
   const reportRoute = resolveReportProblemRoute(githubIssuesUrl(), SUPPORT_EMAIL);
   const canReportProblem = reportRoute.channel !== "unavailable";
-  const canContact = Boolean(SUPPORT_EMAIL && supportMailtoUrl(CONTACT_SUBJECT));
+  const canContact = Boolean(SUPPORT_EMAIL && supportMailtoUrl());
+  const mailtoHref = supportMailtoUrl();
+  const updateChecking = aboutUpdateStatus.kind === "checking";
 
   useEffect(() => {
     void getVersion()
@@ -709,7 +726,8 @@ function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
     const route = resolveReportProblemRoute(githubIssuesUrl(), SUPPORT_EMAIL);
     try {
       if (route.channel === "github_issues") {
-        await openExternalLink("github_issues");
+        const issuesUrl = buildBugReportIssueUrl(githubIssuesUrl(), version ?? "—");
+        await openExternalLink("github_issues", { issuesUrl });
         return;
       }
       if (route.channel === "mailto") {
@@ -735,14 +753,31 @@ function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
     setContactError(t("settings.about.contactCopyFailed"));
   }
 
-  async function writeDeveloper() {
-    setContactError(null);
-    try {
-      await openExternalLink("support_email", { subject: CONTACT_SUBJECT });
-    } catch {
-      setContactError(t("settings.about.contactOpenFailed"));
+  function updateStatusMessage(): string | null {
+    switch (aboutUpdateStatus.kind) {
+      case "checking":
+        return t("settings.about.updateChecking");
+      case "upToDate":
+        return t("settings.about.updateUpToDate");
+      case "available":
+        return t("settings.about.updateAvailable", { version: aboutUpdateStatus.version });
+      case "error":
+        return t("settings.about.updateCheckFailed");
+      default:
+        return null;
     }
   }
+
+  useLayoutEffect(() => {
+    const pane = licenseDisclosureRef.current?.closest('[data-active="true"]');
+    if (!(pane instanceof HTMLElement)) {
+      return;
+    }
+    const scrollTop = pane.scrollTop;
+    requestAnimationFrame(() => {
+      pane.scrollTop = scrollTop;
+    });
+  }, [licenseOpen, licenseText]);
 
   async function toggleLicense() {
     if (licenseOpen) {
@@ -761,126 +796,141 @@ function AboutPanel({ onCheckForUpdates }: { onCheckForUpdates?: () => void }) {
     }
   }
 
+  const updateStatus = updateStatusMessage();
+
   return (
     <>
-      <div className={styles.aboutHero}>
-        <img src={APP_ICON} alt="" className={styles.aboutLogo} width={64} height={64} />
-        <div>
+      <header className={styles.aboutHeader}>
+        <img src={APP_ICON} alt="" className={styles.aboutLogo} width={52} height={52} />
+        <div className={styles.aboutHeaderText}>
           <h3 className={styles.aboutTitle}>StitchVue</h3>
-          <p className={styles.meta}>{t("settings.about.version", { version: version ?? "—" })}</p>
-          {onCheckForUpdates ? (
-            <button
-              type="button"
-              className={`${styles.aboutAction} ${styles.aboutActionNeutral}`}
-              onClick={onCheckForUpdates}
-            >
-              <StitchVueIcon name="navigation-refresh" className={styles.aboutActionIcon} />
-              <span className={styles.aboutActionLabel}>{t("settings.about.checkUpdates")}</span>
-            </button>
-          ) : null}
-          <p className={styles.hint}>{t("settings.about.tagline")}</p>
-          <p className={`${styles.meta} ${styles.developerRow}`}>
-            <span>{t("settings.about.developer")}</span>
-            {LINKEDIN_URL ? (
-              <button
-                type="button"
-                className={styles.linkedinLink}
-                aria-label={t("settings.about.linkedinAria")}
-                onClick={() => void openLinkedIn()}
-              >
-                <StitchVueIcon name="linkedin" className={styles.linkedinIcon} />
-                <span>{t("settings.about.linkedin")}</span>
-              </button>
-            ) : null}
+          <p className={styles.aboutVersion}>{t("settings.about.version", { version: version ?? "—" })}</p>
+          <p className={styles.aboutTagline}>{t("settings.about.tagline")}</p>
+        </div>
+      </header>
+
+      <section className={styles.aboutSection}>
+        <h4>{t("settings.about.updatesTitle")}</h4>
+        <p className={styles.meta}>{t("settings.about.updatesHint")}</p>
+        {updateStatus ? (
+          <p className={styles.aboutStatus} aria-live="polite">
+            {updateStatus}
           </p>
-        </div>
-      </div>
-      {linkError ? <p className={styles.error}>{linkError}</p> : null}
-      {GITHUB_REPO_URL ? (
-        <div className={styles.linkList}>
-          <button type="button" className={`${styles.aboutAction} ${styles.aboutActionNeutral}`} onClick={() => void openRepo()}>
-            <span className={styles.aboutActionLabel}>{t("settings.about.githubRepo")}</span>
-            <StitchVueIcon name="arrow-up-right" className={styles.aboutActionIcon} />
-          </button>
-        </div>
+        ) : null}
+        <button
+          type="button"
+          className={`${styles.aboutAction} ${styles.aboutActionPrimary}`}
+          disabled={updateChecking}
+          onClick={() => openUpdateDialog()}
+        >
+          <StitchVueIcon name="navigation-refresh" className={styles.aboutActionIcon} />
+          <span className={styles.aboutActionLabel}>
+            {updateChecking ? t("settings.about.updateChecking") : t("settings.about.checkUpdatesShort")}
+          </span>
+        </button>
+      </section>
+
+      {GITHUB_REPO_URL || LINKEDIN_URL ? (
+        <section className={styles.aboutSection}>
+          <h4>{t("settings.about.linksTitle")}</h4>
+          {linkError ? <p className={styles.error}>{linkError}</p> : null}
+          <div className={styles.aboutLinkGroup}>
+            {GITHUB_REPO_URL ? (
+              <AboutExternalLink label={t("settings.about.githubRepo")} onClick={() => void openRepo()} />
+            ) : null}
+            {LINKEDIN_URL ? (
+              <AboutExternalLink
+                label={t("settings.about.linkedinLink")}
+                onClick={() => void openLinkedIn()}
+              />
+            ) : null}
+          </div>
+        </section>
       ) : null}
-      {canReportProblem ? (
+
+      {canReportProblem || canContact ? (
         <section className={styles.aboutSection}>
           <h4>{t("settings.about.feedbackTitle")}</h4>
           <p className={styles.meta}>{t("settings.about.feedbackDescription")}</p>
           {feedbackError ? <p className={styles.error}>{feedbackError}</p> : null}
-          <button
-            type="button"
-            className={`${styles.aboutAction} ${styles.aboutActionAccent}`}
-            onClick={() => void reportProblem()}
-          >
-            <StitchVueIcon name="bug" className={styles.aboutActionIcon} />
-            <span className={styles.aboutActionLabel}>{t("settings.about.reportProblem")}</span>
-            <StitchVueIcon name="arrow-up-right" className={styles.aboutActionIcon} />
-          </button>
+          {canReportProblem ? (
+            <button
+              type="button"
+              className={`${styles.aboutAction} ${styles.aboutActionSoft}`}
+              onClick={() => void reportProblem()}
+            >
+              <StitchVueIcon name="bug" className={styles.aboutActionIcon} />
+              <span className={styles.aboutActionLabel}>{t("settings.about.reportProblem")}</span>
+              <StitchVueIcon name="arrow-up-right" className={styles.aboutActionIcon} />
+            </button>
+          ) : null}
+          {canContact ? (
+            <>
+              {contactError ? <p className={styles.error}>{contactError}</p> : null}
+              <div className={styles.contactEmailRow}>
+                <a
+                  className={styles.contactEmailLink}
+                  href={mailtoHref}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void openExternalLink("support_email");
+                  }}
+                >
+                  {SUPPORT_EMAIL}
+                </a>
+                <Tooltip text={emailCopied ? t("settings.about.contactCopied") : t("settings.about.contactCopy")}>
+                  <button
+                    type="button"
+                    className={styles.contactCopyIcon}
+                    aria-label={
+                      emailCopied ? t("settings.about.contactCopiedAria") : t("settings.about.contactCopyAria")
+                    }
+                    aria-pressed={emailCopied}
+                    onClick={() => void copySupportEmail()}
+                  >
+                    <StitchVueIcon name={emailCopied ? "check" : "copy"} className={styles.contactCopyGlyph} />
+                  </button>
+                </Tooltip>
+                {emailCopied ? (
+                  <span className={styles.contactCopiedHint} aria-live="polite">
+                    {t("settings.about.contactCopied")}
+                  </span>
+                ) : null}
+              </div>
+            </>
+          ) : null}
         </section>
       ) : null}
-      {canContact ? (
-        <section className={styles.aboutSection}>
-          <h4>{t("settings.about.contactTitle")}</h4>
-          <p className={styles.meta}>{t("settings.about.contactDescription")}</p>
-          {contactError ? <p className={styles.error}>{contactError}</p> : null}
-          <div className={styles.contactEmailRow}>
-            <span className={styles.contactEmail}>{SUPPORT_EMAIL}</span>
-            <Tooltip text={emailCopied ? t("settings.about.contactCopied") : t("settings.about.contactCopy")}>
-              <button
-                type="button"
-                className={styles.contactCopyIcon}
-                aria-label={
-                  emailCopied ? t("settings.about.contactCopiedAria") : t("settings.about.contactCopyAria")
-                }
-                aria-pressed={emailCopied}
-                onClick={() => void copySupportEmail()}
-              >
-                <StitchVueIcon name={emailCopied ? "check" : "copy"} className={styles.contactCopyGlyph} />
-              </button>
-            </Tooltip>
-            {emailCopied ? (
-              <span className={styles.contactCopiedHint} aria-live="polite">
-                {t("settings.about.contactCopied")}
-              </span>
-            ) : null}
-          </div>
-          <button
-            type="button"
-            className={`${styles.aboutAction} ${styles.aboutActionNeutral}`}
-            onClick={() => void writeDeveloper()}
-          >
-            <StitchVueIcon name="mail" className={styles.aboutActionIcon} />
-            <span className={styles.aboutActionLabel}>{t("settings.about.contactWrite")}</span>
-          </button>
-        </section>
-      ) : null}
-      <section className={styles.aboutSection}>
+
+      <section
+        className={`${styles.aboutSection} ${styles.aboutLegal}`}
+        data-license-open={licenseOpen ? "true" : undefined}
+      >
         <button
+          ref={licenseDisclosureRef}
           type="button"
-          className={`${styles.aboutAction} ${styles.aboutActionNeutral} ${styles.aboutLicenseToggle}`}
+          className={styles.aboutDisclosure}
           aria-expanded={licenseOpen}
           aria-controls="about-licenses-panel"
           onClick={() => void toggleLicense()}
         >
-          <StitchVueIcon name="scale" className={styles.aboutActionIcon} />
-          <span className={styles.aboutActionLabel}>{t("settings.about.licensesToggle")}</span>
-          <StitchVueIcon
-            name={licenseOpen ? "chevron-up" : "chevron-down"}
-            className={styles.aboutActionIcon}
-          />
+          <StitchVueIcon name="scale" className={styles.aboutDisclosureIcon} />
+          <span className={styles.aboutDisclosureLabel}>{t("settings.about.licensesToggle")}</span>
+          <span className={styles.aboutDisclosureChevronSlot} aria-hidden>
+            <StitchVueIcon name="chevron-down" className={styles.aboutDisclosureChevron} />
+          </span>
         </button>
-        {licenseOpen ? (
-          <div
-            id="about-licenses-panel"
-            className={styles.licenseBox}
-            role="region"
-            aria-label={t("settings.about.licensesAria")}
-          >
-            <pre>{licenseText ?? t("common.loading")}</pre>
+        <div
+          id="about-licenses-panel"
+          className={styles.licenseCollapse}
+          role="region"
+          aria-label={t("settings.about.licensesAria")}
+          hidden={!licenseOpen}
+        >
+          <div className={styles.licenseBox}>
+            <pre>{licenseOpen ? (licenseText ?? t("common.loading")) : ""}</pre>
           </div>
-        ) : null}
+        </div>
       </section>
     </>
   );
