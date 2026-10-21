@@ -36,7 +36,9 @@ fn sandbox() -> PathBuf {
     ));
     let _ = fs::remove_dir_all(&root);
     fs::create_dir_all(&root).unwrap();
-    root
+    // GHA Windows often returns 8.3 TEMP (e.g. RUNNER~1); execute() canonicalizes.
+    // Without this, same_path(copy.parent(), root.join(LOCAL_FAVORITES)) fails on CI.
+    fs::canonicalize(&root).expect("sandbox canonicalize")
 }
 
 fn memory_db() -> Connection {
@@ -110,7 +112,12 @@ fn add_photos(root: &Path, db: &Connection, count: usize) -> Vec<(PathBuf, PathB
         let outcome = &result.outcomes[index];
         assert_eq!(outcome.status, "copied");
         let copy = PathBuf::from(outcome.destination_path.as_ref().unwrap());
-        assert!(same_path(copy.parent().unwrap(), &favorites));
+        assert!(
+            same_path(copy.parent().unwrap(), &favorites),
+            "copy parent {:?} vs favorites {:?}",
+            copy.parent(),
+            favorites
+        );
         record_link(db, origin, &copy);
         pairs.push((origin.clone(), copy));
     }
