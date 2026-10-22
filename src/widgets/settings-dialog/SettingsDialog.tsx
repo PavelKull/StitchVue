@@ -14,7 +14,6 @@ import {
   BOOSTY_URL,
   CLOUDTIPS_URL,
   GITHUB_REPO_URL,
-  LINKEDIN_URL,
   SUPPORT_EMAIL,
   githubIssuesUrl,
   supportMailtoUrl,
@@ -709,18 +708,6 @@ function AboutPanel() {
     }
   }
 
-  async function openLinkedIn() {
-    if (!LINKEDIN_URL) {
-      return;
-    }
-    setLinkError(null);
-    try {
-      await openExternalLink("linkedin");
-    } catch {
-      setLinkError(t("settings.about.openLinkedInFailed"));
-    }
-  }
-
   async function reportProblem() {
     setFeedbackError(null);
     const route = resolveReportProblemRoute(githubIssuesUrl(), SUPPORT_EMAIL);
@@ -830,20 +817,12 @@ function AboutPanel() {
         </button>
       </section>
 
-      {GITHUB_REPO_URL || LINKEDIN_URL ? (
+      {GITHUB_REPO_URL ? (
         <section className={styles.aboutSection}>
           <h4>{t("settings.about.linksTitle")}</h4>
           {linkError ? <p className={styles.error}>{linkError}</p> : null}
           <div className={styles.aboutLinkGroup}>
-            {GITHUB_REPO_URL ? (
-              <AboutExternalLink label={t("settings.about.githubRepo")} onClick={() => void openRepo()} />
-            ) : null}
-            {LINKEDIN_URL ? (
-              <AboutExternalLink
-                label={t("settings.about.linkedinLink")}
-                onClick={() => void openLinkedIn()}
-              />
-            ) : null}
+            <AboutExternalLink label={t("settings.about.githubRepo")} onClick={() => void openRepo()} />
           </div>
         </section>
       ) : null}

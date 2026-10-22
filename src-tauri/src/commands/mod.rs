@@ -546,7 +546,6 @@ pub enum ExternalLinkKind {
     Boosty,
     GithubRepo,
     GithubIssues,
-    Linkedin,
     SupportEmail,
 }
 
@@ -633,7 +632,6 @@ pub fn open_external_link(kind: ExternalLinkKind, url: Option<String>) -> Result
         ExternalLinkKind::Cloudtips => external_link_url("cloudtips")?,
         ExternalLinkKind::Boosty => external_link_url("boosty")?,
         ExternalLinkKind::GithubRepo => external_link_url("githubRepo")?,
-        ExternalLinkKind::Linkedin => external_link_url("linkedin")?,
         ExternalLinkKind::GithubIssues => {
             let base = external_link_url("githubRepo")?;
             let base = base.trim_end_matches('/');
