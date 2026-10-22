@@ -1,6 +1,6 @@
 [package]
 name = "stitchvue"
-version = "0.1.5"
+version = "0.1.6"
 description = "Fast photo gallery for large folders on Windows"
 authors = ["StitchVue"]
 license = "MIT"
