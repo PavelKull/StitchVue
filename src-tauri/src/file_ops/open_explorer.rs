@@ -53,7 +53,7 @@ fn spawn_explorer(argument: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         std::process::Command::new("open")
-            .arg(argument)
+            .args(finder_args(argument))
             .spawn()
             .map_err(|_| "io_error".to_string())?;
         Ok(())
@@ -62,6 +62,19 @@ fn spawn_explorer(argument: &str) -> Result<(), String> {
     {
         let _ = argument;
         Err("unsupported".to_string())
+    }
+}
+
+/// Plain `open` launches bundles (`X.app` is a directory), so anything that may be a
+/// package is only revealed in Finder (`-R`), never opened.
+// ponytail: extension / `Contents` heuristic, NSWorkspace isFilePackageAtPath if it misses one.
+#[cfg(target_os = "macos")]
+fn finder_args(argument: &str) -> Vec<&str> {
+    let path = Path::new(argument);
+    if path.extension().is_some() || path.join("Contents").exists() {
+        vec!["-R", argument]
+    } else {
+        vec![argument]
     }
 }
 
@@ -99,6 +112,27 @@ mod tests {
         let got = explorer_folder_argument(&root.to_string_lossy()).unwrap();
         let canonical = fs::canonicalize(&root).unwrap();
         assert_eq!(got, path_string_for_app(&canonical));
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn finder_only_reveals_possible_packages() {
+        use super::finder_args;
+        let root = sandbox();
+        let plain = root.join("Trip");
+        let bundle = root.join("Vacation.app");
+        let bare_bundle = root.join("Vacation");
+        fs::create_dir(&plain).unwrap();
+        fs::create_dir(&bundle).unwrap();
+        fs::create_dir_all(bare_bundle.join("Contents")).unwrap();
+        let args = |path: &PathBuf| {
+            let text = path.to_string_lossy().into_owned();
+            finder_args(&text).len()
+        };
+        assert_eq!(args(&plain), 1);
+        assert_eq!(args(&bundle), 2);
+        assert_eq!(args(&bare_bundle), 2);
         let _ = fs::remove_dir_all(&root);
     }
 
