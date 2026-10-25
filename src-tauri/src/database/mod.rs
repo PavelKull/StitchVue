@@ -2,13 +2,19 @@ use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-/// Must match the `$LOCALDATA/StitchVue/**` asset scope in `tauri.conf.json`,
-/// otherwise the webview cannot load thumbnails.
+/// Same place as Tauri's `$LOCALDATA` (the asset scope in `tauri.conf.json`).
 pub fn app_dir() -> PathBuf {
     #[cfg(target_os = "macos")]
     let base = std::env::var_os("HOME")
         .map(|home| PathBuf::from(home).join("Library").join("Application Support"));
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    let base = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .or_else(|| {
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("share"))
+        });
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     base.unwrap_or_else(std::env::temp_dir).join("StitchVue")
 }
@@ -646,7 +652,6 @@ pub fn relocate_folder_path(
     new_name: &str,
 ) -> Result<(), String> {
     let old_key = path_key(old_path);
-    let new_key = path_key(new_path);
     conn.execute(
         "UPDATE recent_folders SET path = ?1, name = ?2
          WHERE lower(replace(path, '/', '\\')) = lower(replace(?3, '/', '\\'))",
@@ -659,16 +664,16 @@ pub fn relocate_folder_path(
         (new_path, new_name, old_path),
     )
     .map_err(|err| format!("update favorite folder: {err}"))?;
-    rewrite_path_prefix(conn, "favorite_copies", "origin_path", &old_key, &new_key)?;
-    rewrite_path_prefix(conn, "favorite_copies", "copy_path", &old_key, &new_key)?;
+    rewrite_path_prefix(conn, "favorite_copies", "origin_path", &old_key, new_path)?;
+    rewrite_path_prefix(conn, "favorite_copies", "copy_path", &old_key, new_path)?;
     sync_favorite_copy_keys(conn)?;
-    rewrite_path_prefix(conn, "trash_entries", "trash_path", &old_key, &new_key)?;
+    rewrite_path_prefix(conn, "trash_entries", "trash_path", &old_key, new_path)?;
     rewrite_path_prefix(
         conn,
         "image_display_rotation",
         "source_path",
         &old_key,
-        &new_key,
+        new_path,
     )?;
     Ok(())
 }
@@ -758,7 +763,7 @@ fn rewrite_path_prefix(
     table: &str,
     column: &str,
     old_prefix: &str,
-    new_prefix: &str,
+    new_path: &str,
 ) -> Result<(), String> {
     let mut statement = conn
         .prepare(&format!("SELECT {column} FROM {table}"))
@@ -768,17 +773,18 @@ fn rewrite_path_prefix(
         .map_err(|err| format!("read {table}: {err}"))?
         .collect::<Result<Vec<_>, _>>()
         .map_err(|err| format!("read {table}: {err}"))?;
+    let new_base = normalize_stored_path(new_path);
+    let new_base = new_base.trim_end_matches(['\\', '/']);
+    let nested = format!("{old_prefix}\\");
     for path in rows {
         let key = path_key(&path);
-        if !key.starts_with(old_prefix) {
+        if key != old_prefix && !key.starts_with(&nested) {
             continue;
         }
-        let suffix = key[old_prefix.len()..].to_string();
-        let mut rebuilt = format!("{}{}", new_prefix, suffix);
-        if !cfg!(windows) {
-            // ponytail: keys fold `/` to `\`; breaks names that contain a literal `\`.
-            rebuilt = rebuilt.replace('\\', "/");
-        }
+        // Keys only lowercase ASCII and fold separators, so byte offsets match the
+        // stored path: keep its real suffix (case matters on Linux file systems).
+        let stored = normalize_stored_path(&path);
+        let rebuilt = format!("{new_base}{}", &stored[old_prefix.len()..]);
         conn.execute(
             &format!("UPDATE {table} SET {column} = ?1 WHERE {column} = ?2"),
             (rebuilt, path),
@@ -995,6 +1001,43 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<(), Stri
 
 mod tests {
     use super::*;
+
+    #[test]
+    fn folder_rename_keeps_file_name_case_and_skips_sibling_prefix() {
+        let conn = Connection::open_in_memory().unwrap();
+        migrate(&conn).unwrap();
+        let root = std::path::PathBuf::from(if cfg!(windows) { r"C:\Photos" } else { "/home/me/Photos" });
+        let at = |parts: &[&str]| {
+            parts.iter().fold(root.clone(), |path, part| path.join(part)).display().to_string()
+        };
+        for folder in ["Trip", "Trip 2024"] {
+            record_favorite_copy(
+                &conn,
+                &at(&[folder, "IMG_0001.JPG"]),
+                10,
+                100,
+                &at(&[folder, "Favorites", "IMG_0001.JPG"]),
+                10,
+                100,
+                Some("abc"),
+            )
+            .unwrap();
+        }
+        relocate_folder_path(&conn, &at(&["Trip"]), &at(&["Trip Renamed"]), "Trip Renamed").unwrap();
+        let mut rows = favorite_origin_paths(&conn).unwrap();
+        rows.sort();
+        assert_eq!(
+            rows,
+            vec![
+                (at(&["Trip 2024", "IMG_0001.JPG"]), at(&["Trip 2024", "Favorites", "IMG_0001.JPG"])),
+                (
+                    at(&["Trip Renamed", "IMG_0001.JPG"]),
+                    at(&["Trip Renamed", "Favorites", "IMG_0001.JPG"])
+                ),
+            ]
+        );
+    }
+
     // Windows path fixtures (drive letters, `\\?\`, UNC).
     #[cfg(windows)]
     #[test]
@@ -1115,7 +1158,7 @@ mod tests {
             "favorite_copies",
             "origin_path",
             &path_key(r"C:\Photos\old"),
-            &path_key(r"C:\Photos\new"),
+            r"C:\Photos\new",
         )
         .unwrap();
         rewrite_path_prefix(
@@ -1123,7 +1166,7 @@ mod tests {
             "favorite_copies",
             "copy_path",
             &path_key(r"C:\Photos\old"),
-            &path_key(r"C:\Photos\new"),
+            r"C:\Photos\new",
         )
         .unwrap();
         sync_favorite_copy_keys(&conn).unwrap();
