@@ -32,16 +32,21 @@ pub(crate) fn recycle_path(path: &Path) -> Result<RecycleStatus, RecycleError> {
         let hresult = run_shell_recycle(path)?;
         verify_gone(path, before, hresult)
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
-        use trash::macos::{DeleteMethod, TrashContextExtMacos};
-        // NSFileManager: no Finder automation prompt, but no "Put Back" either.
+        #[allow(unused_mut)]
         let mut ctx = trash::TrashContext::default();
-        ctx.set_delete_method(DeleteMethod::NsFileManager);
+        #[cfg(target_os = "macos")]
+        {
+            use trash::macos::{DeleteMethod, TrashContextExtMacos};
+            // NSFileManager: no Finder automation prompt, but no "Put Back" either.
+            ctx.set_delete_method(DeleteMethod::NsFileManager);
+        }
+        // Linux: freedesktop.org Trash (~/.local/share/Trash or the volume's .Trash-UID).
         ctx.delete(path).map_err(|err| {
             RecycleError::new(
                 "recycle_unavailable",
-                format!("Не удалось переместить в Корзину macOS: {err}"),
+                format!("Не удалось переместить в Корзину: {err}"),
             )
         })?;
         Ok(if path_still_there(path) {
@@ -50,7 +55,7 @@ pub(crate) fn recycle_path(path: &Path) -> Result<RecycleStatus, RecycleError> {
             RecycleStatus::Recycled
         })
     }
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         let _ = path;
         Err(RecycleError::new(
@@ -92,9 +97,16 @@ pub fn is_drive_root(path: &Path) -> bool {
     let components: Vec<_> = path.components().collect();
     match components.as_slice() {
         [Component::Prefix(_), Component::RootDir] | [Component::RootDir] => true,
-        // macOS mounts other volumes at /Volumes/<name>.
+        // Mount points: macOS /Volumes/<name>; Linux /mnt/<name>, /media/<name>,
+        // /media/<user>/<name> and /run/media/<user>/<name>.
         [Component::RootDir, Component::Normal(dir), Component::Normal(_)] => {
-            dir.to_str() == Some("Volumes")
+            matches!(dir.to_str(), Some("Volumes" | "mnt" | "media"))
+        }
+        [Component::RootDir, Component::Normal(dir), Component::Normal(_), Component::Normal(_)] => {
+            dir.to_str() == Some("media")
+        }
+        [Component::RootDir, Component::Normal(run), Component::Normal(media), Component::Normal(_), Component::Normal(_)] => {
+            run.to_str() == Some("run") && media.to_str() == Some("media")
         }
         _ => false,
     }
@@ -500,6 +512,11 @@ mod tests {
             assert!(is_drive_root(Path::new("/")));
             assert!(is_drive_root(Path::new("/Volumes/Photos")));
             assert!(!is_drive_root(Path::new("/Volumes/Photos/2024")));
+            assert!(is_drive_root(Path::new("/mnt/nas")));
+            assert!(is_drive_root(Path::new("/media/me/USB")));
+            assert!(is_drive_root(Path::new("/run/media/me/USB")));
+            assert!(!is_drive_root(Path::new("/media/me/USB/DCIM")));
+            assert!(!is_drive_root(Path::new("/home/me/Pictures")));
         }
         let root = sandbox();
         let named = root.join(LOCAL_TRASH);
@@ -574,7 +591,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    #[cfg(any(windows, target_os = "macos"))]
+    #[cfg(any(windows, target_os = "macos", target_os = "linux"))]
     #[test]
     fn recycles_a_temp_file_and_a_temp_folder_without_erase_on_error() {
         let root = sandbox();

@@ -58,7 +58,16 @@ fn spawn_explorer(argument: &str) -> Result<(), String> {
             .map_err(|_| "io_error".to_string())?;
         Ok(())
     }
-    #[cfg(not(any(windows, target_os = "macos")))]
+    #[cfg(target_os = "linux")]
+    {
+        // Directories always open in the file manager; there are no app bundles here.
+        std::process::Command::new("xdg-open")
+            .arg(argument)
+            .spawn()
+            .map_err(|_| "io_error".to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
     {
         let _ = argument;
         Err("unsupported".to_string())

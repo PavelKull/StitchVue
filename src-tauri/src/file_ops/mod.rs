@@ -1935,6 +1935,10 @@ pub(crate) fn has_disallowed_path_syntax(value: &str) -> bool {
     if value.is_empty() || value.contains('\0') {
         return true;
     }
+    // Streams and device namespaces are Windows-only; `:` is a normal name character elsewhere.
+    if !cfg!(windows) {
+        return false;
+    }
     if value.starts_with(r"\\.\") || value.starts_with("//./") {
         return true;
     }
@@ -3008,6 +3012,15 @@ mod tests {
         )));
     }
 
+    #[cfg(not(windows))]
+    #[test]
+    fn path_syntax_allows_colons_in_unix_names() {
+        assert!(!has_disallowed_path_syntax("/home/me/Photos/12:30 Party/a.jpg"));
+        assert!(has_disallowed_path_syntax(""));
+        assert!(has_disallowed_path_syntax("/home/me/a\0b.jpg"));
+    }
+
+    #[cfg(windows)]
     #[test]
     fn path_syntax_rejects_empty_nul_ads_and_device_namespace() {
         assert!(has_disallowed_path_syntax(""));

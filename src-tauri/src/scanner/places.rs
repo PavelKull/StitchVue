@@ -52,12 +52,52 @@ pub fn home_view() -> DirectoryView {
 
 fn user_folder(name: &str) -> Option<PathBuf> {
     let profile = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
+    #[cfg(target_os = "linux")]
+    if let Some(localized) = xdg_user_dir(std::path::Path::new(&profile), name) {
+        return Some(localized);
+    }
     let direct = PathBuf::from(&profile).join(name);
     if direct.is_dir() {
         return Some(direct);
     }
     let onedrive = PathBuf::from(profile).join("OneDrive").join(name);
     onedrive.is_dir().then_some(onedrive)
+}
+
+/// Localized folder (e.g. `~/Изображения`) from xdg-user-dirs' `user-dirs.dirs`.
+#[cfg(target_os = "linux")]
+fn xdg_user_dir(home: &std::path::Path, name: &str) -> Option<PathBuf> {
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute())
+        .unwrap_or_else(|| home.join(".config"));
+    let text = std::fs::read_to_string(config.join("user-dirs.dirs")).ok()?;
+    parse_user_dir(&text, name, home).filter(|path| path.is_dir())
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn parse_user_dir(text: &str, name: &str, home: &std::path::Path) -> Option<PathBuf> {
+    let key = match name {
+        "Desktop" => "DESKTOP",
+        "Downloads" => "DOWNLOAD",
+        "Documents" => "DOCUMENTS",
+        "Pictures" => "PICTURES",
+        "Videos" => "VIDEOS",
+        "Music" => "MUSIC",
+        _ => return None,
+    };
+    let prefix = format!("XDG_{key}_DIR=");
+    let value = text
+        .lines()
+        .find_map(|line| line.trim().strip_prefix(prefix.as_str()))?
+        .trim()
+        .trim_matches('"');
+    let path = match value.strip_prefix("$HOME") {
+        Some(rest) => home.join(rest.trim_start_matches('/')),
+        None => PathBuf::from(value),
+    };
+    // `"$HOME/"` is how xdg-user-dirs marks a disabled folder.
+    (path.is_absolute() && path != home).then_some(path)
 }
 
 /// Bitmask of present drive letters (`A` = bit 0). Used for hotplug detection.
@@ -226,7 +266,43 @@ pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
     Ok(drives)
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+/// `/` plus mounted volumes under `/media/$USER`, `/run/media/$USER` (udisks) and `/mnt`.
+// ponytail: no sysfs probe, media stays "unknown"; no hotplug refresh.
+#[cfg(target_os = "linux")]
+pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
+    let drive = |name: String, path: PathBuf, kind: &str| FolderShortcut {
+        name,
+        path: path.display().to_string(),
+        kind: FolderKind::Drive,
+        media: Some("unknown".to_string()),
+        service_role: None,
+        place_code: Some("drive".to_string()),
+        drive_letter: None,
+        drive_kind: Some(kind.to_string()),
+    };
+    let mut drives = vec![drive("File System".to_string(), PathBuf::from("/"), "fixed")];
+    let user = std::env::var("USER").unwrap_or_default();
+    let mut parents = vec![PathBuf::from("/mnt")];
+    if !user.is_empty() {
+        parents.push(PathBuf::from("/media").join(&user));
+        parents.push(PathBuf::from("/run/media").join(&user));
+    }
+    for parent in parents {
+        let Ok(entries) = std::fs::read_dir(&parent) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let path = entry.path();
+            if !name.starts_with('.') && path.is_dir() {
+                drives.push(drive(name, path, "removable"));
+            }
+        }
+    }
+    Ok(drives)
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
     Ok(Vec::new())
 }
@@ -324,9 +400,31 @@ mod home_tests {
                 FolderKind::Folder => {}
             }
         }
-        if cfg!(target_os = "macos") {
+        if cfg!(any(target_os = "macos", target_os = "linux")) {
             let first_drive = view.folders.iter().find(|f| matches!(f.kind, FolderKind::Drive));
             assert_eq!(first_drive.map(|f| f.path.as_str()), Some("/"));
+            assert!(first_drive.is_some_and(|f| !f.name.is_empty()));
         }
+    }
+
+    #[test]
+    fn reads_localized_xdg_user_dirs() {
+        use super::parse_user_dir;
+        use std::path::{Path, PathBuf};
+        let home = Path::new("/home/me");
+        let text = "# written by xdg-user-dirs-update\n\
+                    XDG_PICTURES_DIR=\"$HOME/Изображения\"\n\
+                    XDG_DOWNLOAD_DIR=\"/data/downloads\"\n\
+                    XDG_DESKTOP_DIR=\"$HOME/\"\n";
+        assert_eq!(
+            parse_user_dir(text, "Pictures", home),
+            Some(PathBuf::from("/home/me/Изображения"))
+        );
+        assert_eq!(
+            parse_user_dir(text, "Downloads", home),
+            Some(PathBuf::from("/data/downloads"))
+        );
+        assert_eq!(parse_user_dir(text, "Desktop", home), None);
+        assert_eq!(parse_user_dir(text, "Music", home), None);
     }
 }
