@@ -6,6 +6,7 @@ mod heif;
 mod jpeg;
 mod preview;
 mod raw;
+mod video;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -300,6 +301,7 @@ fn drop_opaque_alpha(image: DynamicImage) -> DynamicImage {
 pub fn decode_path(path: &Path, candidate: Option<Format>) -> Result<Source, DecodeError> {
     match candidate.map(Format::backend) {
         Some(Backend::Raw) => raw::decode_path(path),
+        Some(Backend::Video) => video::decode_path(path),
         _ => {
             let bytes = std::fs::read(path).map_err(DecodeError::io)?;
             decode_owned(Arc::new(bytes), candidate)
@@ -324,6 +326,10 @@ pub fn decode_owned(bytes: Arc<Vec<u8>>, candidate: Option<Format>) -> Result<So
         Some(Backend::Heif) => heif::decode(&bytes),
         Some(Backend::Avif) => avif::decode(&bytes),
         Some(Backend::Raw) => raw::decode(bytes),
+        Some(Backend::Video) => Err(DecodeError::new(
+            FailureKind::Unsupported,
+            "video poster frames decode from the file path",
+        )),
         None => Err(DecodeError::new(
             FailureKind::Unsupported,
             "unknown image signature",

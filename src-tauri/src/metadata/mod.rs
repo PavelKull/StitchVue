@@ -32,6 +32,8 @@ fn read_as(path: &Path, format: Option<Format>) -> Result<HeaderMeta, String> {
         Some(Format::Heic | Format::Heif) => crate::thumbnail::heif_header(path),
         Some(Format::Raw) => crate::thumbnail::raw_header(path),
         Some(Format::Avif) => crate::thumbnail::avif_header(path),
+        // Geometry arrives with the Quick Look poster frame.
+        Some(Format::Video) => Err(format!("no image header in video {}", path.display())),
         _ => read_common_header(path),
     }
 }

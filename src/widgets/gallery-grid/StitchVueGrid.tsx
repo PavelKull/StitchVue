@@ -1,6 +1,7 @@
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
+import { isVideoPath } from "../../entities/image/isVideo";
 import { displayAspect, rotationQuarters, tilePhotoStyle } from "../../features/gallery/lib/viewer/displayRotation";
 import { photoDateLabel } from "../../features/gallery/lib/listing/galleryOrder";
 import {
@@ -1165,6 +1166,11 @@ export function StitchVueGrid({
                   >
                     <span className={styles.markCircle}>{selected ? <span className={styles.markCheck} /> : null}</span>
                   </button>
+                ) : null}
+                {isVideoPath(file.path) ? (
+                  <span className={styles.videoBadge} aria-hidden="true">
+                    ▶
+                  </span>
                 ) : null}
                 {dateLabel ? <span className={styles.photoDate}>{dateLabel}</span> : null}
                 <div className={styles.fileActions} data-sv-layer="file-actions">

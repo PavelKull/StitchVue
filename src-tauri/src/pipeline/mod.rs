@@ -2348,6 +2348,11 @@ fn produce(inner: &Inner, job: &Job) -> Result<(), DecodeError> {
     yield_if_needed(inner, job)?;
     let path = Path::new(&job.path);
     let format = formats::from_path(path);
+    if format == Some(formats::Format::Video) {
+        // No read slot: Quick Look does its own I/O and a broken file can take seconds.
+        let source = thumbnail::decode_path(path, format)?;
+        return publish_tiers(inner, job, source);
+    }
     if format.map(formats::Format::backend) == Some(formats::Backend::Raw) {
         let preview = {
             let _slot = acquire_read(inner, job)?;

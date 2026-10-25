@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { ImageFile, ImageMeta, ThumbInfo } from "../../entities/image/types";
+import { isVideoPath } from "../../entities/image/isVideo";
 import { useAppFullscreen } from "../../features/app-fullscreen/model/useAppFullscreen";
 import { useTranslation } from "react-i18next";
 import { StitchVueIcon } from "../../shared/icons/StitchVueIcon";
@@ -163,6 +164,8 @@ export function ImageViewer({
   const tokenRef = useRef(0);
   const filePathRef = useRef(file.path);
   filePathRef.current = file.path;
+  /** Video plays from the file; the grid poster (thumb) is only the placeholder. */
+  const isVideo = isVideoPath(file.path);
   const loadGen = useRef(0);
   const displaySrcRef = useRef<string | null>(null);
   displaySrcRef.current = displaySrc;
@@ -336,7 +339,7 @@ export function ImageViewer({
   );
 
   useEffect(() => {
-    if (nativeHold.current) {
+    if (nativeHold.current || isVideo) {
       return;
     }
     const gen = loadGen.current;
@@ -720,16 +723,38 @@ export function ImageViewer({
           <StitchVueIcon name="viewer-next" className={styles.navIcon} />
         </button>
       </div>
-      {!displaySrc ? <p className={styles.loading}>{t("common.loading")}</p> : null}
+      {!displaySrc && !isVideo ? <p className={styles.loading}>{t("common.loading")}</p> : null}
       <div
         ref={frameRef}
         className={styles.frame}
-        data-grab={canPan ? (grabbing ? "grabbing" : "grab") : undefined}
-        data-ready={displaySrc ? "true" : "false"}
+        data-grab={canPan && !isVideo ? (grabbing ? "grabbing" : "grab") : undefined}
+        data-ready={displaySrc || isVideo ? "true" : "false"}
         style={{ width: frame.width, height: frame.height, transform: `translate(${pan.x}px, ${pan.y}px)` }}
         data-opening={opening ? "true" : undefined}
       >
-        {displaySrc ? (
+        {isVideo ? (
+          <video
+            key={file.path}
+            className={styles.photo}
+            src={convertFileSrc(file.path)}
+            poster={displaySrc ?? undefined}
+            controls
+            autoPlay
+            playsInline
+            style={photoStyle}
+            // A click inside the frame closes the viewer; keep the controls usable.
+            onClick={(event) => event.stopPropagation()}
+            onLoadedMetadata={(event) => {
+              const { videoWidth, videoHeight } = event.currentTarget;
+              if (videoWidth > 0 && videoHeight > 0 && !metaAspectKnown(meta)) {
+                applyGeometry(videoWidth / videoHeight, videoWidth, videoHeight);
+              }
+              setOpening(false);
+            }}
+            // Codec WebKit cannot play (e.g. AV1 on older Macs): keep the poster visible.
+            onError={() => setOpening(false)}
+          />
+        ) : displaySrc ? (
           <img
             className={styles.photo}
             src={displaySrc}
