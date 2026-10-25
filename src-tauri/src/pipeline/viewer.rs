@@ -333,7 +333,8 @@ fn prepare(inner: &Inner, job: &Job) -> Result<Step, DecodeError> {
     }
     let format = formats::from_path(Path::new(&job.path))
         .ok_or_else(|| DecodeError::new(FailureKind::Unsupported, "unknown image extension"))?;
-    if format.webview_native() {
+    // Videos play from the file in a <video>; the grid poster is the only frame needed.
+    if format.webview_native() || format.backend() == Backend::Video {
         return Ok(Step::Done);
     }
     let edge = fresh_edge(inner, job);
@@ -357,6 +358,7 @@ fn prepare(inner: &Inner, job: &Job) -> Result<Step, DecodeError> {
         Backend::Raw => prepare_raw(inner, job, edge),
         Backend::Heif => prepare_decoded(inner, job, edge, true),
         Backend::Avif | Backend::Common => prepare_decoded(inner, job, edge, false),
+        Backend::Video => Ok(Step::Done),
     };
     if matches!(step, Ok(Step::HandedOff)) {
         claimed.keep_until_develop();

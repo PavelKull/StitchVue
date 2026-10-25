@@ -386,6 +386,11 @@ fn read_header(inner: &Inner, generation: u64, folder: &str, file: &ScreenFile) 
 fn decode_tile(inner: &Inner, file: &ScreenFile) -> Result<(), DecodeError> {
     let path = Path::new(&file.path);
     let format = formats::from_path(path);
+    if format == Some(Format::Video) {
+        // No read slot: Quick Look does its own I/O and a broken file can take seconds.
+        let source = thumbnail::decode_path(path, format)?;
+        return store_tile(inner, file, source);
+    }
     if format.map(Format::backend) == Some(formats::Backend::Raw) {
         let source = {
             let _slot = take_slot(inner)

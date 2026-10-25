@@ -18,6 +18,7 @@ pub enum Format {
     Heif,
     Avif,
     Raw,
+    Video,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,6 +27,8 @@ pub enum Backend {
     Heif,
     Avif,
     Raw,
+    /// Poster frame from the OS thumbnailer; the viewer plays the file itself.
+    Video,
 }
 
 struct Spec {
@@ -146,6 +149,15 @@ const FORMATS: &[Spec] = &[
         webview_native: false,
         listed: true,
     },
+    Spec {
+        format: Format::Video,
+        extensions: &["mov", "mp4", "m4v"],
+        backend: Backend::Video,
+        // Not "native": the viewer streams it in a <video>, never decodes it as an image.
+        webview_native: false,
+        // Poster frames come from Quick Look, which only exists on macOS.
+        listed: cfg!(target_os = "macos"),
+    },
 ];
 
 impl Format {
@@ -168,6 +180,11 @@ impl Format {
         self.spec().listed
     }
 
+    /// Decoded from the file path, never by reading the whole file into memory.
+    pub fn decodes_from_path(self) -> bool {
+        matches!(self.backend(), Backend::Raw | Backend::Video)
+    }
+
     pub fn image_format(self) -> Option<image::ImageFormat> {
         match self {
             Self::Jpeg => Some(image::ImageFormat::Jpeg),
@@ -181,7 +198,7 @@ impl Format {
             Self::Hdr => Some(image::ImageFormat::Hdr),
             Self::Pnm => Some(image::ImageFormat::Pnm),
             Self::Qoi => Some(image::ImageFormat::Qoi),
-            Self::Heic | Self::Heif | Self::Avif | Self::Raw => None,
+            Self::Heic | Self::Heif | Self::Avif | Self::Raw | Self::Video => None,
         }
     }
 }
@@ -307,6 +324,11 @@ mod tests {
         assert!(!Format::Ico.webview_native());
         assert!(!Format::Tiff.webview_native());
         assert!(Format::WebP.webview_native());
+        assert_eq!(from_path(Path::new("IMG_0001.MOV")), Some(Format::Video));
+        assert_eq!(from_path(Path::new("clip.mp4")), Some(Format::Video));
+        assert!(!Format::Video.webview_native());
+        assert!(Format::Video.decodes_from_path());
+        assert_eq!(Format::Video.listed(), cfg!(target_os = "macos"));
         assert_eq!(from_path(Path::new("notes.txt")), None);
         assert_eq!(from_path(Path::new("no_extension")), None);
     }
