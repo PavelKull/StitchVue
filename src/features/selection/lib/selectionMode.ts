@@ -60,8 +60,9 @@ export function resolveUnfavoriteParentDirectory(
   if (viewParent && viewParent.trim()) {
     return viewParent;
   }
-  const normalized = favoritesDirectory.replace(/\//g, "\\").replace(/\\+$/, "");
-  const index = normalized.lastIndexOf("\\");
+  const sep = favoritesDirectory.startsWith("/") ? "/" : "\\";
+  const normalized = favoritesDirectory.replace(/[\\/]/g, sep).replace(/[\\/]+$/, "");
+  const index = normalized.lastIndexOf(sep);
   if (index <= 0) {
     return null;
   }

@@ -51,7 +51,7 @@ pub fn home_view() -> DirectoryView {
 }
 
 fn user_folder(name: &str) -> Option<PathBuf> {
-    let profile = std::env::var_os("USERPROFILE")?;
+    let profile = std::env::var_os("USERPROFILE").or_else(|| std::env::var_os("HOME"))?;
     let direct = PathBuf::from(&profile).join(name);
     if direct.is_dir() {
         return Some(direct);
@@ -190,7 +190,43 @@ fn volume_label(letter: char) -> Option<String> {
     (!label.is_empty()).then_some(label)
 }
 
-#[cfg(not(windows))]
+/// Mounted volumes under `/Volumes`; the boot volume there is a symlink to `/`.
+// ponytail: no IOKit probe, media stays "unknown" (HDD/SSD tuning off on macOS).
+#[cfg(target_os = "macos")]
+pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
+    let entries =
+        std::fs::read_dir("/Volumes").map_err(|err| format!("read /Volumes: {err}"))?;
+    let mut drives = Vec::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with('.') {
+            continue;
+        }
+        let is_boot = entry.file_type().is_ok_and(|kind| kind.is_symlink());
+        let path = if is_boot {
+            PathBuf::from("/")
+        } else {
+            entry.path()
+        };
+        if !path.is_dir() {
+            continue;
+        }
+        drives.push(FolderShortcut {
+            name,
+            path: path.display().to_string(),
+            kind: FolderKind::Drive,
+            media: Some("unknown".to_string()),
+            service_role: None,
+            place_code: Some("drive".to_string()),
+            drive_letter: None,
+            drive_kind: Some(if is_boot { "fixed" } else { "removable" }.to_string()),
+        });
+    }
+    drives.sort_by_key(|drive| drive.path != "/");
+    Ok(drives)
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub fn list_drives() -> Result<Vec<FolderShortcut>, String> {
     Ok(Vec::new())
 }
@@ -282,11 +318,15 @@ mod home_tests {
                 }
                 FolderKind::Drive => {
                     assert_eq!(folder.place_code.as_deref(), Some("drive"));
-                    assert!(folder.drive_letter.is_some());
+                    assert_eq!(folder.drive_letter.is_some(), cfg!(windows));
                     assert!(folder.drive_kind.is_some());
                 }
                 FolderKind::Folder => {}
             }
+        }
+        if cfg!(target_os = "macos") {
+            let first_drive = view.folders.iter().find(|f| matches!(f.kind, FolderKind::Drive));
+            assert_eq!(first_drive.map(|f| f.path.as_str()), Some("/"));
         }
     }
 }

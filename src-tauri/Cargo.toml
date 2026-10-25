@@ -1,7 +1,7 @@
 [package]
 name = "stitchvue"
 version = "0.1.6"
-description = "Fast photo gallery for large folders on Windows"
+description = "Fast photo gallery for large folders"
 authors = ["StitchVue"]
 license = "MIT"
 edition = "2021"
@@ -28,6 +28,9 @@ tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-updater = "2.12"
 jpeg-decoder = { version = "0.3.2", default-features = false }
+sha2 = "0.11.1"
+
+[target.'cfg(windows)'.dependencies]
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
@@ -36,7 +39,9 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
-sha2 = "0.11.1"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+trash = "5"
 
 [profile.release]
 codegen-units = 1

@@ -200,6 +200,10 @@ test("mass unfavorite resolves parent when view.parent is missing", () => {
     resolveUnfavoriteParentDirectory("C:\\Photos", "C:\\Photos\\Избранное"),
     "C:\\Photos",
   );
+  assert.equal(
+    resolveUnfavoriteParentDirectory(null, "/Users/me/Photos/Избранное/"),
+    "/Users/me/Photos",
+  );
 });
 
 test("mass unfavorite fully clears selection mode in the parent folder", () => {

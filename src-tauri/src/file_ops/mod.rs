@@ -1964,6 +1964,9 @@ pub(crate) fn has_disallowed_path_syntax(value: &str) -> bool {
 /// Drop `\\?\` / `\\?\UNC\` for React and APIs that reject extended prefixes.
 /// Security checks still use resolved `Path` values, not this string alone.
 pub(crate) fn path_string_for_app(path: &Path) -> String {
+    if !cfg!(windows) {
+        return path.to_string_lossy().into_owned();
+    }
     let text = path.to_string_lossy().replace('/', "\\");
     if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
         format!(r"\\{rest}")
@@ -1974,8 +1977,9 @@ pub(crate) fn path_string_for_app(path: &Path) -> String {
     }
 }
 
+/// Comparison key only, never a real path: separators are folded to `\` on every OS.
 pub(crate) fn normalize_key(path: &Path) -> String {
-    let text = path_string_for_app(path);
+    let text = path_string_for_app(path).replace('/', "\\");
     text.trim_end_matches('\\').to_string()
 }
 
@@ -3024,6 +3028,8 @@ mod tests {
         ));
     }
 
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn normalize_key_equates_extended_and_ordinary_drive_paths() {
         let ordinary = Path::new(r"C:\Photos\Album\image.jpg");
@@ -3034,6 +3040,8 @@ mod tests {
         assert!(same_path(unc, unc_ext));
     }
 
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn path_string_for_app_strips_extended_prefix() {
         assert_eq!(
