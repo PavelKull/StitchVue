@@ -127,6 +127,8 @@ fn p2_reconcile_t021_post_op_metadata_without_deleting_copies() {
 }
 
 /// T022 — Unavailable origin must not purge `favorite_copies` (CL-P04 / EC-02).
+// Windows path fixtures (drive letters, `\\?\`, UNC).
+#[cfg(windows)]
 #[test]
 fn p2_reconcile_t022_unavailable_origin_skips_favorite_copies_purge() {
     let root = sandbox("t022");

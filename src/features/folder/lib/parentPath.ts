@@ -1,6 +1,8 @@
+/** Keeps the path's own separator: `C:\a\b` → `C:\a`, `/a/b` → `/a`. */
 export function parentDirectoryPath(folderPath: string): string {
-  const normalized = folderPath.replace(/\//g, "\\").replace(/\\+$/, "");
-  const index = normalized.lastIndexOf("\\");
+  const sep = folderPath.startsWith("/") ? "/" : "\\";
+  const normalized = folderPath.replace(/[\\/]/g, sep).replace(/[\\/]+$/, "");
+  const index = normalized.lastIndexOf(sep);
   if (index <= 0) {
     return normalized;
   }

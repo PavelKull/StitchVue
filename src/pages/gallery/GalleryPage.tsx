@@ -5344,10 +5344,11 @@ export function GalleryPage() {
                     next.add(originKey);
                     return next;
                 });
+                const sepChar = removal.restoredPath.startsWith('/') ? '/' : '\\';
                 const normalized = removal.restoredPath
-                    .replace(/\//g, '\\')
-                    .replace(/\\+$/, '');
-                const sep = normalized.lastIndexOf('\\');
+                    .replace(/[\\/]/g, sepChar)
+                    .replace(/[\\/]+$/, '');
+                const sep = normalized.lastIndexOf(sepChar);
                 if (sep > 0) {
                     void fetchFavoriteOriginPaths(normalized.slice(0, sep));
                 }

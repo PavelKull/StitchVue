@@ -358,6 +358,11 @@ test("parentDirectory handles Windows paths including extended prefix leaves", (
   assert.equal(parentDirectory("C:\\Photos\\Избранное"), "C:\\Photos");
 });
 
+test("parentDirectory keeps macOS separators", () => {
+  assert.equal(parentDirectory("/Users/me/Photos/Избранное/a.jpg"), "/Users/me/Photos/Избранное");
+  assert.equal(parentDirectory("/Users"), null);
+});
+
 test("historyWithoutRemovedFolder drops favorites entries and keeps other folders", () => {
   const history = {
     index: 4,

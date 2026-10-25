@@ -32,7 +32,25 @@ pub(crate) fn recycle_path(path: &Path) -> Result<RecycleStatus, RecycleError> {
         let hresult = run_shell_recycle(path)?;
         verify_gone(path, before, hresult)
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        use trash::macos::{DeleteMethod, TrashContextExtMacos};
+        // NSFileManager: no Finder automation prompt, but no "Put Back" either.
+        let mut ctx = trash::TrashContext::default();
+        ctx.set_delete_method(DeleteMethod::NsFileManager);
+        ctx.delete(path).map_err(|err| {
+            RecycleError::new(
+                "recycle_unavailable",
+                format!("Не удалось переместить в Корзину macOS: {err}"),
+            )
+        })?;
+        Ok(if path_still_there(path) {
+            RecycleStatus::Ambiguous
+        } else {
+            RecycleStatus::Recycled
+        })
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = path;
         Err(RecycleError::new(
@@ -71,11 +89,15 @@ pub fn inspect_target(path: &Path) -> Result<fs::Metadata, RecycleError> {
 }
 
 pub fn is_drive_root(path: &Path) -> bool {
-    let mut components = path.components();
-    matches!(
-        (components.next(), components.next(), components.next()),
-        (Some(Component::Prefix(_)), Some(Component::RootDir), None)
-    )
+    let components: Vec<_> = path.components().collect();
+    match components.as_slice() {
+        [Component::Prefix(_), Component::RootDir] | [Component::RootDir] => true,
+        // macOS mounts other volumes at /Volumes/<name>.
+        [Component::RootDir, Component::Normal(dir), Component::Normal(_)] => {
+            dir.to_str() == Some("Volumes")
+        }
+        _ => false,
+    }
 }
 
 pub fn tree_has_reparse(root: &Path) -> Result<bool, RecycleError> {
@@ -471,8 +493,14 @@ mod tests {
 
     #[test]
     fn refuses_drive_root_and_unmarked_folder() {
-        assert!(is_drive_root(Path::new(r"D:\")));
-        assert!(!is_drive_root(Path::new(r"D:\photos")));
+        if cfg!(windows) {
+            assert!(is_drive_root(Path::new(r"D:\")));
+            assert!(!is_drive_root(Path::new(r"D:\photos")));
+        } else {
+            assert!(is_drive_root(Path::new("/")));
+            assert!(is_drive_root(Path::new("/Volumes/Photos")));
+            assert!(!is_drive_root(Path::new("/Volumes/Photos/2024")));
+        }
         let root = sandbox();
         let named = root.join(LOCAL_TRASH);
         fs::create_dir(&named).unwrap();
@@ -546,7 +574,7 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     #[test]
     fn recycles_a_temp_file_and_a_temp_folder_without_erase_on_error() {
         let root = sandbox();

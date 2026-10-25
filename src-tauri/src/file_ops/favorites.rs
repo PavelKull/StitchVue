@@ -1967,12 +1967,15 @@ fn path_stamp(path: &Path) -> (u64, i64, Option<String>) {
 }
 
 fn new_op_id(prefix: &str) -> String {
+    // Several ops in one batch can land in the same millisecond.
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     format!(
-        "{prefix}-{}",
+        "{prefix}-{}-{}",
         std::time::SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_millis())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     )
 }
 
@@ -2016,6 +2019,8 @@ mod tests {
         let _ = fs::remove_dir_all(&root);
     }
 
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn same_path_equates_extended_prefix() {
         let plain = Path::new(r"C:\Photos\Избранное\a.jpg");
@@ -2905,6 +2910,8 @@ mod p1_identity_verify {
     }
 
     /// T014 — EC-14: permission denied / inaccessible target must not delete favorites copy.
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn p1_identity_t014_permission_denied_keeps_copy() {
         let root = sandbox("t014");
@@ -2978,6 +2985,8 @@ mod p1_identity_verify {
     }
 
     /// T014b — EC-19: `\\?\` + Unicode path keys; reparse parent rejected.
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn p1_identity_t014b_extended_unicode_and_reparse_reject() {
         let root = sandbox("t014b");

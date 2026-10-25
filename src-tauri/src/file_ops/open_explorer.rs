@@ -50,7 +50,15 @@ fn spawn_explorer(argument: &str) -> Result<(), String> {
             .map_err(|_| "io_error".to_string())?;
         Ok(())
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(argument)
+            .spawn()
+            .map_err(|_| "io_error".to_string())?;
+        Ok(())
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
     {
         let _ = argument;
         Err("unsupported".to_string())

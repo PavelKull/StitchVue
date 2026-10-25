@@ -2,11 +2,15 @@ use rusqlite::{Connection, OptionalExtension};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+/// Must match the `$LOCALDATA/StitchVue/**` asset scope in `tauri.conf.json`,
+/// otherwise the webview cannot load thumbnails.
 pub fn app_dir() -> PathBuf {
-    let base = std::env::var_os("LOCALAPPDATA")
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join("StitchVue")
+    #[cfg(target_os = "macos")]
+    let base = std::env::var_os("HOME")
+        .map(|home| PathBuf::from(home).join("Library").join("Application Support"));
+    #[cfg(not(target_os = "macos"))]
+    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    base.unwrap_or_else(std::env::temp_dir).join("StitchVue")
 }
 
 pub fn open() -> Result<Connection, String> {
@@ -470,6 +474,9 @@ fn backfill_favorite_path_keys(conn: &Connection) -> Result<(), String> {
 }
 
 fn normalize_stored_path(value: &str) -> String {
+    if !cfg!(windows) {
+        return value.to_string();
+    }
     let text = value.replace('/', "\\");
     if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
         format!(r"\\{rest}")
@@ -623,6 +630,7 @@ pub fn delete_trash(conn: &Connection, trash_path: &str) -> Result<(), String> {
 
 fn path_key(value: &str) -> String {
     normalize_stored_path(value)
+        .replace('/', "\\")
         .trim_end_matches('\\')
         .to_ascii_lowercase()
 }
@@ -766,7 +774,11 @@ fn rewrite_path_prefix(
             continue;
         }
         let suffix = key[old_prefix.len()..].to_string();
-        let rebuilt = format!("{}{}", new_prefix, suffix);
+        let mut rebuilt = format!("{}{}", new_prefix, suffix);
+        if !cfg!(windows) {
+            // ponytail: keys fold `/` to `\`; breaks names that contain a literal `\`.
+            rebuilt = rebuilt.replace('\\', "/");
+        }
         conn.execute(
             &format!("UPDATE {table} SET {column} = ?1 WHERE {column} = ?2"),
             (rebuilt, path),
@@ -983,6 +995,8 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> Result<(), Stri
 
 mod tests {
     use super::*;
+    // Windows path fixtures (drive letters, `\\?\`, UNC).
+    #[cfg(windows)]
     #[test]
     fn favorite_copy_lookup_ignores_extended_prefix() {
         let conn = Connection::open_in_memory().unwrap();
