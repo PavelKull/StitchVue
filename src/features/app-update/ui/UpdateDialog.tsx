@@ -122,6 +122,7 @@ export function UpdateDialog({
         <div
           className={styles.progressTrack}
           role="progressbar"
+          aria-label={t("appUpdate.downloading", { percent: progress })}
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
@@ -147,11 +148,6 @@ export function UpdateDialog({
               : phase === "arming"
                 ? t("appUpdate.arming")
                 : t("appUpdate.installing")}
-          </button>
-        ) : null}
-        {phase === "downloading" ? (
-          <button type="button" className={styles.secondary} disabled>
-            {t("appUpdate.downloading", { percent: progress })}
           </button>
         ) : null}
         {phase === "error" ? (
