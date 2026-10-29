@@ -225,11 +225,11 @@
 
 .folderGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, 168px);
+    grid-template-columns: repeat(auto-fill, var(--pg-folder-tile-size));
     align-content: start;
     justify-content: start;
-    gap: 5px;
-    padding: 5px;
+    gap: calc(5px * var(--pg-ui-scale));
+    padding: calc(5px * var(--pg-ui-scale));
     animation: folder-grid-enter var(--pg-transition-gallery) var(--pg-ease-gallery)
         both;
 }
@@ -246,7 +246,7 @@
 
 .folderTip {
     display: flex;
-    width: 168px;
+    width: var(--pg-folder-tile-size);
 }
 
 .tile {
@@ -254,10 +254,11 @@
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    gap: 8px;
-    width: 168px;
+    gap: calc(8px * var(--pg-ui-scale));
+    width: var(--pg-folder-tile-size);
     height: auto;
-    padding: 16px 12px 14px;
+    padding: calc(16px * var(--pg-ui-scale)) calc(12px * var(--pg-ui-scale))
+        calc(14px * var(--pg-ui-scale));
     border: 1px solid transparent;
     border-radius: var(--pg-radius-control);
     background: transparent;
@@ -309,7 +310,7 @@
     display: -webkit-box;
     overflow: hidden;
     max-width: 100%;
-    font-size: 13px;
+    font-size: var(--pg-chrome-font-md);
     line-height: 1.3;
     text-align: center;
     word-break: break-word;
@@ -323,8 +324,8 @@
     flex: none;
     align-items: center;
     justify-content: center;
-    width: 104px;
-    height: 104px;
+    width: var(--pg-folder-icon-size);
+    height: var(--pg-folder-icon-size);
     overflow: hidden;
     line-height: 0;
     color: var(--pg-icon);
@@ -332,10 +333,10 @@
     svg {
         display: block;
         flex: none;
-        width: 104px;
-        height: 104px;
-        max-width: 104px;
-        max-height: 104px;
+        width: var(--pg-folder-icon-size);
+        height: var(--pg-folder-icon-size);
+        max-width: var(--pg-folder-icon-size);
+        max-height: var(--pg-folder-icon-size);
     }
 }
 
