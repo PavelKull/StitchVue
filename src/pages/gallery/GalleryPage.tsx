@@ -324,6 +324,7 @@ import {
     withLocalizedDirectory,
 } from '../../features/gallery/lib/directory/galleryDirectoryView';
 import {
+    GALLERY_OPENING_NOTICE_DELAY_MS,
     galleryEmptyI18nKeys,
     resolveGalleryEmptyKind,
 } from '../../features/gallery/lib/listing/galleryEmptyState';
@@ -447,6 +448,8 @@ export function GalleryPage() {
     const [folderListingBusy, setFolderListingBusy] = useState(true);
     const folderListingBusyRef = useRef(true);
     folderListingBusyRef.current = folderListingBusy;
+    const [showOpeningNotice, setShowOpeningNotice] = useState(false);
+    const openingNoticeTimerRef = useRef(0);
     const photoFlipGen = useRef(0);
     const [photoFlip, setPhotoFlip] = useState<PhotoFlipRequest | null>(null);
     const galleryLayerRef = useRef<HTMLDivElement>(null);
@@ -1688,7 +1691,28 @@ export function GalleryPage() {
             massUnfavoriteExitingFavorites,
         ],
     );
-    const galleryEmptyCopy = galleryEmptyI18nKeys(galleryEmptyKind);
+    useEffect(() => {
+        if (galleryEmptyKind !== 'opening') {
+            setShowOpeningNotice(false);
+            window.clearTimeout(openingNoticeTimerRef.current);
+            openingNoticeTimerRef.current = 0;
+            return;
+        }
+        setShowOpeningNotice(false);
+        openingNoticeTimerRef.current = window.setTimeout(() => {
+            openingNoticeTimerRef.current = 0;
+            setShowOpeningNotice(true);
+        }, GALLERY_OPENING_NOTICE_DELAY_MS);
+        return () => {
+            window.clearTimeout(openingNoticeTimerRef.current);
+            openingNoticeTimerRef.current = 0;
+        };
+    }, [galleryEmptyKind, directoryKey]);
+    const galleryEmptyCopy = galleryEmptyI18nKeys(
+        galleryEmptyKind === 'opening' && !showOpeningNotice
+            ? 'none'
+            : galleryEmptyKind,
+    );
 
     const bottomOverlayReserve =
         useGalleryBottomOverlayReserve(bottomBarDockRef);

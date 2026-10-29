@@ -87,6 +87,15 @@ test('T11 refresh with photos does not show opening overlay', () => {
     );
 });
 
+test('T12 refresh with subfolders does not show opening overlay', () => {
+    assert.equal(
+        resolveGalleryEmptyKind(
+            base({ folderCount: 2, folderListingBusy: true }),
+        ),
+        'none',
+    );
+});
+
 test('T9 error state is openError', () => {
     assert.equal(
         resolveGalleryEmptyKind(base({ status: 'error' })),

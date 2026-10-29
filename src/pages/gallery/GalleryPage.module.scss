@@ -230,18 +230,6 @@
     justify-content: start;
     gap: calc(5px * var(--pg-ui-scale));
     padding: calc(5px * var(--pg-ui-scale));
-    animation: folder-grid-enter var(--pg-transition-gallery) var(--pg-ease-gallery)
-        both;
-}
-
-@keyframes folder-grid-enter {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
 }
 
 .folderTip {
@@ -276,25 +264,9 @@
         background: rgb(255 255 255 / 5%);
     }
 
-    // Opacity only — scale fights drop-shadow glow on service icons and looks jerky.
-    &[data-enter='true'] {
-        animation: folder-tile-enter var(--pg-transition-gallery)
-            var(--pg-ease-gallery) both;
-    }
-
     &[data-exit='true'] {
         opacity: 0;
         pointer-events: none;
-    }
-}
-
-@keyframes folder-tile-enter {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
     }
 }
 
@@ -389,10 +361,6 @@
     .contentSplit .folderGrid,
     .contentSplit .photoSection {
         transition: none;
-    }
-
-    .tile[data-enter='true'] {
-        animation: none;
     }
 
     .tile[data-exit='true'] {

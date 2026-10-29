@@ -1,5 +1,8 @@
 import type { ServiceRole } from '../../../../entities/folder/serviceFolder.ts';
 
+/** Wait before showing «opening» overlay so fast folder opens do not flash. */
+export const GALLERY_OPENING_NOTICE_DELAY_MS = 500;
+
 export type GalleryEmptyKind =
     | 'none'
     | 'opening'
@@ -37,6 +40,9 @@ export function resolveGalleryEmptyKind(
         }
         return 'none';
     }
+    if (input.folderCount > 0) {
+        return 'none';
+    }
     if (input.folderListingBusy || input.geometryPending) {
         return 'opening';
     }
@@ -48,9 +54,6 @@ export function resolveGalleryEmptyKind(
     }
     if (input.serviceRole === 'trash') {
         return 'emptyTrash';
-    }
-    if (input.folderCount > 0) {
-        return 'none';
     }
     if (input.unsupportedFileCount > 0) {
         return 'noSupportedFiles';

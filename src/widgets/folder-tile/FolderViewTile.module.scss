@@ -25,24 +25,9 @@
         background: rgb(255 255 255 / 5%);
     }
 
-    &[data-enter='true'] {
-        animation: folder-tile-enter var(--pg-transition-gallery)
-            var(--pg-ease-gallery) both;
-    }
-
     &[data-exit='true'] {
         opacity: 0;
         pointer-events: none;
-    }
-}
-
-@keyframes folder-tile-enter {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
     }
 }
 
