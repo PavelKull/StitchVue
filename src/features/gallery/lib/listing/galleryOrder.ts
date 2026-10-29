@@ -13,9 +13,9 @@ export type GallerySort = {
 };
 
 export const DEFAULT_GALLERY_SORT: GallerySort = {
-  key: null,
-  direction: "desc",
-  grouped: true,
+  key: "name",
+  direction: "asc",
+  grouped: false,
 };
 
 /** Date starts newest-first. Name starts A-to-Z. */
@@ -68,7 +68,7 @@ export function sortOrderName(sort: GallerySort): string {
 
 function activeSort(sort: GallerySort): { key: SortKey; direction: SortDirection } {
   if (sort.key === null) {
-    return sort.grouped ? { key: "date", direction: "desc" } : { key: "name", direction: "asc" };
+    return { key: "name", direction: "asc" };
   }
   return { key: sort.key, direction: sort.direction };
 }

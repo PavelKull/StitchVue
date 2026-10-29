@@ -102,28 +102,26 @@ test("backdrop click uses the side gradient and closes on the photo or empty dar
   assert.equal(viewerBackgroundClick(200, 0, 800, 800, true, true), "close");
 });
 
-test("inactive sort keeps date groups, and a press can return to that order", () => {
+test("default sort is by name, and the name button cycles direction then off", () => {
   const files = [file("b.jpg", 2), file("a.jpg", 1), file("c.jpg", 2)];
-  const grouped = sortPhotos(files, DEFAULT_GALLERY_SORT);
-  assert.equal(DEFAULT_GALLERY_SORT.key, null);
+  const defaultSorted = sortPhotos(files, DEFAULT_GALLERY_SORT);
+  assert.equal(DEFAULT_GALLERY_SORT.key, "name");
   assert.deepEqual(
-    grouped.map((item) => item.name),
-    ["c.jpg", "b.jpg", "a.jpg"],
-  );
-  const byName = applySortPress(DEFAULT_GALLERY_SORT, "name");
-  assert.equal(byName.key, "name");
-  assert.equal(byName.direction, "asc");
-  assert.deepEqual(
-    sortPhotos(files, byName).map((item) => item.name),
+    defaultSorted.map((item) => item.name),
     ["a.jpg", "b.jpg", "c.jpg"],
   );
-  const reversed = applySortPress(byName, "name");
+  const reversed = applySortPress(DEFAULT_GALLERY_SORT, "name");
+  assert.equal(reversed.key, "name");
   assert.equal(reversed.direction, "desc");
+  assert.deepEqual(
+    sortPhotos(files, reversed).map((item) => item.name),
+    ["c.jpg", "b.jpg", "a.jpg"],
+  );
   const cleared = applySortPress(reversed, "name");
   assert.equal(cleared.key, null);
   assert.deepEqual(
     sortPhotos(files, cleared).map((item) => item.name),
-    grouped.map((item) => item.name),
+    defaultSorted.map((item) => item.name),
   );
   const explorer = sortPhotos(files, { key: null, direction: "desc", grouped: false });
   assert.deepEqual(

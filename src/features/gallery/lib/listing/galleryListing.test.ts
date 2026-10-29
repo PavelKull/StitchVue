@@ -15,7 +15,7 @@ import { DEFAULT_GALLERY_SORT, type GallerySort } from "./galleryOrder.ts";
 import type { ImagesBatchEvent } from "./imagesBatch.ts";
 import { layoutMosaicPublished } from "../../../../widgets/gallery-grid/layout.ts";
 
-const dateSort: GallerySort = DEFAULT_GALLERY_SORT;
+const dateSort: GallerySort = { key: "date", direction: "desc", grouped: true };
 const nameSort: GallerySort = { key: "name", direction: "asc", grouped: false };
 
 function file(name: string, modifiedAt = 0, folder = "C:\\photos"): ImageFile {

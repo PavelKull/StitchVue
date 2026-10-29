@@ -238,9 +238,9 @@ test("a sort change is a new listing identity for column publication", () => {
     { name: "b.jpg", path: "C:\\photos\\b.jpg", size: 1, modifiedAt: 2 },
     { name: "a.jpg", path: "C:\\photos\\a.jpg", size: 1, modifiedAt: 1 },
   ];
-  const byDate = listingStamp(files, DEFAULT_GALLERY_SORT);
-  const byName = listingStamp(files, { key: "name", direction: "asc", grouped: false });
-  assert.notEqual(byDate, byName);
+  const byDefault = listingStamp(files, DEFAULT_GALLERY_SORT);
+  const byDate = listingStamp(files, { key: "date", direction: "desc", grouped: true });
+  assert.notEqual(byDefault, byDate);
 });
 
 test("fast folder switch starts a new column layout without previous tiles", () => {

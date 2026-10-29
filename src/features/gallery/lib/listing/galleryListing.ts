@@ -16,7 +16,7 @@ export function emptyStreamListing(): StreamListing {
 
 export function effectiveSortKey(sort: GallerySort): SortKey {
   if (sort.key === null) {
-    return sort.grouped ? "date" : "name";
+    return "name";
   }
   return sort.key;
 }

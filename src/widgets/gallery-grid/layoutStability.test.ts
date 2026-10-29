@@ -6,7 +6,9 @@ import {
   finishListing,
   publishedListing,
 } from "../../features/gallery/lib/listing/galleryListing.ts";
-import { DEFAULT_GALLERY_SORT } from "../../features/gallery/lib/listing/galleryOrder.ts";
+import type { GallerySort } from "../../features/gallery/lib/listing/galleryOrder.ts";
+
+const dateGroupedSort: GallerySort = { key: "date", direction: "desc", grouped: true };
 import {
   ESTIMATED_ASPECT,
   firstGeometryRange,
@@ -278,7 +280,7 @@ test("date-grouped streaming stats must not invent a new visual order for alread
       { name: "new.jpg", path: "C:\\photos\\new.jpg", size: 0, modifiedAt: 0 },
     ],
   });
-  const streamed = publishedListing(listing, DEFAULT_GALLERY_SORT).map((file) => file.path);
+  const streamed = publishedListing(listing, dateGroupedSort).map((file) => file.path);
   listing = applyStreamBatch(listing, {
     session: 1,
     folder: "C:\\photos",
@@ -289,8 +291,8 @@ test("date-grouped streaming stats must not invent a new visual order for alread
     ],
   });
   assert.deepEqual(streamed, []);
-  assert.deepEqual(publishedListing(listing, DEFAULT_GALLERY_SORT).map((file) => file.path), []);
-  const dated = publishedListing(finishListing(listing.discovered), DEFAULT_GALLERY_SORT).map((file) => file.path);
+  assert.deepEqual(publishedListing(listing, dateGroupedSort).map((file) => file.path), []);
+  const dated = publishedListing(finishListing(listing.discovered), dateGroupedSort).map((file) => file.path);
   assert.deepEqual(dated, ["C:\\photos\\new.jpg", "C:\\photos\\old.jpg"]);
 });
 
