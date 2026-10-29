@@ -9,6 +9,7 @@ import {
     scrollJumpStatesEqual,
     scrollMax,
     shouldClearPendingScrollToEnd,
+    shouldReconcilePendingScrollToEnd,
     shouldStickFollowScrollGrowth,
 } from '../../lib/viewport/galleryScrollJump.ts';
 
@@ -108,7 +109,40 @@ test('shouldClearPendingScrollToEnd noop when not pending', () => {
     );
 });
 
-test('shouldClearPendingScrollToEnd stays when listing complete but geometry incomplete at bottom', () => {
+test('shouldReconcilePendingScrollToEnd when pending but not at bottom', () => {
+    assert.equal(
+        shouldReconcilePendingScrollToEnd({
+            pending: true,
+            animating: false,
+            scrollTop: 300,
+            scrollHeight: 2000,
+            clientHeight: 400,
+        }),
+        true,
+    );
+    assert.equal(
+        shouldReconcilePendingScrollToEnd({
+            pending: true,
+            animating: false,
+            scrollTop: 1598,
+            scrollHeight: 2000,
+            clientHeight: 400,
+        }),
+        false,
+    );
+    assert.equal(
+        shouldReconcilePendingScrollToEnd({
+            pending: true,
+            animating: true,
+            scrollTop: 300,
+            scrollHeight: 2000,
+            clientHeight: 400,
+        }),
+        false,
+    );
+});
+
+test('shouldClearPendingScrollToEnd stays while listing complete at bottom but geometry incomplete', () => {
     assert.equal(
         shouldClearPendingScrollToEnd({
             pending: true,

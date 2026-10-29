@@ -12,6 +12,7 @@ import {
     scrollJumpStatesEqual,
     scrollMax,
     shouldClearPendingScrollToEnd,
+    shouldReconcilePendingScrollToEnd,
     shouldStickFollowScrollGrowth,
     type ScrollJumpState,
 } from '../../lib/viewport/galleryScrollJump.ts';
@@ -109,6 +110,25 @@ export function useGalleryScrollJump({
         [syncViewportScrollTopRef],
     );
 
+    const reconcilePendingScrollToEnd = useCallback(
+        (node: HTMLElement) => {
+            if (
+                !shouldReconcilePendingScrollToEnd({
+                    pending: pendingScrollToEndRef.current,
+                    animating: scrollJumpAnimatingRef.current,
+                    scrollTop: node.scrollTop,
+                    scrollHeight: node.scrollHeight,
+                    clientHeight: node.clientHeight,
+                })
+            ) {
+                return;
+            }
+            lastFollowScrollHeightRef.current = node.scrollHeight;
+            stickScrollToEnd(node, syncViewportScrollTopRef);
+        },
+        [syncViewportScrollTopRef],
+    );
+
     const settlePendingScrollToEndIfNeeded = useCallback(
         (node: HTMLElement) => {
             if (!pendingScrollToEndRef.current) {
@@ -144,6 +164,7 @@ export function useGalleryScrollJump({
             return;
         }
         followScrollGrowthIfNeeded(node);
+        reconcilePendingScrollToEnd(node);
         settlePendingScrollToEndIfNeeded(node);
         commitScrollJump(
             computeScrollJumpState({
@@ -155,6 +176,7 @@ export function useGalleryScrollJump({
     }, [
         commitScrollJump,
         followScrollGrowthIfNeeded,
+        reconcilePendingScrollToEnd,
         settlePendingScrollToEndIfNeeded,
         viewportRef,
     ]);
@@ -167,6 +189,10 @@ export function useGalleryScrollJump({
             }
             const max = scrollMax(node.scrollHeight, node.clientHeight);
             if (max <= 0) {
+                if (!toTop) {
+                    pendingScrollToEndRef.current = true;
+                    lastFollowScrollHeightRef.current = node.scrollHeight;
+                }
                 return;
             }
             cancelScrollJumpAnimation();
@@ -190,6 +216,7 @@ export function useGalleryScrollJump({
                     return;
                 }
                 followScrollGrowthIfNeeded(still);
+                reconcilePendingScrollToEnd(still);
                 settlePendingScrollToEndIfNeeded(still);
             };
             if (reduceMotion) {
@@ -228,6 +255,7 @@ export function useGalleryScrollJump({
             commitScrollJump,
             endScrollJumpAnimation,
             followScrollGrowthIfNeeded,
+            reconcilePendingScrollToEnd,
             settlePendingScrollToEndIfNeeded,
             syncViewportScrollTopRef,
             viewportRef,

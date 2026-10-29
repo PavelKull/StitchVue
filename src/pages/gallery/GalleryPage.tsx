@@ -1730,7 +1730,7 @@ export function GalleryPage() {
         layoutMode,
         rowsPerScreen,
         bottomOverlayReserve,
-        listingComplete: status === 'ready',
+        listingComplete: status === 'ready' && !folderListingBusy,
         geometryComplete,
     });
     const { reportScrollActivity, resetScrollActivityForFolderChange } =
@@ -5704,7 +5704,7 @@ export function GalleryPage() {
                         folderExitingKey !== null && view.folders.length === 1
                     }
                     files={orderedImages}
-                    listingComplete={status === 'ready'}
+                    listingComplete={status === 'ready' && !folderListingBusy}
                     meta={metaRef.current}
                     thumbs={thumbsRef.current}
                     failed={failedRef.current}

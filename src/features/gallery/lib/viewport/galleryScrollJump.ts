@@ -189,6 +189,21 @@ export function shouldClearPendingScrollToEnd(input: {
     return false;
 }
 
+/** Пока активен follow-max, вернуть scrollTop к низу, если viewport «отстал» от края. */
+export function shouldReconcilePendingScrollToEnd(input: {
+    pending: boolean;
+    animating: boolean;
+    scrollTop: number;
+    scrollHeight: number;
+    clientHeight: number;
+}): boolean {
+    if (!input.pending || input.animating) {
+        return false;
+    }
+    const max = scrollMax(input.scrollHeight, input.clientHeight);
+    return !isAtScrollBottom(input.scrollTop, max);
+}
+
 /** Приклеить follow-max к выросшему scrollHeight, пока нет анимации прыжка. */
 export function shouldStickFollowScrollGrowth(input: {
     pending: boolean;
