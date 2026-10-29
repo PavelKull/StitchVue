@@ -1,0 +1,27 @@
+@use "chrome-scale" as scale;
+
+@mixin backdrop-padding {
+  padding: scale.px(24);
+}
+
+@mixin dialog-padding-standard {
+  padding: scale.px(20) scale.px(20) scale.px(18);
+}
+
+@mixin dialog-padding-roomy {
+  padding: scale.px(24) scale.px(24) scale.px(20);
+}
+
+@mixin primary-action-button {
+  min-height: var(--pg-nav-icon-button);
+  padding: scale.px(8) scale.px(14);
+  border-radius: var(--pg-radius-control);
+  font-size: var(--pg-chrome-font-lg);
+}
+
+@mixin compact-action-button {
+  min-height: var(--pg-dialog-button-height);
+  padding: 0 scale.px(14);
+  border-radius: var(--pg-radius-control);
+  font-size: var(--pg-chrome-font-lg);
+}

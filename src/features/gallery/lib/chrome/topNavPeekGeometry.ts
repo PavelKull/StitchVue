@@ -1,16 +1,43 @@
 import { pointerOverTopNavDock } from './topNavDock.ts';
 import { REVEAL_PX } from '../../../../widgets/gallery-grid/scrollbarGeometry.ts';
+import { scaleChromePx, UI_REF_WIDTH_PX } from './adaptiveUiScale.ts';
 
 /** Глубина от верха галереи, в которой курсор вызывает peek (меньше высоты самой панели). */
-export const TOP_NAV_PEEK_ACTIVATE_DEPTH_PX = 8 + 28;
+const TOP_NAV_PEEK_ACTIVATE_BASE_PX = 8 + 28;
 /** Зона над webview (строка заголовка), где peek тоже срабатывает */
-export const WINDOW_FRAME_TOP_PX = 32;
+const WINDOW_FRAME_TOP_BASE_PX = 32;
 /** Полоса захвата ползунка плюс синее свечение, чтобы подъём по ползунку не открывал панель. */
-const TOP_NAV_LANE_GUARD_BASE_PX = REVEAL_PX + 72;
+const TOP_NAV_LANE_GUARD_EXTRA_BASE_PX = 72;
 /** Пробный сдвиг к ползунку. 0 возвращает прежнюю границу зоны появления верхней панели. */
 const TOP_NAV_LANE_TRIAL_PX = 40;
+
+function topNavPeekActivateDepthPx(): number {
+  return scaleChromePx(TOP_NAV_PEEK_ACTIVATE_BASE_PX);
+}
+
+function windowFrameTopPx(): number {
+  return scaleChromePx(WINDOW_FRAME_TOP_BASE_PX);
+}
+
+function topNavLaneGuardPx(): number {
+  const base =
+    REVEAL_PX + scaleChromePx(TOP_NAV_LANE_GUARD_EXTRA_BASE_PX);
+  return base - TOP_NAV_LANE_TRIAL_PX;
+}
+
+/** Эталонные значения при scale 1 (тесты и документация). */
+export const TOP_NAV_PEEK_ACTIVATE_DEPTH_PX = scaleChromePx(
+  TOP_NAV_PEEK_ACTIVATE_BASE_PX,
+  UI_REF_WIDTH_PX,
+);
+export const WINDOW_FRAME_TOP_PX = scaleChromePx(
+  WINDOW_FRAME_TOP_BASE_PX,
+  UI_REF_WIDTH_PX,
+);
 export const TOP_NAV_LANE_GUARD_PX =
-    TOP_NAV_LANE_GUARD_BASE_PX - TOP_NAV_LANE_TRIAL_PX;
+  REVEAL_PX +
+  scaleChromePx(TOP_NAV_LANE_GUARD_EXTRA_BASE_PX, UI_REF_WIDTH_PX) -
+  TOP_NAV_LANE_TRIAL_PX;
 
 export function topNavPeekShouldShow(
     clientX: number,
@@ -32,8 +59,8 @@ export function topNavPeekShouldShow(
     if (pointerOverTopNavDock(clientX, clientY)) {
         return true;
     }
-    const bandTop = shellRect.top - WINDOW_FRAME_TOP_PX;
-    const bandBottom = shellRect.top + TOP_NAV_PEEK_ACTIVATE_DEPTH_PX;
+    const bandTop = shellRect.top - windowFrameTopPx();
+    const bandBottom = shellRect.top + topNavPeekActivateDepthPx();
     if (clientY < bandTop || clientY > bandBottom) {
         return false;
     }
@@ -56,7 +83,7 @@ export function topNavPeekShouldShow(
         '[data-gallery-viewport]',
     );
     const right = viewport?.getBoundingClientRect().right ?? shellRect.right;
-    if (clientX <= right - TOP_NAV_LANE_GUARD_PX) {
+    if (clientX <= right - topNavLaneGuardPx()) {
         return true;
     }
     return false;
@@ -86,7 +113,7 @@ export function toolbarPeekBlockedByScrollbar(
         '[data-gallery-viewport]',
     );
     const right = viewport?.getBoundingClientRect().right;
-    if (right != null && clientX > right - TOP_NAV_LANE_GUARD_PX) {
+    if (right != null && clientX > right - topNavLaneGuardPx()) {
         return true;
     }
     return false;

@@ -1,5 +1,6 @@
 @use "../../shared/styles/floating-panel" as panel;
 @use "../../shared/styles/modal-motion" as modal;
+@use "../../shared/styles/modal-chrome" as modalChrome;
 
 // Same glow recipe as GalleryScrollJumpButton, accent #5aa7ff → green.
 $support-glow: #5aff9a;
@@ -11,7 +12,7 @@ $support-glow: #5aff9a;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  @include modalChrome.backdrop-padding;
   overflow: auto;
   background: rgb(0 0 0 / 52%);
   backdrop-filter: blur(2px);
@@ -21,8 +22,8 @@ $support-glow: #5aff9a;
 .dialog {
   position: relative;
   isolation: isolate;
-  width: min(400px, 100%);
-  padding: 24px 24px 20px;
+  width: min(calc(400px * var(--pg-ui-scale)), 100%);
+  @include modalChrome.dialog-padding-roomy;
   color: var(--pg-text-primary);
   @include panel.floating-panel-surface;
   border: 0;
@@ -62,16 +63,13 @@ $support-glow: #5aff9a;
 
 .close {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+  top: calc(10px * var(--pg-ui-scale));
+  right: calc(10px * var(--pg-ui-scale));
+  width: calc(32px * var(--pg-ui-scale));
+  height: calc(32px * var(--pg-ui-scale));
   padding: 0;
   border: 0;
-  border-radius: 8px;
+  border-radius: calc(8px * var(--pg-ui-scale));
   background: transparent;
   color: var(--pg-text-secondary);
   cursor: pointer;
@@ -91,8 +89,8 @@ $support-glow: #5aff9a;
 }
 
 .closeIcon {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--pg-ui-scale));
+  height: calc(16px * var(--pg-ui-scale));
 }
 
 .iconWrap {
@@ -102,15 +100,15 @@ $support-glow: #5aff9a;
 }
 
 .heartIcon {
-  width: 24px;
-  height: 24px;
+  width: var(--pg-toolbar-icon);
+  height: var(--pg-toolbar-icon);
   color: $support-glow;
 }
 
 .title {
   margin: 0 0 8px;
   padding: 0 20px;
-  font-size: 17px;
+  font-size: var(--pg-chrome-font-title);
   font-weight: 500;
   line-height: 1.35;
   text-align: center;
@@ -119,7 +117,7 @@ $support-glow: #5aff9a;
 .body {
   margin: 0 0 22px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   line-height: 1.5;
   text-align: center;
   color: var(--pg-text-secondary);
@@ -127,7 +125,7 @@ $support-glow: #5aff9a;
 
 .error {
   margin: -10px 0 12px;
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
   text-align: center;
   color: #f0a8a8;
 }
@@ -144,14 +142,14 @@ $support-glow: #5aff9a;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: var(--pg-nav-icon-button);
   padding: 0 12px;
   border: 0;
   border-radius: 10px;
   background: color-mix(in srgb, $support-glow 18%, rgb(44 51 60 / 72%));
   color: var(--pg-text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   cursor: pointer;
   transition: background 160ms ease;
 
@@ -186,7 +184,7 @@ $support-glow: #5aff9a;
   background: transparent;
   color: var(--pg-text-secondary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
   cursor: pointer;
   text-decoration: none;
   transition: color 160ms ease;

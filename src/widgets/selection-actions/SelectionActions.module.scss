@@ -6,9 +6,9 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  max-width: min(920px, calc(100vw - 32px));
-  padding: 8px 12px;
+  gap: calc(6px * var(--pg-ui-scale));
+  max-width: min(920px, calc(100vw - 2 * var(--pg-edge)));
+  padding: calc(8px * var(--pg-ui-scale)) calc(12px * var(--pg-ui-scale));
   color: var(--pg-text-primary);
   @include panel.floating-toolbar-surface;
   border-radius: var(--pg-radius-toolbar);
@@ -23,9 +23,9 @@
 }
 
 .count {
-  padding: 0 8px;
+  padding: 0 calc(8px * var(--pg-ui-scale));
   color: var(--pg-text-primary);
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   white-space: nowrap;
 }
 
@@ -33,16 +33,16 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 6px 10px;
+  gap: calc(6px * var(--pg-ui-scale));
+  min-width: var(--pg-nav-icon-button);
+  min-height: var(--pg-nav-icon-button);
+  padding: calc(6px * var(--pg-ui-scale)) calc(10px * var(--pg-ui-scale));
   border: 0;
   border-radius: var(--pg-radius-control);
   background: transparent;
   color: var(--pg-icon);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   cursor: pointer;
 
   &:hover:not(:disabled) {
@@ -64,8 +64,8 @@
 
 .icon {
   display: block;
-  width: 18px;
-  height: 18px;
+  width: var(--pg-icon-sm);
+  height: var(--pg-icon-sm);
 
   svg {
     display: block;
@@ -78,7 +78,7 @@
   display: inline-grid;
   align-items: center;
   color: var(--pg-text-secondary);
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -106,7 +106,7 @@
   display: flex;
   flex-direction: column;
   width: fit-content;
-  max-width: min(520px, calc(100vw - 32px));
+  max-width: min(520px, calc(100vw - 2 * var(--pg-edge)));
   overflow: hidden;
   color: var(--pg-text-primary);
   cursor: pointer;
@@ -146,8 +146,9 @@
 .noticeContent {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px 14px;
+  gap: calc(12px * var(--pg-ui-scale));
+  padding: calc(12px * var(--pg-ui-scale)) calc(14px * var(--pg-ui-scale))
+    calc(14px * var(--pg-ui-scale));
 }
 
 .noticeBody {
@@ -190,13 +191,13 @@
 
 .noticeTitle {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   font-weight: 600;
 }
 
 .noticeText {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   line-height: 1.4;
   overflow-wrap: anywhere;
   display: -webkit-box;
@@ -209,12 +210,12 @@
   margin: 0;
   padding-left: 18px;
   color: var(--pg-text-secondary);
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
 }
 
 .noticeUndo {
   flex: none;
-  padding: 6px 10px;
+  padding: calc(6px * var(--pg-ui-scale)) calc(10px * var(--pg-ui-scale));
   border: 0;
   border-radius: var(--pg-radius-control);
   background: transparent;
@@ -230,14 +231,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: calc(24px * var(--pg-ui-scale));
   background: rgb(0 0 0 / 46%);
   @include modal.modal-backdrop-motion;
 }
 
 .dialog {
   width: min(440px, 100%);
-  padding: 20px;
+  padding: calc(20px * var(--pg-ui-scale));
   color: var(--pg-text-primary);
   @include panel.floating-panel-surface;
   @include modal.modal-dialog-motion;
@@ -246,7 +247,7 @@
 .dialogText {
   white-space: pre-line;
   margin: 0 0 16px;
-  font-size: 15px;
+  font-size: var(--pg-chrome-font-xl);
   line-height: 1.45;
 }
 
@@ -259,7 +260,7 @@
 .dialogSubtext {
   margin: 0 0 12px;
   color: var(--pg-text-secondary);
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   line-height: 1.45;
 }
 
@@ -267,7 +268,7 @@
   margin: 0 0 16px;
   padding-left: 20px;
   color: var(--pg-text-secondary);
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   line-height: 1.5;
 }
 
@@ -279,9 +280,9 @@
 
 .dialogButton,
 .dialogPrimary {
-  min-width: 40px;
-  min-height: 40px;
-  padding: 8px 14px;
+  min-width: var(--pg-nav-icon-button);
+  min-height: var(--pg-nav-icon-button);
+  padding: calc(8px * var(--pg-ui-scale)) calc(14px * var(--pg-ui-scale));
   border: 1px solid var(--pg-border);
   border-radius: var(--pg-radius-control);
   background: transparent;

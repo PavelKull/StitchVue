@@ -1,4 +1,13 @@
 :root {
+  /* Эталон chrome: ширина окна 1920px → scale 1 (см. GalleryPage .shell). */
+  --pg-ui-ref-width: 1920;
+  --pg-ui-scale-min: 0.72;
+  --pg-ui-scale: clamp(
+    var(--pg-ui-scale-min),
+    100vw / (var(--pg-ui-ref-width) * 1px),
+    1
+  );
+
   --pg-bg: #080d12;
 
   --pg-surface: #0c1218;
@@ -25,19 +34,42 @@
   --pg-accent-soft: rgb(90 167 255 / 16%);
   --pg-row-selected: rgb(46 125 230 / 28%);
 
-  --pg-radius-panel: 22px;
-  --pg-radius-nav: 20px;
-  --pg-radius-toolbar: 24px;
-  --pg-radius-control: 10px;
-  --pg-radius-row: 9px;
+  --pg-radius-panel: calc(22px * var(--pg-ui-scale));
+  --pg-radius-nav: calc(20px * var(--pg-ui-scale));
+  --pg-radius-toolbar: calc(24px * var(--pg-ui-scale));
+  --pg-radius-control: calc(10px * var(--pg-ui-scale));
+  --pg-radius-row: calc(9px * var(--pg-ui-scale));
   --pg-radius-photo: 6px;
 
-  --pg-panel-gap: 14px;
-  --pg-edge: 16px;
-  --pg-top-nav-height: 54px;
-  --pg-top-chrome: calc(var(--pg-edge) + var(--pg-top-nav-height) + 12px);
+  --pg-panel-gap: calc(14px * var(--pg-ui-scale));
+  --pg-edge: calc(16px * var(--pg-ui-scale));
+  --pg-top-nav-height: calc(54px * var(--pg-ui-scale));
+  --pg-top-chrome-extra: calc(12px * var(--pg-ui-scale));
+  --pg-top-chrome: calc(
+    var(--pg-edge) + var(--pg-top-nav-height) + var(--pg-top-chrome-extra)
+  );
   --pg-sidebar-width: 280px;
   --pg-gallery-inset-pinned: 312px;
+  --pg-bottom-bar-height: calc(80px * var(--pg-ui-scale));
+  --pg-toolbar-control-width: calc(72px * var(--pg-ui-scale));
+  --pg-toolbar-control-height: calc(62px * var(--pg-ui-scale));
+  --pg-nav-icon-button: calc(40px * var(--pg-ui-scale));
+  --pg-nav-icon-glyph: calc(22px * var(--pg-ui-scale));
+  --pg-toolbar-icon: calc(24px * var(--pg-ui-scale));
+  --pg-control-divider-height: calc(44px * var(--pg-ui-scale));
+  --pg-chrome-font-xs: calc(11px * var(--pg-ui-scale));
+  --pg-chrome-font-sm: calc(12px * var(--pg-ui-scale));
+  --pg-chrome-font-md: calc(13px * var(--pg-ui-scale));
+  --pg-chrome-font-lg: calc(14px * var(--pg-ui-scale));
+  --pg-chrome-font-xl: calc(15px * var(--pg-ui-scale));
+  --pg-chrome-font-title: calc(17px * var(--pg-ui-scale));
+  --pg-chrome-font-display: calc(18px * var(--pg-ui-scale));
+  --pg-chrome-font-heading: calc(16px * var(--pg-ui-scale));
+  --pg-dialog-button-height: calc(36px * var(--pg-ui-scale));
+  --pg-overlay-menu-min: calc(180px * var(--pg-ui-scale));
+  --pg-zoom-slider-width: calc(100px * var(--pg-ui-scale));
+  --pg-scroll-jump-button: calc(44px * var(--pg-ui-scale));
+  --pg-icon-sm: calc(18px * var(--pg-ui-scale));
 
   --pg-transition-fast: 140ms;
   --pg-transition-normal: 220ms;

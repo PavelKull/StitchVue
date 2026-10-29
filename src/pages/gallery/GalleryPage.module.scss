@@ -44,11 +44,11 @@
 }
 
 .shell[data-sidebar-pinned='true'] .galleryLayer {
-    left: var(--pg-gallery-inset-pinned);
+    left: calc(var(--pg-sidebar-width) + 2 * var(--pg-edge));
 }
 
 .shell[data-sidebar-pinned='true'] .bottomBarDock {
-    left: var(--pg-gallery-inset-pinned);
+    left: calc(var(--pg-sidebar-width) + 2 * var(--pg-edge));
 }
 
 .topBarDock {
@@ -95,7 +95,7 @@
     flex-wrap: nowrap;
     align-items: center;
     justify-content: center;
-    gap: 14px;
+    gap: var(--pg-panel-gap);
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -143,9 +143,9 @@
     left: 50%;
     z-index: z.$photo-hover;
     margin: 0;
-    padding: 0 16px;
+    padding: 0 var(--pg-edge);
     color: var(--pg-text-muted);
-    font-size: 14px;
+    font-size: var(--pg-chrome-font-lg);
     text-align: center;
     transform: translate(-50%, -50%);
     pointer-events: none;
@@ -185,7 +185,7 @@
 .emptyGalleryTitle {
     margin: 0;
     color: var(--pg-text);
-    font-size: 15px;
+    font-size: var(--pg-chrome-font-xl);
     font-weight: 500;
     line-height: 1.35;
 }

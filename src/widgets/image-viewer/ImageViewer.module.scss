@@ -24,7 +24,7 @@ $nav-edge-shade-width: 120px;
   z-index: 2;
   display: flex;
   align-items: center;
-  width: 112px;
+  width: calc(112px * var(--pg-ui-scale));
   pointer-events: none;
 
   &::before {
@@ -96,8 +96,8 @@ $nav-edge-shade-width: 120px;
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: calc(64px * var(--pg-ui-scale));
+  height: calc(64px * var(--pg-ui-scale));
   padding: 0;
   border: 0;
   border-radius: 0;
@@ -145,8 +145,8 @@ $nav-edge-shade-width: 120px;
 }
 
 .navIcon {
-  width: 40px;
-  height: 40px;
+  width: var(--pg-nav-icon-button);
+  height: var(--pg-nav-icon-button);
 }
 
 .frame {
@@ -209,18 +209,14 @@ $nav-edge-shade-width: 120px;
   z-index: 1;
   margin: 0;
   color: var(--pg-text-muted);
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   transform: translate(-50%, -50%);
 }
 
 .actionDock {
   position: absolute;
-  bottom: calc(var(--pg-edge) + 96px + var(--viewer-fs-inset, 0px));
-  left: 50%;
-  z-index: 4;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  bottom: calc(var(--pg-edge) + calc(96px * var(--pg-ui-scale)) + var(--viewer-fs-inset, 0px));
+  gap: calc(8px * var(--pg-ui-scale));
   width: max-content;
   max-width: calc(100% - var(--pg-edge) * 2);
   transform: translateX(-50%);

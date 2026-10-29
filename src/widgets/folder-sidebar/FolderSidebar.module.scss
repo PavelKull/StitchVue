@@ -43,7 +43,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 8px;
+  width: calc(8px * var(--pg-ui-scale));
   cursor: ew-resize;
   touch-action: none;
 }
@@ -52,7 +52,8 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  padding: 14px 16px 10px;
+  padding: calc(14px * var(--pg-ui-scale)) calc(16px * var(--pg-ui-scale))
+    calc(10px * var(--pg-ui-scale));
   border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 
@@ -79,8 +80,8 @@
   padding: 0 2px;
   overflow: hidden;
   color: var(--pg-text-secondary);
-  font-size: 13px;
-  line-height: 18px;
+  font-size: var(--pg-chrome-font-md);
+  line-height: calc(18px * var(--pg-ui-scale));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -117,11 +118,12 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   --tree-view: 0px;
   --tree-scroll-x: 0px;
   // Disclosure + icon gap are outside the name; reserve the sticky star + padding.
-  --tree-name-gutter: 72px;
+  --tree-name-gutter: calc(72px * var(--pg-ui-scale));
   flex: 1;
   min-height: 0;
-  margin: 0 8px 12px 14px;
-  padding: 8px 0 2px;
+  margin: 0 calc(8px * var(--pg-ui-scale)) calc(12px * var(--pg-ui-scale))
+    calc(14px * var(--pg-ui-scale));
+  padding: calc(8px * var(--pg-ui-scale)) 0 calc(2px * var(--pg-ui-scale));
   overflow: auto;
 
   &::-webkit-scrollbar {
@@ -236,7 +238,7 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
 .empty {
   margin: 12px 16px 8px 40px;
   color: var(--pg-text-muted);
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
 }
 
 .emptyBlock {
@@ -258,7 +260,7 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   background: transparent;
   color: var(--pg-text-primary);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
   text-decoration: underline;
   cursor: pointer;
 
@@ -277,7 +279,7 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   box-sizing: border-box;
   width: calc(100% - 16px);
   min-width: calc(100% - 16px);
-  min-height: 38px;
+  min-height: calc(38px * var(--pg-ui-scale));
   margin: 1px 8px;
   border-radius: var(--pg-radius-row);
   color: var(--pg-text-primary);
@@ -306,12 +308,12 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   flex: 1 1 auto;
   align-items: center;
   min-width: 0;
-  padding: 4px 4px 4px 0;
+  padding: calc(4px * var(--pg-ui-scale)) calc(4px * var(--pg-ui-scale)) calc(4px * var(--pg-ui-scale)) 0;
   border: 0;
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   text-align: left;
   cursor: pointer;
   overflow: hidden;
@@ -367,8 +369,8 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 38px;
+  width: var(--pg-nav-icon-glyph);
+  height: calc(38px * var(--pg-ui-scale));
 }
 
 .disclosure {
@@ -399,15 +401,15 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
 }
 
 .navGlyph {
-  width: 20px;
-  height: 20px;
+  width: calc(20px * var(--pg-ui-scale));
+  height: calc(20px * var(--pg-ui-scale));
 }
 
 .sectionGlyph,
 .treeGlyph,
 .treeGlyphDrive {
-  width: 20px;
-  height: 20px;
+  width: calc(20px * var(--pg-ui-scale));
+  height: calc(20px * var(--pg-ui-scale));
 }
 
 .sectionGlyph,
@@ -420,15 +422,15 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
 }
 
 .chevron {
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--pg-ui-scale));
+  height: calc(14px * var(--pg-ui-scale));
   color: var(--pg-text-secondary);
 }
 
 .starGlyph,
 .starGlyphOn {
-  width: 16px;
-  height: 16px;
+  width: calc(16px * var(--pg-ui-scale));
+  height: calc(16px * var(--pg-ui-scale));
 }
 
 .starGlyphOn {
@@ -437,7 +439,7 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
 
 .loading {
   color: inherit;
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
   line-height: 1;
 }
 
@@ -451,7 +453,7 @@ $folder-scrollbar-thumb-border: ($folder-scrollbar-hit - $folder-scrollbar-thumb
   align-items: center;
   justify-content: center;
   align-self: stretch;
-  width: 28px;
+  width: calc(28px * var(--pg-ui-scale));
   margin-left: auto;
   padding: 0;
   border: 0;

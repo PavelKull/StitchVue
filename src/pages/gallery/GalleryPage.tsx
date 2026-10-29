@@ -5796,7 +5796,6 @@ export function GalleryPage() {
             className={styles.shell}
             style={{
                 ['--pg-sidebar-width' as string]: `${sidebarWidth}px`,
-                ['--pg-gallery-inset-pinned' as string]: `${sidebarWidth + 32}px`,
                 ['--pg-notice-bottom' as string]: `${bottomOverlayReserve}px`,
             }}
             data-sidebar-pinned={sidebarPinned ? 'true' : 'false'}

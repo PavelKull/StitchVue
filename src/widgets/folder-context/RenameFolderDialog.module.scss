@@ -1,5 +1,6 @@
 @use "../../shared/styles/floating-panel" as panel;
 @use "../../shared/styles/modal-motion" as modal;
+@use "../../shared/styles/modal-chrome" as modalChrome;
 
 @mixin scrollbar-glow {
   box-shadow:
@@ -22,15 +23,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  @include modalChrome.backdrop-padding;
   background: rgb(0 0 0 / 52%);
   backdrop-filter: blur(2px);
   @include modal.modal-backdrop-motion;
 }
 
 .dialog {
-  width: min(380px, 100%);
-  padding: 22px 24px 20px;
+  width: min(calc(380px * var(--pg-ui-scale)), 100%);
+  padding: calc(22px * var(--pg-ui-scale)) calc(24px * var(--pg-ui-scale))
+    calc(20px * var(--pg-ui-scale));
   color: var(--pg-text-primary);
   @include panel.floating-panel-surface;
   @include modal.modal-dialog-motion;
@@ -38,7 +40,7 @@
 
 .title {
   margin: 0 0 14px;
-  font-size: 15px;
+  font-size: var(--pg-chrome-font-xl);
   font-weight: 400;
   line-height: 1.45;
   color: var(--pg-text-primary);
@@ -48,9 +50,9 @@
   display: block;
   width: 100%;
   margin: 0 0 18px;
-  padding: 11px 14px;
+  padding: calc(11px * var(--pg-ui-scale)) calc(14px * var(--pg-ui-scale));
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--pg-radius-control);
   background: rgb(44 51 60 / 68%);
   color: var(--pg-text-primary);
   font: inherit;
@@ -94,7 +96,7 @@
   flex: 1;
   width: 100%;
   min-width: 0;
-  height: 52px;
+  height: calc(52px * var(--pg-ui-scale));
 }
 
 .controlPrimary {
@@ -102,7 +104,7 @@
   flex: 1;
   width: 100%;
   min-width: 0;
-  height: 52px;
+  height: calc(52px * var(--pg-ui-scale));
 
   &:hover:not(:disabled) {
     background: rgb(31 104 205 / 34%);
@@ -112,8 +114,8 @@
 
 .icon {
   display: block;
-  width: 24px;
-  height: 24px;
+  width: var(--pg-toolbar-icon);
+  height: var(--pg-toolbar-icon);
   color: inherit;
 
   svg {

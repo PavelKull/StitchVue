@@ -5,8 +5,8 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
+  width: var(--pg-scroll-jump-button);
+  height: var(--pg-scroll-jump-button);
   padding: 0;
   border: 0;
   border-radius: 9999px;
@@ -49,9 +49,9 @@
 .comet {
   position: absolute;
   z-index: 0;
-  inset: -6px;
-  width: 56px;
-  height: 56px;
+  inset: calc(-6px * var(--pg-ui-scale));
+  width: calc(56px * var(--pg-ui-scale));
+  height: calc(56px * var(--pg-ui-scale));
   overflow: visible;
   pointer-events: none;
   color: var(--pg-accent);
@@ -81,8 +81,8 @@
   position: relative;
   z-index: 1;
   display: block;
-  width: 22px;
-  height: 22px;
+  width: var(--pg-nav-icon-glyph);
+  height: var(--pg-nav-icon-glyph);
   color: inherit;
   transform: rotate(180deg);
   transition: transform var(--pg-transition-panel) var(--pg-ease-out);

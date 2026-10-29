@@ -1,6 +1,8 @@
 @use "../../../shared/styles/floating-panel" as panel;
 @use "../../../shared/styles/modal-motion" as modal;
 
+@use "../../../shared/styles/modal-chrome" as modalChrome;
+
 .backdrop {
   position: fixed;
   inset: 0;
@@ -8,15 +10,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  @include modalChrome.backdrop-padding;
   overflow: auto;
   background: rgb(0 0 0 / 46%);
   @include modal.modal-backdrop-motion;
 }
 
 .dialog {
-  width: min(420px, 100%);
-  padding: 20px 20px 18px;
+  width: min(calc(420px * var(--pg-ui-scale)), 100%);
+  @include modalChrome.dialog-padding-standard;
   color: var(--pg-text-primary);
   @include panel.floating-panel-surface;
   @include modal.modal-dialog-motion;
@@ -24,14 +26,14 @@
 
 .title {
   margin: 0 0 10px;
-  font-size: 17px;
+  font-size: var(--pg-chrome-font-title);
   font-weight: 500;
   line-height: 1.35;
 }
 
 .body {
   margin: 0 0 16px;
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   line-height: 1.45;
   color: var(--pg-text-secondary);
 }
@@ -44,14 +46,11 @@
 
 .actionButton {
   width: 100%;
-  min-height: 40px;
-  padding: 8px 14px;
+  @include modalChrome.primary-action-button;
   border: 1px solid var(--pg-border);
-  border-radius: var(--pg-radius-control);
   background: transparent;
   color: var(--pg-text-primary);
   font: inherit;
-  font-size: 14px;
   text-align: center;
   cursor: pointer;
 

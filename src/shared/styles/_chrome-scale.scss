@@ -1,0 +1,4 @@
+/// Размер chrome в px при эталонном окне (scale 1), умноженный на --pg-ui-scale.
+@function px($value) {
+  @return calc(#{$value}px * var(--pg-ui-scale));
+}

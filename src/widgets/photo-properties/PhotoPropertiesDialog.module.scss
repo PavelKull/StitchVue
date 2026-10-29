@@ -2,6 +2,8 @@
 @use "../../shared/styles/modal-motion" as modal;
 @use "../../shared/styles/z-index" as z;
 
+@use "../../shared/styles/modal-chrome" as modalChrome;
+
 .backdrop {
   position: fixed;
   inset: 0;
@@ -9,7 +11,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  @include modalChrome.backdrop-padding;
   background: rgb(0 0 0 / 55%);
   @include modal.modal-backdrop-motion;
 }
@@ -18,23 +20,23 @@
   display: flex;
   flex-direction: column;
   @include modal.modal-dialog-motion;
-  width: min(640px, 100%);
-  max-height: min(80vh, 720px);
+  width: min(calc(640px * var(--pg-ui-scale)), 100%);
+  max-height: min(80vh, calc(720px * var(--pg-ui-scale)));
   overflow: hidden;
   color: var(--pg-text-primary);
-  @include panel.floating-surface-radius(22px);
+  @include panel.floating-surface-radius(var(--pg-radius-panel));
 }
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: calc(12px * var(--pg-ui-scale));
+  padding: calc(14px * var(--pg-ui-scale)) calc(16px * var(--pg-ui-scale));
 
   h2 {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--pg-chrome-font-heading);
   }
 }
 
@@ -43,8 +45,8 @@
 }
 
 .closeIcon {
-  width: 18px;
-  height: 18px;
+  width: var(--pg-icon-sm);
+  height: var(--pg-icon-sm);
 
   svg {
     display: block;
@@ -72,8 +74,8 @@
 
 .copyIcon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: var(--pg-nav-icon-glyph);
+  height: var(--pg-nav-icon-glyph);
   color: inherit;
 
   svg {
@@ -86,7 +88,7 @@
 .body {
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 0 16px 16px;
+  padding: 0 calc(16px * var(--pg-ui-scale)) calc(16px * var(--pg-ui-scale));
   scrollbar-width: none;
 
   &::-webkit-scrollbar {
@@ -102,10 +104,10 @@
 
 .row {
   display: grid;
-  grid-template-columns: 160px minmax(0, 1fr);
+  grid-template-columns: calc(160px * var(--pg-ui-scale)) minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+  gap: calc(8px * var(--pg-ui-scale));
+  padding: calc(8px * var(--pg-ui-scale)) 0;
   border-top: 1px solid rgb(255 255 255 / 8%);
 
   dt {

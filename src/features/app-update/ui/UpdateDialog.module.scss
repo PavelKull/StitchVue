@@ -1,23 +1,23 @@
 .title {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0 0 calc(8px * var(--pg-ui-scale));
+  font-size: var(--pg-chrome-font-display);
   font-weight: 500;
   line-height: 1.35;
 }
 
 .meta {
   margin: 0 0 12px;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   line-height: 1.45;
   color: var(--pg-text-secondary);
 }
 
 .notes {
   margin: 0 0 14px;
-  padding: 10px 12px;
+  padding: calc(10px * var(--pg-ui-scale)) calc(12px * var(--pg-ui-scale));
   border-radius: var(--pg-radius-panel);
   background: rgb(255 255 255 / 4%);
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   line-height: 1.5;
   white-space: pre-wrap;
   color: var(--pg-text-secondary);
@@ -25,14 +25,14 @@
 
 .hint {
   margin: 0 0 14px;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   line-height: 1.45;
   color: var(--pg-text-secondary);
 }
 
 .error {
   margin: 0 0 14px;
-  font-size: 13px;
+  font-size: var(--pg-chrome-font-md);
   line-height: 1.45;
   color: var(--pg-danger, #ff6b7a);
 }
@@ -62,10 +62,10 @@
 .primary,
 .secondary,
 .ghost {
-  min-height: 36px;
-  padding: 0 14px;
+  min-height: var(--pg-dialog-button-height);
+  padding: 0 calc(14px * var(--pg-ui-scale));
   border-radius: var(--pg-radius-control);
-  font-size: 14px;
+  font-size: var(--pg-chrome-font-lg);
   cursor: pointer;
 }
 
@@ -90,6 +90,6 @@
   border: 0;
   background: transparent;
   color: var(--pg-text-secondary);
-  font-size: 12px;
+  font-size: var(--pg-chrome-font-sm);
   text-decoration: underline;
 }
