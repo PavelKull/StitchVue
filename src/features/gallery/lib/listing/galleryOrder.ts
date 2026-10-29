@@ -153,3 +153,27 @@ export function viewerIndexAfterRemoval(
   }
   return null;
 }
+
+/**
+ * Синхронизация viewer после смены ordered-списка.
+ * Путь на месте — пересчитать индекс; путь пропал, но индекс уже на оставшемся
+ * кадре (delete/restore сдвинули viewer) — оставить; иначе закрыть.
+ */
+export function reconcileOpenViewerPath(
+  orderedPaths: readonly string[],
+  viewedPath: string | null,
+  openIndex: number | null,
+): { index: number | null; path: string | null } {
+  if (viewedPath === null || openIndex === null) {
+    return { index: openIndex, path: viewedPath };
+  }
+  const found = orderedPaths.indexOf(viewedPath);
+  if (found >= 0) {
+    return { index: found, path: viewedPath };
+  }
+  const neighbor = orderedPaths[openIndex];
+  if (neighbor !== undefined) {
+    return { index: openIndex, path: neighbor };
+  }
+  return { index: null, path: null };
+}

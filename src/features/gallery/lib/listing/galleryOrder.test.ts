@@ -12,6 +12,7 @@ import {
   photoDateLabel,
   sortPhotos,
   viewerIndexAfterRemoval,
+  reconcileOpenViewerPath,
   type GallerySort,
 } from "./galleryOrder.ts";
 import { displayAspect, tilePhotoStyle } from "../viewer/displayRotation.ts";
@@ -63,6 +64,27 @@ test("removal keeps the next photo, then the previous", () => {
   assert.equal(viewerIndexAfterRemoval(paths, 0, new Set(["a"])), 0);
   assert.equal(viewerIndexAfterRemoval(paths, 2, new Set(["c"])), 1);
   assert.equal(viewerIndexAfterRemoval(paths, 1, new Set(["a", "b", "c"])), null);
+});
+
+test("reconcile keeps viewer on neighbor after open path leaves the list", () => {
+  const paths = ["a", "b", "c"];
+  assert.deepEqual(reconcileOpenViewerPath(paths, "b", 1), {
+    index: 1,
+    path: "b",
+  });
+  // После delete index уже сдвинут на следующий кадр в новом списке.
+  assert.deepEqual(reconcileOpenViewerPath(["b", "c"], "a", 0), {
+    index: 0,
+    path: "b",
+  });
+  assert.deepEqual(reconcileOpenViewerPath(["a", "b"], "c", 1), {
+    index: 1,
+    path: "b",
+  });
+  assert.deepEqual(reconcileOpenViewerPath([], "a", 0), {
+    index: null,
+    path: null,
+  });
 });
 
 test("sidebar width stays inside 220 and 45 percent", () => {

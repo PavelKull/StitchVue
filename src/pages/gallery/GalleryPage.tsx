@@ -52,6 +52,7 @@ import {
     sortOrderName,
     sortPhotos,
     viewerIndexAfterRemoval,
+    reconcileOpenViewerPath,
     type GallerySort,
 } from '../../features/gallery/lib/listing/galleryOrder';
 import {
@@ -1777,16 +1778,26 @@ export function GalleryPage() {
         if (!path || viewerIndexRef.current === null) {
             return;
         }
-        const next = orderedImages.findIndex(
-            (file) => pathKey(file.path) === pathKey(path),
+        const keyedPath = pathKey(path);
+        const reconciled = reconcileOpenViewerPath(
+            orderedImages.map((file) => pathKey(file.path)),
+            keyedPath,
+            viewerIndexRef.current,
         );
-        if (next < 0) {
+        if (reconciled.index === null || reconciled.path === null) {
             setViewerIndex(null);
             viewedPathRef.current = null;
             return;
         }
-        if (next !== viewerIndexRef.current) {
-            setViewerIndex(next);
+        // Delete/restore уже сдвинули индекс: не закрывать viewer, принять соседний кадр.
+        if (reconciled.path !== keyedPath) {
+            const neighbor = orderedImages[reconciled.index];
+            if (neighbor) {
+                viewedPathRef.current = neighbor.path;
+            }
+        }
+        if (reconciled.index !== viewerIndexRef.current) {
+            setViewerIndex(reconciled.index);
         }
     }, [orderStamp, orderedImages]);
     const orderedKeys = useMemo(
