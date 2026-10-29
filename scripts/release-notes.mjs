@@ -16,6 +16,7 @@ const SCOPE_LABELS = {
   viewer: "Просмотр",
   selection: "Выделение",
   folder: "Папки",
+  "adaptive-ui": "Интерфейс",
   "app-update": "Обновления",
   update: "Обновления",
   installer: "Установщик",
@@ -23,6 +24,23 @@ const SCOPE_LABELS = {
 };
 
 const USER_FACING = /^(feat|fix|perf)(?:\(([^)]+)\))?!?:\s*(.+)$/i;
+
+/** Краткий текст диалога обновления (важнее авто-сборки из git). */
+const RELEASE_BODY_OVERRIDES = {
+  "0.1.7": [
+    "Что нового в 0.1.7",
+    "",
+    "Новое",
+    "• Адаптивный интерфейс: панели и плитки папок под размер окна",
+    "",
+    "Исправления",
+    "• Галерея: сортировка по имени по умолчанию",
+    "• Галерея: папки открываются без мигания; подсказка «открывается» только при долгой загрузке",
+    "• Галерея: «вниз» доводит до конца, пока папка догружается",
+    "• Галерея: просмотр не закрывается после удаления и восстановления",
+    "• Обновления: понятнее прогресс загрузки",
+  ].join("\n"),
+};
 
 export function formatReleaseNotes(version, subjects) {
   const cleanVersion = String(version ?? "").replace(/^v/, "").trim() || "—";
@@ -120,6 +138,10 @@ function git(args) {
 }
 
 export function notesForTag(tag) {
+  const version = String(tag ?? "").replace(/^v/, "").trim();
+  if (RELEASE_BODY_OVERRIDES[version]) {
+    return RELEASE_BODY_OVERRIDES[version];
+  }
   const tags = git(["tag", "--list", "v*"]).split(/\r?\n/).filter(Boolean);
   const previous = previousReleaseTag(tags, tag);
   const range = previous ? `${previous}..HEAD` : "HEAD";

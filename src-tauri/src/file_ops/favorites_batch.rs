@@ -35,6 +35,7 @@ pub struct FavoriteBatchRemoveItem {
 }
 
 /// T040 / R9: бакеты preview для массового снятия избранного.
+#[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PreviewConfirmBucket {
     Fr11Required,
@@ -44,6 +45,7 @@ pub enum PreviewConfirmBucket {
 }
 
 /// Сгруппированный результат preview (эквивалент Vec + классификация для UI).
+#[cfg(test)]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FavoriteBatchPreviewBuckets {
@@ -56,6 +58,7 @@ pub struct FavoriteBatchPreviewBuckets {
 }
 
 /// CL-P03: UnknownOrigin / Ambiguous → `fr11Required`; прочий needs_confirm → standardConfirm; ready → ready.
+#[cfg(test)]
 pub fn classify_preview_bucket(result: &RemoveFavoriteCopyResult) -> PreviewConfirmBucket {
     match result.status.as_str() {
         "ready" => PreviewConfirmBucket::Ready,
@@ -76,6 +79,7 @@ pub fn classify_preview_bucket(result: &RemoveFavoriteCopyResult) -> PreviewConf
     }
 }
 
+#[cfg(test)]
 pub fn bucket_preview_results(rows: Vec<FavoriteBatchPathResult>) -> FavoriteBatchPreviewBuckets {
     let mut fr11_required = Vec::new();
     let mut standard_confirm = Vec::new();
@@ -127,6 +131,7 @@ pub fn preview_remove_favorite_copies(
 }
 
 /// T040: тот же preview, сразу разложенный по бакетам fr11Required / standardConfirm / ready.
+#[cfg(test)]
 pub fn preview_remove_favorite_copies_bucketed(
     db_mutex: &Mutex<rusqlite::Connection>,
     paths: &[String],

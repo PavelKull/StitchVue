@@ -21,6 +21,7 @@ mod favorites_bench;
 mod favorites_copy_recovery;
 #[cfg(test)]
 mod favorites_trash_lifecycle;
+#[cfg(test)]
 mod favorites_trash_lifecycle_final;
 #[cfg(test)]
 mod favorites_lifecycle;
@@ -1359,8 +1360,10 @@ pub fn is_service_folder_name(name: &str) -> bool {
     is_trash_folder_name(name) || is_favorites_folder_name(name)
 }
 
+#[cfg(test)]
 pub const COPY_CHANGED: &str = "Копия в избранном изменена. Файл не удалён.";
 
+#[cfg(test)]
 pub fn confirm_copy_unchanged(
     copy: &Path,
     recorded_size: u64,

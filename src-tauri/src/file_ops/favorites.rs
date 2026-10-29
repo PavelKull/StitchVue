@@ -239,6 +239,7 @@ pub(crate) enum Plan {
         origin: PathBuf,
         snapshot: FavoriteSnapshot,
     },
+    #[allow(dead_code)] // ветка dispatch; plan_removal сейчас не строит Relocate
     Relocate {
         copy: PathBuf,
         parent: PathBuf,
@@ -399,6 +400,7 @@ pub fn preview_plan(plan: &Plan) -> RemoveFavoriteCopyResult {
 }
 
 /// Classify only — no recycle/relocate. Used to batch-confirm before a background pass.
+#[cfg(test)]
 pub fn preview_remove_favorite_copy(
     db: &rusqlite::Connection,
     path: &str,
@@ -437,6 +439,7 @@ pub(crate) fn remove_favorite_copy_distributed_with_scan(
 /// Monolithic path (single `Connection` held for FS). Production uses `remove_favorite_copy_distributed`.
 /// Safe removal candidate: delegate Tauri `pipeline::remove_favorite_copy` already uses distributed;
 /// keep this only if external callers need in-process `Connection` tests without a mutex.
+#[cfg(test)]
 pub fn remove_favorite_copy(
     db: &rusqlite::Connection,
     path: &str,
@@ -525,6 +528,7 @@ fn dispatch_fr11_needs_confirm_distributed(
     }
 }
 
+#[cfg(test)]
 fn dispatch_fr11_needs_confirm_on_conn(
     db: &rusqlite::Connection,
     kind: ConfirmKind,
@@ -627,6 +631,7 @@ fn dispatch_removal_plan(
     }
 }
 
+#[cfg(test)]
 fn dispatch_removal_plan_on_conn(
     db: &rusqlite::Connection,
     plan: Plan,
@@ -728,7 +733,7 @@ fn dispatch_origin_in_trash_on_conn(
         (Some(_), Plan::Recycle { .. }) => {
             Ok(RemoveFavoriteCopyResult::skipped("plan_changed"))
         }
-        (None, Plan::OriginInTrash { .. }) | (Some(_), _) if confirmed => {
+        (None, Plan::OriginInTrash { .. }) if confirmed => {
             Err("Выберите действие для копии в избранном.".to_string())
         }
         (None, _) => Err("Выберите действие для копии в избранном.".to_string()),
@@ -835,15 +840,6 @@ fn restore_origin_keep_favorite_on_conn(
         reconcile_suggested: None,
         fr11_required: None,
     })
-}
-
-fn restore_origin_keep_favorite_distributed(
-    db_mutex: &Mutex<rusqlite::Connection>,
-    copy: &Path,
-    snapshot: &FavoriteSnapshot,
-    trash_path: &Path,
-) -> Result<RemoveFavoriteCopyResult, String> {
-    with_db(db_mutex, |db| restore_origin_keep_favorite_on_conn(db, copy, snapshot, trash_path))
 }
 
 fn recycle_distributed(
@@ -1586,6 +1582,7 @@ fn scan_parent_for_identical(
     })
 }
 
+#[cfg(test)]
 fn execute_recycle(
     db: &rusqlite::Connection,
     copy: &Path,
@@ -1684,6 +1681,7 @@ fn assert_relocate_identity_gate(
     assert_identity_allows_write(target, copy, expected_sha, files_bytes_identical)
 }
 
+#[cfg(test)]
 pub(crate) fn execute_relocate(
     db: &rusqlite::Connection,
     copy: &Path,

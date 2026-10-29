@@ -140,6 +140,7 @@ fn aspects_match(w1: u32, h1: u32, w2: u32, h2: u32) -> bool {
     ratio > 0.9 && ratio < 1.11
 }
 
+#[cfg(test)]
 pub struct Rendered {
     pub tiers: Vec<(u32, Vec<u8>)>,
     pub width: u32,
@@ -331,6 +332,7 @@ pub fn decode_owned(bytes: Arc<Vec<u8>>, candidate: Option<Format>) -> Result<So
     }
 }
 
+#[cfg(test)]
 pub fn render(source: Source, tiers: &[u32]) -> Result<Rendered, DecodeError> {
     let mut encoded = Vec::with_capacity(tiers.len());
     let (width, height, orientation) = render_each(source, tiers, |tier, bytes, _, _, _| {

@@ -294,6 +294,7 @@ const SNAPSHOT_SELECT: &str = "SELECT origin_path, origin_size, origin_modified_
     copy_size, copy_modified_at, content_sha256, record_version
     FROM favorite_copies";
 
+#[allow(dead_code)] // заменено на load_favorite_snapshots_in_directory_scope
 pub(crate) fn load_all_favorite_snapshots(
     conn: &Connection,
 ) -> Result<Vec<FavoriteSnapshot>, String> {

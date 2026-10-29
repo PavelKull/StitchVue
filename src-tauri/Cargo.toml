@@ -1,6 +1,6 @@
 [package]
 name = "stitchvue"
-version = "0.1.6"
+version = "0.1.7"
 description = "Fast photo gallery for large folders on Windows"
 authors = ["StitchVue"]
 license = "MIT"
@@ -82,13 +82,7 @@ opt-level = 3
 [profile.dev.package.heic-rs]
 opt-level = 3
 
-[profile.dev.package.rust_h265]
-opt-level = 3
-
 [profile.test.package.heic-rs]
-opt-level = 3
-
-[profile.test.package.rust_h265]
 opt-level = 3
 
 [profile.dev.package.rawler]

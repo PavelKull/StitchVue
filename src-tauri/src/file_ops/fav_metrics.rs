@@ -4,6 +4,7 @@ use std::time::Duration;
 
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
+#[cfg(test)]
 pub fn set_enabled_from_env() {
     let on = std::env::var_os("STITCHVUE_FAV_METRICS").is_some_and(|v| v != "0" && v != "false");
     ENABLED.store(on, Ordering::Relaxed);
@@ -13,6 +14,7 @@ fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
+#[cfg(test)]
 pub fn reset() {
     READ_DIR_CALLS.store(0, Ordering::Relaxed);
     BYTE_COMPARE_PAIRS.store(0, Ordering::Relaxed);
