@@ -1,20 +1,55 @@
 # StitchVue
 
-Desktop gallery for large photo folders on **Windows**. Built with Tauri 2, Rust, React, and TypeScript.
+[![CI](https://github.com/PavelKull/StitchVue/actions/workflows/ci.yml/badge.svg)](https://github.com/PavelKull/StitchVue/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/PavelKull/StitchVue)](https://github.com/PavelKull/StitchVue/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 
-![StitchVue mosaic view with sidebar and panels](docs/screenshots/mosaic.png)
+**High-performance Windows photo gallery for large local image libraries.**  
+Built with **Tauri 2**, **Rust**, **React**, and **TypeScript**.
 
-StitchVue is meant for browsing very large local image libraries: fast folder navigation, justified grid layout, background thumbnail generation with disk cache, favorites (copies under a service folder), a local trash for safe deletes, and a built-in image viewer. Your original photos stay where you put them; the app stores only cache and library metadata under its app data folder (see below).
+[**Download StitchVue v0.1.7**](https://github.com/PavelKull/StitchVue/releases/tag/v0.1.7) · [All releases](https://github.com/PavelKull/StitchVue/releases) · [Engineering notes](./docs/ENGINEERING.md)
+
+![StitchVue mosaic gallery with sidebar](docs/screenshots/mosaic.png)
+
+StitchVue is built for folders with tens of thousands of photos: virtualized justified grid, background thumbnail pipeline with on-disk SQLite cache, session-safe folder switching, favorites (copies under a service folder), local trash, and an integrated viewer. Originals stay on disk where you put them; the app stores only cache and library metadata under `%LOCALAPPDATA%\StitchVue\`.
 
 ## Screenshots
 
+**Justified columns layout**
+
 ![Columns layout](docs/screenshots/Columns.jpg)
+
+**Multi-select in the grid**
 
 ![Multi-select in grid](docs/screenshots/select.jpg)
 
+**Integrated image viewer**
+
 ![Image viewer](docs/screenshots/one-image.jpg)
 
+**Settings**
+
 ![Settings](docs/screenshots/settings.jpg)
+
+## Engineering highlights
+
+These are the hard parts the UI alone does not show. Short walkthrough: [`docs/ENGINEERING.md`](./docs/ENGINEERING.md). Module map: [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md).
+
+| Challenge | Approach |
+|-----------|----------|
+| Scroll tens of thousands of tiles without freezing the UI | Virtualized justified grid; only the viewport (plus a small overscan) mounts DOM nodes |
+| Keep the UI responsive while decoding thumbnails | Rust background pipeline with prioritized workers; frontend batches `thumbnail-ready` updates |
+| Avoid wrong images after fast folder switches | Monotonic directory `session` on both sides; stale IPC events are dropped (`directorySession`) |
+| Survive reopen without re-decoding everything | SQLite-backed thumbnail cache keyed by path + size + mtime |
+| Favorites without blocking the grid | Optimistic UI with rollback; file ops claim/complete on the Rust side |
+
+```mermaid
+flowchart LR
+  UI["React gallery"] -->|"begin_directory_session"| Pipe["Rust Pipeline"]
+  Pipe -->|"images-batch / metadata / thumbs"| UI
+  Pipe --> Cache["SQLite + disk thumbs"]
+  UI -->|"session guard"| Filter["Drop stale events"]
+```
 
 ## Features
 
@@ -32,20 +67,20 @@ StitchVue is meant for browsing very large local image libraries: fast folder na
 
 ## Install
 
-When a release is published on GitHub:
-
-1. Open [Releases](https://github.com/PavelKull/StitchVue/releases) for this repository.
-2. Download the **NSIS** setup executable (`.exe`) for the latest version.
+1. Open the latest release: [**v0.1.7**](https://github.com/PavelKull/StitchVue/releases/tag/v0.1.7) (or [Releases](https://github.com/PavelKull/StitchVue/releases)).
+2. Download the **NSIS** setup executable (`.exe`).
 3. Run the installer and launch StitchVue from the Start menu.
 
-After a signed GitHub Release is published as **Latest** (with `latest.json` and `.sig`), the app can check for updates on launch and from **Settings → About → Check for updates**. Installation starts only after you click **Update**. Until CI publishes signed updater artifacts, use the NSIS installer from Releases.
+After a signed GitHub Release is published as **Latest** (with `latest.json` and `.sig`), the app can check for updates on launch and from **Settings → About → Check for updates**. Installation starts only after you click **Update**.
 
 ## Report bugs
 
-- **In the app:** Settings → About → open the GitHub issues link (uses the repository URL configured in the app).
-- **On GitHub:** [Issues](https://github.com/PavelKull/StitchVue/issues) — use “New issue” or the direct new-issue URL: `https://github.com/PavelKull/StitchVue/issues/new`.
+- **In the app:** Settings → About → open the GitHub issues link.
+- **On GitHub:** [New issue](https://github.com/PavelKull/StitchVue/issues/new).
 
 Please include Windows version, app version, and steps to reproduce when you can.
+
+Maintainer working journal (not a release QA checklist): [`docs/stabilization/BUGS.md`](./docs/stabilization/BUGS.md).
 
 ## App data (not your photos)
 
@@ -64,17 +99,17 @@ npm install
 npm run tauri dev
 ```
 
-The first launch compiles Rust and can take several minutes.
+The first launch compiles Rust and can take several minutes. Checks used in CI: `npm run typecheck`, `npm test`, `cargo test --manifest-path src-tauri/Cargo.toml --locked`.
 
 ## Documentation
 
-Technical docs live under [`docs/`](./docs/DEVELOPMENT.md):
-
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — module map and data flows
-- [`docs/INVARIANTS.md`](./docs/INVARIANTS.md) — business invariants
-- [`docs/IPC.md`](./docs/IPC.md) — Tauri commands and events
-- [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) — scripts, layout, tests
-- [`docs/refactoring/TASK_HANDOFF.md`](./docs/refactoring/TASK_HANDOFF.md) — safe refactoring handoff
+| Doc | Purpose |
+|-----|---------|
+| [`docs/ENGINEERING.md`](./docs/ENGINEERING.md) | Portfolio-oriented case study (problems → decisions → how to verify) |
+| [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) | Module map and data flows |
+| [`docs/INVARIANTS.md`](./docs/INVARIANTS.md) | Business invariants |
+| [`docs/IPC.md`](./docs/IPC.md) | Tauri commands and events |
+| [`docs/DEVELOPMENT.md`](./docs/DEVELOPMENT.md) | Scripts, layout, tests |
 
 ## License
 
@@ -82,6 +117,4 @@ MIT — see [`LICENSE`](./LICENSE).
 
 ## Releases (maintainers)
 
-Closed testing and public release steps: [`docs/release/RELEASING.md`](./docs/release/RELEASING.md).
-
-Repository: [https://github.com/PavelKull/StitchVue](https://github.com/PavelKull/StitchVue)
+Closed testing and public release steps: [`docs/release/RELEASING.md`](./docs/release/RELEASING.md). Tag pushes (`v*`) run the [release workflow](./.github/workflows/release.yml); every PR/push to `main` runs [CI](./.github/workflows/ci.yml).

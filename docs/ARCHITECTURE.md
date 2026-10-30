@@ -1,6 +1,6 @@
 # Архитектура StitchVue
 
-Краткая карта для разработчиков и AI-агентов. Поведение — только то, что подтверждено кодом. Детали IPC: [`IPC.md`](IPC.md). Инварианты: [`INVARIANTS.md`](INVARIANTS.md). Процесс рефакторинга: [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md).
+Краткая карта модулей и потоков данных. Поведение — только то, что подтверждено кодом. Портфолио-обзор на английском: [`ENGINEERING.md`](ENGINEERING.md). Детали IPC: [`IPC.md`](IPC.md). Инварианты: [`INVARIANTS.md`](INVARIANTS.md). Процесс рефакторинга: [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md).
 
 ## Стек и вход
 

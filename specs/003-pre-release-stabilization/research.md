@@ -1,7 +1,7 @@
 # Research & Decisions: 003-pre-release-stabilization
 
 **Date**: 2026-10-19  
-**Sources**: [`BUGS.md`](../../BUGS.md), [`docs/stabilization/BUGS_REVALIDATION_REPORT.md`](../../docs/stabilization/BUGS_REVALIDATION_REPORT.md), code on `main` `2b709cd`
+**Sources**: [`docs/stabilization/BUGS.md`](../../docs/stabilization/BUGS.md), [`docs/stabilization/BUGS_REVALIDATION_REPORT.md`](../../docs/stabilization/BUGS_REVALIDATION_REPORT.md), code on `main` `2b709cd`
 
 No new full-app audit. Decisions below lock planning; LIKELY items still require the listed diagnosis at implementation time.
 
