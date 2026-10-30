@@ -8,7 +8,7 @@
 
 | | |
 |---|---|
-| Каталог | `C:\Users\Pavel\Desktop\ImageGrid` |
+| Checkout | локальный клон репозитория StitchVue |
 | Ветка задачи | `docs/revalidate-bugs` |
 | База | `main` `2b709cd70ffecc482347ffeb19eef3e329809cf5` |
 | Сообщение HEAD | `docs(git): enforce one-checkout branches-only policy` |

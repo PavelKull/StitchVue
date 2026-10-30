@@ -8,7 +8,7 @@
 
 **Status**: Draft — ready for owner review of spec + plan + tasks (no application source in this phase)
 
-**Input**: Revalidated [`BUGS.md`](../../BUGS.md) (B-001–B-011, C-001–C-006) + [`docs/stabilization/BUGS_REVALIDATION_REPORT.md`](../../docs/stabilization/BUGS_REVALIDATION_REPORT.md)
+**Input**: Revalidated [`docs/stabilization/BUGS.md`](../../docs/stabilization/BUGS.md) (B-001–B-011, C-001–C-006) + [`docs/stabilization/BUGS_REVALIDATION_REPORT.md`](../../docs/stabilization/BUGS_REVALIDATION_REPORT.md)
 
 **Priority**: High — first-release gallery/viewer/favorites UX; **not** file-safety P0 (001) and **not** real updater (002)
 
@@ -16,7 +16,7 @@
 
 | Document | Role |
 |----------|------|
-| [`BUGS.md`](../../BUGS.md) | Canonical symptoms, repro, evidence status |
+| [`docs/stabilization/BUGS.md`](../../docs/stabilization/BUGS.md) | Canonical symptoms, repro, evidence status |
 | [`docs/stabilization/BUGS_REVALIDATION_REPORT.md`](../../docs/stabilization/BUGS_REVALIDATION_REPORT.md) | Architecture mapping after backend/FSD/P0–P6 |
 | [`docs/INVARIANTS.md`](../../docs/INVARIANTS.md) | I1–I10; I8 originals; I9 scheduler UNVERIFIED |
 | [`specs/001-safe-favorites-lifecycle/`](../001-safe-favorites-lifecycle/) | Overlay, batch, reconcile — reuse, do not fork |

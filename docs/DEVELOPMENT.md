@@ -1,15 +1,10 @@
 # Разработка StitchVue
 
-Команды и структура репозитория. Архитектура: [`ARCHITECTURE.md`](ARCHITECTURE.md). Безопасный рефакторинг: [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md), шаблон [`refactoring/TASK_TEMPLATE.md`](refactoring/TASK_TEMPLATE.md).
+Команды и структура репозитория. Архитектура: [`ARCHITECTURE.md`](ARCHITECTURE.md). Краткий engineering overview (EN): [`ENGINEERING.md`](ENGINEERING.md). Безопасный рефакторинг: [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md), шаблон [`refactoring/TASK_TEMPLATE.md`](refactoring/TASK_TEMPLATE.md).
 
-## Git: один каталог, много веток
+## Git: один checkout, много веток
 
-Канон для агентов и людей: [`.cursor/rules/git-branch-workflow.mdc`](../.cursor/rules/git-branch-workflow.mdc).
-
-- Рабочий checkout: `C:\Users\Pavel\Desktop\ImageGrid`. Задачи — в обычных ветках (`feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`).
-- Не создавать `git worktree`, дополнительные папки рядом с `ImageGrid` или клоны «для изоляции» без явного разрешения владельца.
-- Spec-Kit и рефакторинг выполняются в текущем checkout; крупный рефакторинг — та же папка, отдельная ветка.
-- Перед сменой ветки: чистый `git status` или согласование владельца (без auto-stash / worktree как обхода dirty tree).
+Рабочий процесс — один клон репозитория и обычные ветки (`feat/*`, `fix/*`, `refactor/*`, `chore/*`, `docs/*`), без дополнительных worktree/клонов «для изоляции». Перед сменой ветки — чистый `git status` или явное согласование незакоммиченных изменений. Внутренние правила для AI-агентов (если используете Cursor): [`.cursor/rules/`](../.cursor/rules/).
 
 ## Запуск
 
@@ -56,10 +51,9 @@ node --experimental-strip-types --test src/features/gallery/lib/directory/direct
 src/                 React (app, pages, widgets, features, entities, shared)
 src-tauri/src/       Rust (lib, commands, pipeline, thumbnail, cache, scanner, file_ops, …)
 docs/                Техническая документация (этот каталог)
-docs/refactoring/    Процесс задач агентов
-.cursor/rules/       Always-on правила агентов (в т.ч. git-branch-workflow)
-.cursor/agents/      Специализированные агенты
-.cursor/skills/      Skills (в т.ч. docs-sync)
+docs/refactoring/    Процесс безопасного рефакторинга
+docs/stabilization/  Журнал багов и smoke-заметки
+.cursor/             Опционально: правила/skills для AI-ассистентов в Cursor
 scripts/             node-утилиты (task-check, i18n-check)
 ```
 
@@ -67,10 +61,12 @@ scripts/             node-утилиты (task-check, i18n-check)
 
 | Файл | Содержание |
 |------|------------|
+| [`ENGINEERING.md`](ENGINEERING.md) | Краткий case study (EN) |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Модули и потоки |
 | [`INVARIANTS.md`](INVARIANTS.md) | Бизнес-инварианты |
 | [`IPC.md`](IPC.md) | Команды и события |
 | [`DEVELOPMENT.md`](DEVELOPMENT.md) | Этот файл |
-| [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md) | Маршруты агентов / гейты |
+| [`stabilization/BUGS.md`](stabilization/BUGS.md) | Maintainer bug journal |
+| [`refactoring/TASK_HANDOFF.md`](refactoring/TASK_HANDOFF.md) | Гейты рефакторинга |
 
 После архитектурных изменений обновлять docs через skill `docs-sync` (пути в `.cursor/skills/docs-sync/SKILL.md`).
